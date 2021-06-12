@@ -3,9 +3,8 @@
 
 #include "TetherGameModeBase.h"
 
-
-#include "Tether.h"
 #include "Character/TetherCharacter.h"
+#include "NiagaraFunctionLibrary.h"
 
 ATetherGameModeBase::ATetherGameModeBase()
 {
@@ -23,6 +22,14 @@ void ATetherGameModeBase::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	CheckAllTethers();
+}
+
+void ATetherGameModeBase::BeginPlay()
+{
+	Super::BeginPlay();
+
+	TetherEffectComponent = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), TetherEffectSystem, FVector::ZeroVector);
+	TetherEffectComponent->SetVisibility(false);
 }
 
 
@@ -50,11 +57,6 @@ void ATetherGameModeBase::CheckAllTethers()
 					Tethers.Emplace(FirstPlayer, SecondPlayer);
 				}
 			}
-		}
-
-		for (const TPair<const APlayerController*, const APlayerController*>& Tether : Tethers)
-		{
-			UE_LOG(LogTetherGame, VeryVerbose, TEXT("%s is tethered to %s"), *GetNameSafe(Tether.Key), *GetNameSafe(Tether.Value))
 		}
 	}
 }
@@ -85,8 +87,20 @@ bool ATetherGameModeBase::ArePlayersTethered(const APlayerController* FirstPlaye
 
 		if (!bHitAnything || HitResult.GetActor() == SecondCharacter)
 		{
+			if (TetherEffectComponent)
+			{
+				TetherEffectComponent->SetVisibility(true);
+				TetherEffectComponent->SetVectorParameter(TEXT("StartLocation"), FirstCharacter->GetTetherTargetLocation());
+				TetherEffectComponent->SetVectorParameter(TEXT("EndLocation"), SecondCharacter->GetTetherTargetLocation());
+            }
+			
 			return true;
 		}
+	}
+
+	if (TetherEffectComponent)
+	{
+		TetherEffectComponent->SetVisibility(false);
 	}
 
 	return false;

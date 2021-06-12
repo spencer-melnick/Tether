@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
+#include "NiagaraComponent.h"
 #include "TetherGameModeBase.generated.h"
 
 /**
@@ -22,6 +23,7 @@ public:
 	// Actor overrides
 
 	virtual void Tick(float DeltaSeconds) override;
+	virtual void BeginPlay() override;
 
 
 	// Editor properties
@@ -32,6 +34,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tether")
 	TEnumAsByte<ECollisionChannel> TetherTraceChannel;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tether")
+	UNiagaraSystem* TetherEffectSystem;
 
 private:
 
@@ -39,5 +43,11 @@ private:
 
 	void CheckAllTethers();
 	bool ArePlayersTethered(const APlayerController* FirstPlayer, const APlayerController* SecondPlayer) const;
+
+
+	// Tether effects
+
+	UPROPERTY(Transient)
+	UNiagaraComponent* TetherEffectComponent;
 	
 };
