@@ -13,5 +13,9 @@ UCLASS()
 class TETHER_API ATetherGameModeBase : public AGameModeBase
 {
 	GENERATED_BODY()
+
+public:
+
+	ATetherGameModeBase();
 	
 };

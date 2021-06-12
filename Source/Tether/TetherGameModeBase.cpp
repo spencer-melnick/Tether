@@ -3,3 +3,9 @@
 
 #include "TetherGameModeBase.h"
 
+#include "Character/TetherCharacter.h"
+
+ATetherGameModeBase::ATetherGameModeBase()
+{
+	DefaultPawnClass = ATetherCharacter::StaticClass();
+}
