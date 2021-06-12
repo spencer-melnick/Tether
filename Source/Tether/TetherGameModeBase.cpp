@@ -4,6 +4,7 @@
 #include "TetherGameModeBase.h"
 
 #include "Character/TetherCharacter.h"
+#include "Edison/EdisonActor.h"
 #include "NiagaraFunctionLibrary.h"
 
 ATetherGameModeBase::ATetherGameModeBase()
@@ -28,12 +29,39 @@ void ATetherGameModeBase::BeginPlay()
 {
 	Super::BeginPlay();
 
-	TetherEffectComponent = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), TetherEffectSystem, FVector::ZeroVector);
-	TetherEffectComponent->SetVisibility(false);
+	SpawnEdisons();
 }
 
 
 // Tether functions
+
+void ATetherGameModeBase::SpawnEdisons()
+{
+	UWorld* World = GetWorld();
+	if (World && TetherEffectClass)
+	{
+		for (FConstPlayerControllerIterator FirstIterator = World->GetPlayerControllerIterator(); FirstIterator; ++FirstIterator)
+		{
+			const APlayerController* FirstPlayer = FirstIterator->Get();
+			const ATetherCharacter* FirstCharacter = FirstPlayer ? FirstPlayer->GetPawn<ATetherCharacter>() : nullptr;
+
+			EdisonMap.Emplace(FirstPlayer);
+			
+			for (FConstPlayerControllerIterator SecondIterator = FirstIterator + 1; SecondIterator; ++SecondIterator)
+			{
+				const APlayerController* SecondPlayer = SecondIterator->Get();
+				const ATetherCharacter* SecondCharacter = SecondPlayer ? SecondPlayer->GetPawn<ATetherCharacter>() : nullptr;
+
+				if (FirstCharacter && SecondCharacter)
+				{
+					AEdisonActor* NewEdison = World->SpawnActor<AEdisonActor>(TetherEffectClass);
+					Edisons.Add(NewEdison);
+					EdisonMap[FirstPlayer].Emplace(SecondPlayer, NewEdison);
+				}
+			}
+		}
+	}
+}
 
 void ATetherGameModeBase::CheckAllTethers()
 {
@@ -45,28 +73,43 @@ void ATetherGameModeBase::CheckAllTethers()
 		for (FConstPlayerControllerIterator FirstIterator = World->GetPlayerControllerIterator(); FirstIterator; ++FirstIterator)
 		{
 			const APlayerController* FirstPlayer = FirstIterator->Get();
+			const ATetherCharacter* FirstCharacter = FirstPlayer ? FirstPlayer->GetPawn<ATetherCharacter>() : nullptr;
 			
 			for (FConstPlayerControllerIterator SecondIterator = FirstIterator + 1; SecondIterator; ++SecondIterator)
 			{
 				const APlayerController* SecondPlayer = SecondIterator->Get();
-
-				if (FirstPlayer && SecondPlayer && ArePlayersTethered(FirstPlayer, SecondPlayer))
+				const ATetherCharacter* SecondCharacter = SecondPlayer ? SecondPlayer->GetPawn<ATetherCharacter>() : nullptr;
+				
+				AEdisonActor* EdisonActor = EdisonMap[FirstPlayer][SecondPlayer];
+				bool bAreCharactersTethered = false;
+				
+				if (FirstCharacter && SecondCharacter)
 				{
-					AllTetheredPlayers.Add(FirstPlayer);
-					AllTetheredPlayers.Add(SecondPlayer);
-					Tethers.Emplace(FirstPlayer, SecondPlayer);
+					bAreCharactersTethered = AreCharactersTethered(FirstCharacter, SecondCharacter);
+					if (bAreCharactersTethered)
+					{
+						AllTetheredPlayers.Add(FirstPlayer);
+						AllTetheredPlayers.Add(SecondPlayer);
+						Tethers.Emplace(FirstPlayer, SecondPlayer);
+					}
+				}
+
+				if (EdisonActor)
+				{
+					EdisonActor->SetTetherVisibility(bAreCharactersTethered);
+
+					if (FirstCharacter && SecondCharacter)
+					{
+						EdisonActor->SetEndpoints(FirstCharacter->GetTetherTargetLocation(), SecondCharacter->GetTetherTargetLocation());
+					}
 				}
 			}
 		}
 	}
 }
 
-bool ATetherGameModeBase::ArePlayersTethered(const APlayerController* FirstPlayer, const APlayerController* SecondPlayer) const
+bool ATetherGameModeBase::AreCharactersTethered(const ATetherCharacter* FirstCharacter, const ATetherCharacter* SecondCharacter) const
 {
-	ensure(FirstPlayer && SecondPlayer);
-
-	const ATetherCharacter* FirstCharacter = FirstPlayer ? FirstPlayer->GetPawn<ATetherCharacter>() : nullptr;
-	const ATetherCharacter* SecondCharacter = SecondPlayer ? SecondPlayer->GetPawn<ATetherCharacter>() : nullptr;
 	const UWorld* World = GetWorld();
 	
 	if (World && FirstCharacter && SecondCharacter)
@@ -87,20 +130,8 @@ bool ATetherGameModeBase::ArePlayersTethered(const APlayerController* FirstPlaye
 
 		if (!bHitAnything || HitResult.GetActor() == SecondCharacter)
 		{
-			if (TetherEffectComponent)
-			{
-				TetherEffectComponent->SetVisibility(true);
-				TetherEffectComponent->SetVectorParameter(TEXT("StartLocation"), FirstCharacter->GetTetherTargetLocation());
-				TetherEffectComponent->SetVectorParameter(TEXT("EndLocation"), SecondCharacter->GetTetherTargetLocation());
-            }
-			
 			return true;
 		}
-	}
-
-	if (TetherEffectComponent)
-	{
-		TetherEffectComponent->SetVisibility(false);
 	}
 
 	return false;

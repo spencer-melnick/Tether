@@ -7,6 +7,10 @@
 #include "NiagaraComponent.h"
 #include "TetherGameModeBase.generated.h"
 
+
+class AEdisonActor;
+class ATetherCharacter;
+
 /**
  * 
  */
@@ -35,19 +39,21 @@ public:
 	TEnumAsByte<ECollisionChannel> TetherTraceChannel;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tether")
-	UNiagaraSystem* TetherEffectSystem;
+	TSubclassOf<AEdisonActor> TetherEffectClass;
 
 private:
 
 	// Tether functions
 
+	void SpawnEdisons();
 	void CheckAllTethers();
-	bool ArePlayersTethered(const APlayerController* FirstPlayer, const APlayerController* SecondPlayer) const;
+	bool AreCharactersTethered(const ATetherCharacter* FirstCharacter, const ATetherCharacter* SecondCharacter) const;
 
 
 	// Tether effects
 
 	UPROPERTY(Transient)
-	UNiagaraComponent* TetherEffectComponent;
-	
+	TArray<AEdisonActor*> Edisons;
+
+	TMap<const APlayerController*, TMap<const APlayerController*, AEdisonActor*>> EdisonMap;
 };
