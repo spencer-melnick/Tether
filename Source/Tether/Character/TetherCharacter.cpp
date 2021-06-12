@@ -103,3 +103,11 @@ void ATetherCharacter::RotateY(float Scale)
 {
 	AddControllerPitchInput(Scale);
 }
+
+
+// Accessors
+
+FVector ATetherCharacter::GetTetherTargetLocation() const
+{
+	return GetActorTransform().TransformPosition(TetherOffset);
+}

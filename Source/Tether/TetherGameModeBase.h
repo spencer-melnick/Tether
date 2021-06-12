@@ -17,5 +17,27 @@ class TETHER_API ATetherGameModeBase : public AGameModeBase
 public:
 
 	ATetherGameModeBase();
+
+
+	// Actor overrides
+
+	virtual void Tick(float DeltaSeconds) override;
+
+
+	// Editor properties
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tether")
+	float MaxUntetheredTime = 10.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tether")
+	TEnumAsByte<ECollisionChannel> TetherTraceChannel;
+
+
+private:
+
+	// Tether functions
+
+	void CheckAllTethers();
+	bool ArePlayersTethered(const APlayerController* FirstPlayer, const APlayerController* SecondPlayer) const;
 	
 };

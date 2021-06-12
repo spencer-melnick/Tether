@@ -53,6 +53,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 	USpringArmComponent* GetSpringArmComponent() const { return SpringArmComponent; }
 
+	UFUNCTION(BlueprintCallable)
+	FVector GetTetherTargetLocation() const;
+
 
 	// Editor properties
 	
@@ -61,6 +64,11 @@ public:
 	// How long after falling a character can jump
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Jump")
 	float CoyoteTime = 0.1f;
+
+	// Tether settings
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tether")
+	FVector TetherOffset;
 
 private:
 
