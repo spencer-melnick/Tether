@@ -3,9 +3,12 @@
 
 #include "TetherGameModeBase.h"
 
+
+#include "EngineUtils.h"
 #include "Character/TetherCharacter.h"
 #include "Edison/EdisonActor.h"
 #include "NiagaraFunctionLibrary.h"
+#include "Tether.h"
 
 ATetherGameModeBase::ATetherGameModeBase()
 {
@@ -30,6 +33,34 @@ void ATetherGameModeBase::BeginPlay()
 	Super::BeginPlay();
 
 	SpawnEdisons();
+
+	if (UWorld* World = GetWorld())
+	{
+		for (TActorIterator<AVolume> Iterator(World); Iterator; ++Iterator)
+		{
+			if (Iterator->ActorHasTag(TEXT("ObstacleVolume")))
+			{
+				ObstacleVolume = *Iterator;
+				break;
+			}
+		}
+
+		if (!ObstacleVolume)
+		{
+			UE_LOG(LogTetherGame, Warning, TEXT("No obstacle volume found!"));
+		}
+	}
+}
+
+float ATetherGameModeBase::GetObstacleSpeed() const
+{
+	const UWorld* World = GetWorld();
+	if (World && ObstacleSpeedCurve)
+	{
+		return BaseObstacleSpeed * ObstacleSpeedCurve->GetFloatValue(World->GetTimeSeconds());
+	}
+
+	return BaseObstacleSpeed;
 }
 
 

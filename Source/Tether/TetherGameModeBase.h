@@ -30,6 +30,14 @@ public:
 	virtual void BeginPlay() override;
 
 
+	// Accessors
+
+	const AVolume* GetObstacleVolume() const { return ObstacleVolume; }
+
+	UFUNCTION(BlueprintCallable)
+	float GetObstacleSpeed() const;
+
+
 	// Editor properties
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tether")
@@ -40,6 +48,12 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tether")
 	TSubclassOf<AEdisonActor> TetherEffectClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Obstacles")
+	float BaseObstacleSpeed = 100.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Obstacles")
+	UCurveFloat* ObstacleSpeedCurve;
 
 private:
 
@@ -54,6 +68,9 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<AEdisonActor*> Edisons;
+
+	UPROPERTY(Transient)
+	AVolume* ObstacleVolume;
 
 	TMap<const APlayerController*, TMap<const APlayerController*, AEdisonActor*>> EdisonMap;
 };
