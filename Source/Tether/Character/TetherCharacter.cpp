@@ -178,3 +178,14 @@ FVector ATetherCharacter::GetTetherTargetLocation() const
 {
 	return GetActorTransform().TransformPosition(TetherOffset);
 }
+
+FVector ATetherCharacter::GetTetherEffectLocation() const
+{
+	const USkeletalMeshComponent* MeshComponent = GetMesh();
+	if (MeshComponent && MeshComponent->DoesSocketExist(TetherEffectSocket))
+	{
+		return MeshComponent->GetSocketLocation(TetherEffectSocket);
+	}
+	
+	return GetTetherTargetLocation();
+}

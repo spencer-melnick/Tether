@@ -65,6 +65,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 	FVector GetTetherTargetLocation() const;
 
+	UFUNCTION(BlueprintCallable)
+	FVector GetTetherEffectLocation() const;
+
 
 	// Editor properties
 	
@@ -78,6 +81,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tether")
 	FVector TetherOffset;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tether")
+	FName TetherEffectSocket;
 
 	bool bCarryingObject = false;
 

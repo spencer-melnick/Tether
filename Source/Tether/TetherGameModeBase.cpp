@@ -131,7 +131,7 @@ void ATetherGameModeBase::CheckAllTethers()
 
 					if (FirstCharacter && SecondCharacter)
 					{
-						EdisonActor->SetEndpoints(FirstCharacter->GetTetherTargetLocation(), SecondCharacter->GetTetherTargetLocation());
+						EdisonActor->SetEndpoints(FirstCharacter->GetTetherEffectLocation(), SecondCharacter->GetTetherEffectLocation());
 					}
 				}
 			}
