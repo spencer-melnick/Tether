@@ -27,9 +27,9 @@ void AObstacleSpawner::SpawnRandomObstacle()
 	if (World && ObstacleTypes.Num() > 0)
 	{
 		const int32 ObstacleTypeIndex = FMath::RandRange(0, ObstacleTypes.Num() - 1);
-		const TSubclassOf<AMovingObstacle> ObstacleType = ObstacleTypes[ObstacleTypeIndex];
+		const TSubclassOf<AActor> ObstacleType = ObstacleTypes[ObstacleTypeIndex];
 
-		World->SpawnActor<AMovingObstacle>(ObstacleType, GetActorLocation(), GetActorRotation());
+		World->SpawnActor<AActor>(ObstacleType, GetActorLocation(), GetActorRotation());
 		
 		World->GetTimerManager().SetTimer(ObstacleTimerHandle,
             this, &AObstacleSpawner::SpawnRandomObstacle,

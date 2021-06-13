@@ -29,7 +29,7 @@ public:
 	FFloatRange SpawnDelay;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spawning")
-	TArray<TSubclassOf<AMovingObstacle>> ObstacleTypes;
+	TArray<TSubclassOf<AActor>> ObstacleTypes;
 
 private:
 
