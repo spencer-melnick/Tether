@@ -156,7 +156,7 @@ void ATetherGameModeBase::CheckAllTethers()
 
 		if (!bArePlayersTethered)
 		{
-			const float CurrentUntetheredTime = World->GetTimeSeconds() - LastTetheredTime;
+			const float CurrentUntetheredTime = (World->GetTimeSeconds() - LastTetheredTime) * GetObstacleSpeed() / BaseObstacleSpeed;
 			if (CurrentUntetheredTime >= MaxUntetheredTime)
 			{
 				OnTetherExpired.Broadcast();
