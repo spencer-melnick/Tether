@@ -168,6 +168,8 @@ void ATetherCharacter::GrabObject()
 			bCarryingObject = true;
 			GrabbedObject = Closest;
 			((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetSimulatePhysics(false);
+			((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetCollisionProfileName(TEXT("IgnoreOnlyPawn"));
+			((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
 			Closest->AttachToComponent(GrabHandle, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 		}
 	}
@@ -178,6 +180,7 @@ void ATetherCharacter::GrabObject()
 		TArray<USceneComponent*> ChildComponents;
 		GrabHandle->GetChildrenComponents(false, ChildComponents);
 		GrabbedObject->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+		((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetCollisionProfileName(TEXT("PhysicsActor"));
 		((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetSimulatePhysics(true);
 		bCarryingObject = false;
 	}
