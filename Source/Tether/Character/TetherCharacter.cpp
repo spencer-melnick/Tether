@@ -157,6 +157,7 @@ void ATetherCharacter::GrabObject()
 			GrabbedObject = Closest;
 			((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetSimulatePhysics(false);
 			((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetCollisionProfileName(TEXT("IgnoreOnlyPawn"));
+			((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
 			Closest->AttachToComponent(GrabHandle, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 		}
 	}
