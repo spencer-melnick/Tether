@@ -96,7 +96,8 @@ void ATetherGameModeBase::SpawnEdisons()
 
 void ATetherGameModeBase::CheckAllTethers()
 {
-	if (const UWorld* World = GetWorld())
+	const UWorld* World = GetWorld();
+	if (World && !bHaveTethersExpired)
 	{
 		TSet<const APlayerController*> AllTetheredPlayers;
 		TArray<TPair<const APlayerController*, const APlayerController*>> Tethers;
@@ -134,6 +135,37 @@ void ATetherGameModeBase::CheckAllTethers()
 						EdisonActor->SetEndpoints(FirstCharacter->GetTetherEffectLocation(), SecondCharacter->GetTetherEffectLocation());
 					}
 				}
+			}
+		}
+
+		const bool bNewArePlayersTethered = AllTetheredPlayers.Num() >= World->GetNumPlayerControllers();
+		if (bNewArePlayersTethered != bArePlayersTethered)
+		{
+			if (!bNewArePlayersTethered)
+			{
+				LastTetheredTime = World->GetTimeSeconds();
+			}
+			else
+			{
+				OnUntetheredTimeElapsed.Broadcast(0.f);
+			}
+
+			bArePlayersTethered = bNewArePlayersTethered;
+			OnTetheredChanged.Broadcast(bArePlayersTethered);
+		}
+
+		if (!bArePlayersTethered)
+		{
+			const float CurrentUntetheredTime = World->GetTimeSeconds() - LastTetheredTime;
+			if (CurrentUntetheredTime >= MaxUntetheredTime)
+			{
+				OnTetherExpired.Broadcast();
+				bHaveTethersExpired = true;
+				UE_LOG(LogTetherGame, Verbose, TEXT("Tethers have expired! Game ending..."));
+			}
+			else
+			{
+				OnUntetheredTimeElapsed.Broadcast(CurrentUntetheredTime);
 			}
 		}
 	}

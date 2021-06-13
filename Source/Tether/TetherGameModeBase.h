@@ -21,6 +21,11 @@ class TETHER_API ATetherGameModeBase : public AGameModeBase
 
 public:
 
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FTetheredChangedDelegate, bool, bNewTethered);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FUntetheredTimeElapsed, float, TimeUntethered);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FTetherExpired);
+
+
 	ATetherGameModeBase();
 
 
@@ -55,6 +60,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Obstacles")
 	UCurveFloat* ObstacleSpeedCurve;
 
+
+	// Delegates
+
+	UPROPERTY(BlueprintAssignable)
+	FTetheredChangedDelegate OnTetheredChanged;
+
+	UPROPERTY(BlueprintAssignable)
+	FUntetheredTimeElapsed OnUntetheredTimeElapsed;
+
+	UPROPERTY(BlueprintAssignable)
+	FTetherExpired OnTetherExpired;
+
 private:
 
 	// Tether functions
@@ -73,4 +90,13 @@ private:
 	AVolume* ObstacleVolume;
 
 	TMap<const APlayerController*, TMap<const APlayerController*, AEdisonActor*>> EdisonMap;
+
+
+	// Tether tracking
+
+	bool bArePlayersTethered = false;
+
+	bool bHaveTethersExpired = false;
+
+	float LastTetheredTime = 0.f;
 };
