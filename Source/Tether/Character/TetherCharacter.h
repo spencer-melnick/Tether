@@ -36,6 +36,7 @@ public:
 	// Actor overrides
 	
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
+	virtual void BeginPlay() override;
 
 	
 	// Character overrides
@@ -68,6 +69,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 	FVector GetTetherEffectLocation() const;
 
+	UFUNCTION(BlueprintCallable)
+	bool IsAlive() const { return bAlive; }
+
 
 	// Editor properties
 	
@@ -88,6 +92,12 @@ public:
 	bool bCarryingObject = false;
 
 private:
+
+	// Events
+
+	UFUNCTION()
+	void OnTetherExpired();
+	
 
 	// Components
 	
@@ -111,5 +121,10 @@ private:
 
 	FTimerHandle CoyoteJumpTimerHandle;
 	bool bCoyoteJumpAvailable = false;
+
+
+	// Animation tracking
+
+	bool bAlive = true;
 	
 };

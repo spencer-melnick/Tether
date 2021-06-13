@@ -5,6 +5,7 @@
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "Tether/TetherGameModeBase.h"
 
 
 // Component name constants
@@ -48,6 +49,18 @@ void ATetherCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 	PlayerInputComponent->BindAction(TEXT("Jump"), EInputEvent::IE_Released, this, &ACharacter::StopJumping);
 
 	PlayerInputComponent->BindAction(TEXT("Grab"), EInputEvent::IE_Pressed, this, &ATetherCharacter::GrabObject);
+}
+
+void ATetherCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+
+	const UWorld* World = GetWorld();
+	ATetherGameModeBase* GameMode = World ? World->GetAuthGameMode<ATetherGameModeBase>() : nullptr;
+	if (GameMode)
+	{
+		GameMode->OnTetherExpired.AddDynamic(this, &ATetherCharacter::OnTetherExpired);
+	}
 }
 
 
@@ -188,4 +201,18 @@ FVector ATetherCharacter::GetTetherEffectLocation() const
 	}
 	
 	return GetTetherTargetLocation();
+}
+
+
+// Events
+
+void ATetherCharacter::OnTetherExpired()
+{
+	bAlive = false;
+
+	UCharacterMovementComponent* MovementComponent = Cast<UCharacterMovementComponent>(GetMovementComponent());
+	if (MovementComponent)
+	{
+		MovementComponent->SetMovementMode(MOVE_None);
+	}
 }
