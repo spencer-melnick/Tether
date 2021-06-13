@@ -11,6 +11,10 @@
 
 const FName ATetherCharacter::CameraComponentName(TEXT("CameraComponent"));
 const FName ATetherCharacter::SpringArmComponentName(TEXT("SpringArm"));
+const FName ATetherCharacter::GrabSphereComponentName(TEXT("GrabSphere"));
+const FName ATetherCharacter::GrabHandleName(TEXT("GrabHandle"));
+
+const FName ATetherCharacter::PickupTag(TEXT("Pickup"));
 
 
 ATetherCharacter::ATetherCharacter()
@@ -20,6 +24,12 @@ ATetherCharacter::ATetherCharacter()
 	
 	CameraComponent = CreateDefaultSubobject<UCameraComponent>(CameraComponentName);
 	CameraComponent->SetupAttachment(SpringArmComponent);
+
+	GrabSphereComponent = CreateDefaultSubobject<USphereComponent>(GrabSphereComponentName);
+	GrabSphereComponent->SetupAttachment(RootComponent);
+
+	GrabHandle = CreateDefaultSubobject<USceneComponent>(GrabHandleName);
+	GrabHandle->SetupAttachment(RootComponent);
 }
 
 
@@ -31,11 +41,13 @@ void ATetherCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 
 	PlayerInputComponent->BindAxis(TEXT("MoveX"), this, &ATetherCharacter::MoveX);
 	PlayerInputComponent->BindAxis(TEXT("MoveY"), this, &ATetherCharacter::MoveY);
-	PlayerInputComponent->BindAxis(TEXT("RotateX"), this, &ATetherCharacter::RotateX);
-	PlayerInputComponent->BindAxis(TEXT("RotateY"), this, &ATetherCharacter::RotateY);
+	// PlayerInputComponent->BindAxis(TEXT("RotateX"), this, &ATetherCharacter::RotateX);
+	// PlayerInputComponent->BindAxis(TEXT("RotateY"), this, &ATetherCharacter::RotateY);
 
 	PlayerInputComponent->BindAction(TEXT("Jump"), EInputEvent::IE_Pressed, this, &ACharacter::Jump);
 	PlayerInputComponent->BindAction(TEXT("Jump"), EInputEvent::IE_Released, this, &ACharacter::StopJumping);
+
+	PlayerInputComponent->BindAction(TEXT("Grab"), EInputEvent::IE_Pressed, this, &ATetherCharacter::GrabObject);
 }
 
 
@@ -86,12 +98,18 @@ void ATetherCharacter::OnJumped_Implementation()
 
 void ATetherCharacter::MoveX(float Scale)
 {
-	AddMovementInput(GetActorRightVector(), Scale);
+	FRotator ForwardDirection;
+	FVector Location;
+	GetController()->GetPlayerViewPoint(Location, ForwardDirection );
+	AddMovementInput(ForwardDirection.RotateVector(FVector::RightVector), Scale);
 }
 
 void ATetherCharacter::MoveY(float Scale)
 {
-	AddMovementInput(GetActorForwardVector(), Scale);
+	FRotator ForwardDirection;
+	FVector Location;
+	GetController()->GetPlayerViewPoint(Location, ForwardDirection );
+	AddMovementInput(ForwardDirection.RotateVector(FVector::ForwardVector), Scale);
 }
 
 void ATetherCharacter::RotateX(float Scale)
@@ -103,6 +121,55 @@ void ATetherCharacter::RotateY(float Scale)
 {
 	AddControllerPitchInput(Scale);
 }
+
+void ATetherCharacter::GrabObject()
+{
+	// if object inside collision box and not holding anything, pick it up.
+	if(!bCarryingObject)
+	{
+		TArray<AActor*> Overlaps;
+		GrabSphereComponent->GetOverlappingActors(Overlaps);
+		if(Overlaps.Num() <= 0)
+		{
+			return;
+		}
+		AActor* Closest = Overlaps[0];
+		float MinimumDist = 1000;
+		bool bValid = false;
+		for (AActor* Actor: Overlaps)
+		{
+			if(Actor->ActorHasTag(PickupTag))
+			{
+				const float Dist = GetDistanceTo(Actor);
+				if (Dist < MinimumDist)
+				{
+					MinimumDist = Dist;
+					Closest = Actor;
+					bValid = true;
+				}
+			}
+		}
+		if(bValid)
+		{
+			GEngine->AddOnScreenDebugMessage(INDEX_NONE, 1.f, FColor::Black, TEXT("Attached object"), true, FVector2D(1,1));
+			bCarryingObject = true;
+			GrabbedObject = Closest;
+			((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetSimulatePhysics(false);
+			Closest->AttachToComponent(GrabHandle, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+		}
+	}
+
+	else if(bCarryingObject)
+	{
+		GEngine->AddOnScreenDebugMessage(INDEX_NONE, 1.f, FColor::Black, TEXT("Removed object"), true, FVector2D(1,1));
+		TArray<USceneComponent*> ChildComponents;
+		GrabHandle->GetChildrenComponents(false, ChildComponents);
+		GrabbedObject->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+		((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetSimulatePhysics(true);
+		bCarryingObject = false;
+	}
+}
+
 
 
 // Accessors

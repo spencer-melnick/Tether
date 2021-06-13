@@ -3,7 +3,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
+#include "Components/SphereComponent.h"
 #include "GameFramework/Character.h"
+#include "PhysicsEngine/PhysicsConstraintComponent.h"
+
 #include "TetherCharacter.generated.h"
 
 class UCameraComponent;
@@ -20,6 +24,10 @@ public:
 	
 	static const FName CameraComponentName;
 	static const FName SpringArmComponentName;
+	static const FName GrabSphereComponentName;
+	static const FName GrabHandleName;
+
+	static const FName PickupTag;
 
 	
 	ATetherCharacter();
@@ -43,6 +51,7 @@ public:
 	void MoveY(float Scale);
 	void RotateX(float Scale);
 	void RotateY(float Scale);
+	void GrabObject();
 
 
 	// Accessors
@@ -70,6 +79,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tether")
 	FVector TetherOffset;
 
+	bool bCarryingObject = false;
+
 private:
 
 	// Components
@@ -79,6 +90,14 @@ private:
 
 	UPROPERTY(VisibleAnywhere, Category="Components")
 	USpringArmComponent* SpringArmComponent;
+
+	UPROPERTY(VisibleAnywhere, Category="Components")
+	USphereComponent* GrabSphereComponent;
+
+	UPROPERTY(VisibleAnywhere, Category="Components")
+	USceneComponent* GrabHandle;
+
+	AActor* GrabbedObject;
 
 
 	// Jump tracking
