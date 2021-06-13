@@ -23,8 +23,8 @@ ATetherCharacter::ATetherCharacter()
 	SpringArmComponent = CreateDefaultSubobject<USpringArmComponent>(SpringArmComponentName);
 	SpringArmComponent->SetupAttachment(RootComponent);
 	
-	CameraComponent = CreateDefaultSubobject<UCameraComponent>(CameraComponentName);
-	CameraComponent->SetupAttachment(SpringArmComponent);
+	// CameraComponent = CreateDefaultSubobject<UCameraComponent>(CameraComponentName);
+	// CameraComponent->SetupAttachment(SpringArmComponent);
 
 	GrabSphereComponent = CreateDefaultSubobject<USphereComponent>(GrabSphereComponentName);
 	GrabSphereComponent->SetupAttachment(RootComponent);

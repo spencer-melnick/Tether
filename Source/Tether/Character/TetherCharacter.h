@@ -57,8 +57,8 @@ public:
 
 	// Accessors
 
-	UFUNCTION(BlueprintCallable)
-	UCameraComponent* GetCameraComponent() const { return CameraComponent; }
+	// UFUNCTION(BlueprintCallable)
+	// UCameraComponent* GetCameraComponent() const { return CameraComponent; }
 
 	UFUNCTION(BlueprintCallable)
 	USpringArmComponent* GetSpringArmComponent() const { return SpringArmComponent; }
@@ -101,8 +101,8 @@ private:
 
 	// Components
 	
-	UPROPERTY(VisibleAnywhere, Category="Components")
-	UCameraComponent* CameraComponent;
+	// UPROPERTY(VisibleAnywhere, Category="Components")
+	// UCameraComponent* CameraComponent;
 
 	UPROPERTY(VisibleAnywhere, Category="Components")
 	USpringArmComponent* SpringArmComponent;
