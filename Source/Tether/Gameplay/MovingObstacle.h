@@ -19,4 +19,7 @@ public:
 
 	virtual void Tick(float DeltaSeconds) override;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Movement")
+	float SpeedMultiplier = 1.f;
+
 };

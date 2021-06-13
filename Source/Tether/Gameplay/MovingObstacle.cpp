@@ -20,7 +20,7 @@ void AMovingObstacle::Tick(float DeltaSeconds)
 	const ATetherGameModeBase* GameMode = World ? World->GetAuthGameMode<ATetherGameModeBase>() : nullptr;
 	if (GameMode)
 	{
-		const FVector NewLocation = GetActorLocation() + GetActorForwardVector() * GameMode->GetObstacleSpeed() * DeltaSeconds;
+		const FVector NewLocation = GetActorLocation() + GetActorForwardVector() * GameMode->GetObstacleSpeed() * SpeedMultiplier * DeltaSeconds;
 		const AVolume* ObstacleVolume = GameMode->GetObstacleVolume();
 		
 		if (ObstacleVolume && !ObstacleVolume->IsOverlappingActor(this))
