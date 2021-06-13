@@ -97,6 +97,7 @@ private:
 	UPROPERTY(VisibleAnywhere, Category="Components")
 	USceneComponent* GrabHandle;
 
+	UPROPERTY(Transient)
 	AActor* GrabbedObject;
 
 
