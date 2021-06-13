@@ -5,6 +5,7 @@
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "GeometryCollection/GeometryCollectionSimulationTypes.h"
 
 
 // Component name constants
@@ -155,6 +156,7 @@ void ATetherCharacter::GrabObject()
 			bCarryingObject = true;
 			GrabbedObject = Closest;
 			((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetSimulatePhysics(false);
+			((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetCollisionProfileName(TEXT("IgnoreOnlyPawn"));
 			Closest->AttachToComponent(GrabHandle, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 		}
 	}
@@ -165,6 +167,7 @@ void ATetherCharacter::GrabObject()
 		TArray<USceneComponent*> ChildComponents;
 		GrabHandle->GetChildrenComponents(false, ChildComponents);
 		GrabbedObject->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+		((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetCollisionProfileName(TEXT("PhysicsActor"));
 		((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetSimulatePhysics(true);
 		bCarryingObject = false;
 	}
