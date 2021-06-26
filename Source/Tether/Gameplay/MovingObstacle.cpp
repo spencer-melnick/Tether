@@ -2,9 +2,7 @@
 
 #include "MovingObstacle.h"
 
-
-#include "Components/BrushComponent.h"
-#include "Tether/TetherGameModeBase.h"
+#include "Tether/Gamemode/TetherPrimaryGameMode.h"
 
 AMovingObstacle::AMovingObstacle()
 {
@@ -17,7 +15,7 @@ void AMovingObstacle::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	
 	const UWorld* World = GetWorld();
-	const ATetherGameModeBase* GameMode = World ? World->GetAuthGameMode<ATetherGameModeBase>() : nullptr;
+	const ATetherPrimaryGameMode* GameMode = World ? World->GetAuthGameMode<ATetherPrimaryGameMode>() : nullptr;
 	if (GameMode)
 	{
 		const FVector NewLocation = GetActorLocation() + GetActorForwardVector() * GameMode->GetObstacleSpeed() * SpeedMultiplier * DeltaSeconds;

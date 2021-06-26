@@ -1,16 +1,14 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright (c) 2021 Spencer Melnick
 
-
-#include "TetherGameModeBase.h"
-
+#include "TetherPrimaryGameMode.h"
 
 #include "EngineUtils.h"
-#include "Character/TetherCharacter.h"
-#include "Edison/EdisonActor.h"
+#include "Tether/Character/TetherCharacter.h"
+#include "Tether/Edison/EdisonActor.h"
 #include "NiagaraFunctionLibrary.h"
-#include "Tether.h"
+#include "Tether/Tether.h"
 
-ATetherGameModeBase::ATetherGameModeBase()
+ATetherPrimaryGameMode::ATetherPrimaryGameMode()
 {
 	DefaultPawnClass = ATetherCharacter::StaticClass();
 
@@ -21,14 +19,14 @@ ATetherGameModeBase::ATetherGameModeBase()
 
 // Actor overrides
 
-void ATetherGameModeBase::Tick(float DeltaSeconds)
+void ATetherPrimaryGameMode::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
 	CheckAllTethers();
 }
 
-void ATetherGameModeBase::BeginPlay()
+void ATetherPrimaryGameMode::BeginPlay()
 {
 	Super::BeginPlay();
 
@@ -52,7 +50,7 @@ void ATetherGameModeBase::BeginPlay()
 	}
 }
 
-float ATetherGameModeBase::GetObstacleSpeed() const
+float ATetherPrimaryGameMode::GetObstacleSpeed() const
 {
 	const UWorld* World = GetWorld();
 	if (World && ObstacleSpeedCurve)
@@ -66,7 +64,7 @@ float ATetherGameModeBase::GetObstacleSpeed() const
 
 // Tether functions
 
-void ATetherGameModeBase::SpawnEdisons()
+void ATetherPrimaryGameMode::SpawnEdisons()
 {
 	UWorld* World = GetWorld();
 	if (World && TetherEffectClass)
@@ -94,7 +92,7 @@ void ATetherGameModeBase::SpawnEdisons()
 	}
 }
 
-void ATetherGameModeBase::CheckAllTethers()
+void ATetherPrimaryGameMode::CheckAllTethers()
 {
 	const UWorld* World = GetWorld();
 	if (World && !bHaveTethersExpired)
@@ -171,7 +169,7 @@ void ATetherGameModeBase::CheckAllTethers()
 	}
 }
 
-bool ATetherGameModeBase::AreCharactersTethered(const ATetherCharacter* FirstCharacter, const ATetherCharacter* SecondCharacter) const
+bool ATetherPrimaryGameMode::AreCharactersTethered(const ATetherCharacter* FirstCharacter, const ATetherCharacter* SecondCharacter) const
 {
 	const UWorld* World = GetWorld();
 	
@@ -199,4 +197,3 @@ bool ATetherGameModeBase::AreCharactersTethered(const ATetherCharacter* FirstCha
 
 	return false;
 }
-

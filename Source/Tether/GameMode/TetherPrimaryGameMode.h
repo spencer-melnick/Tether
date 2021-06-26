@@ -1,21 +1,13 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright (c) 2021 Spencer Melnick, Stephen Melnick
 
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/GameModeBase.h"
-#include "NiagaraComponent.h"
-#include "TetherGameModeBase.generated.h"
+#include "TetherGameModeBase.h"
+#include "TetherPrimaryGameMode.generated.h"
 
-
-class AEdisonActor;
-class ATetherCharacter;
-
-/**
- * 
- */
 UCLASS()
-class TETHER_API ATetherGameModeBase : public AGameModeBase
+class ATetherPrimaryGameMode : public ATetherGameModeBase
 {
 	GENERATED_BODY()
 
@@ -26,7 +18,7 @@ public:
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FTetherExpired);
 
 
-	ATetherGameModeBase();
+	ATetherPrimaryGameMode();
 
 
 	// Actor overrides

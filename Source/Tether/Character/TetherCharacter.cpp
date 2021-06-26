@@ -5,7 +5,7 @@
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
-#include "Tether/TetherGameModeBase.h"
+#include "Tether/GameMode/TetherPrimaryGameMode.h"
 
 
 // Component name constants
@@ -56,7 +56,7 @@ void ATetherCharacter::BeginPlay()
 	Super::BeginPlay();
 
 	const UWorld* World = GetWorld();
-	ATetherGameModeBase* GameMode = World ? World->GetAuthGameMode<ATetherGameModeBase>() : nullptr;
+	ATetherPrimaryGameMode* GameMode = World ? World->GetAuthGameMode<ATetherPrimaryGameMode>() : nullptr;
 	if (GameMode)
 	{
 		GameMode->OnTetherExpired.AddDynamic(this, &ATetherCharacter::OnTetherExpired);
