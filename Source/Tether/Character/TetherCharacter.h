@@ -72,6 +72,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 	bool IsAlive() const { return bAlive; }
 
+	UFUNCTION(BlueprintCallable)
+	void Deflect(float DeflectTime);
+
 
 	// Editor properties
 	
@@ -122,6 +125,10 @@ private:
 	FTimerHandle CoyoteJumpTimerHandle;
 	bool bCoyoteJumpAvailable = false;
 
+	// Obstacle Deflection
+	
+	FTimerHandle DeflectTimerHandle;
+	bool bIsFlying = false;
 
 	// Animation tracking
 

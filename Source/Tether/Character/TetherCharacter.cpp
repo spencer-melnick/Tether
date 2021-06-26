@@ -111,18 +111,24 @@ void ATetherCharacter::OnJumped_Implementation()
 
 void ATetherCharacter::MoveX(float Scale)
 {
-	FRotator ForwardDirection;
-	FVector Location;
-	GetController()->GetPlayerViewPoint(Location, ForwardDirection );
-	AddMovementInput(ForwardDirection.RotateVector(FVector::RightVector), Scale);
+	if(!bIsFlying)
+	{
+		FRotator ForwardDirection;
+		FVector Location;
+		GetController()->GetPlayerViewPoint(Location, ForwardDirection );
+		AddMovementInput(ForwardDirection.RotateVector(FVector::RightVector), Scale);
+	}
 }
 
 void ATetherCharacter::MoveY(float Scale)
 {
-	FRotator ForwardDirection;
-	FVector Location;
-	GetController()->GetPlayerViewPoint(Location, ForwardDirection );
-	AddMovementInput(ForwardDirection.RotateVector(FVector::ForwardVector), Scale);
+	if(!bIsFlying)
+	{
+		FRotator ForwardDirection;
+		FVector Location;
+		GetController()->GetPlayerViewPoint(Location, ForwardDirection );
+		AddMovementInput(FVector::CrossProduct(ForwardDirection.RotateVector(FVector::RightVector), FVector::UpVector), Scale);
+	}
 }
 
 void ATetherCharacter::RotateX(float Scale)
@@ -204,6 +210,18 @@ FVector ATetherCharacter::GetTetherEffectLocation() const
 	}
 	
 	return GetTetherTargetLocation();
+}
+
+void ATetherCharacter::Deflect(float DeflectTime)
+{
+	bIsFlying = true;
+	if (const UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimer(DeflectTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
+			{
+				bIsFlying = false;
+			}), DeflectTime, false);
+	}
 }
 
 
