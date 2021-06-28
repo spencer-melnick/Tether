@@ -81,15 +81,7 @@ void ATetherGameModeBase::SpawnPIEPlayers()
 	if (DeveloperSettings && GameInstance)
 	{
 		const int32 NumPIEPlayers = FMath::Min(DeveloperSettings->NumPIEPlayers, 4);
-		while (GameInstance->GetNumLocalPlayers() < NumPIEPlayers)
-		{
-			FString OutError;
-			if (!GameInstance->CreateLocalPlayer(-1, OutError, true))
-			{
-				UE_LOG(LogTetherGame, Error, TEXT("TetherGameModeBase::SpawnPIEPlayers failed: %s"), *OutError);
-				break;
-			}
-		}
+		GameInstance->SetNumberOfPlayers(NumPIEPlayers);
 	}	
 }
 #endif

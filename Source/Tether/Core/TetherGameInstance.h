@@ -12,5 +12,6 @@ class UTetherGameInstance : public UGameInstance
 
 public:
 
-	
+	UFUNCTION(BlueprintCallable)
+	void SetNumberOfPlayers(int32 NumPlayers);
 };
