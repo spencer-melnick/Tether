@@ -10,7 +10,7 @@ public class Tether : ModuleRules
 	
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
-			"Core", "CoreUObject", "Engine", "InputCore", "UMG", "Slate", "SlateCore"
+			"Core", "CoreUObject", "Engine", "InputCore", "UMG", "Slate", "SlateCore", "DeveloperSettings"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "Niagara" });

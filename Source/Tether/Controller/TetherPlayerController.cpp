@@ -5,58 +5,39 @@
 #include "Blueprint/UserWidget.h"
 #include "Tether/GameMode/TetherGameModeBase.h"
 
-void ATetherPlayerController::BeginPlay()
-{
-	Super::BeginPlay();
-
-	if (!bSpawnedHUDWidgets && GetLocalPlayer())
-	{
-		SpawnHUDWidgets();
-		bSpawnedHUDWidgets = true;
-	}
-}
-
-void ATetherPlayerController::ReceivedPlayer()
-{
-	Super::ReceivedPlayer();
-
-	if (!bSpawnedHUDWidgets)
-	{
-		SpawnHUDWidgets();
-		bSpawnedHUDWidgets = true;
-	}
-}
-
 void ATetherPlayerController::SpawnHUDWidgets()
 {
-	// todo - better control over splitscreen/non-splitscreen widgets
-	// todo - only spawn widgets after all players have joined so we actually know if the game is splitscreen
-	
-	// Try to determine if our game mode is splitscreen
-	// If we're splitscreen only spawn widgets on the primary player
-	const ATetherGameModeBase* GameModeBase = GetGameModeCDO<ATetherGameModeBase>();
-	if (GameModeBase && (IsPrimaryPlayer() || GameModeBase->ShouldUseSplitscreen()))
+	const ATetherGameModeBase* GameMode = ATetherGameModeBase::GetGameModeCDO(this);
+	if (!bSpawnedHUDWidgets && GameMode)
 	{
-		TArray<TSubclassOf<UUserWidget>> WidgetsToSpawn = HUDWidgetClasses;
-		if (GameModeBase)
+		bSpawnedHUDWidgets = true;
+		const bool bNeedsAnyWidgets = IsPrimaryPlayer() || GameMode->ShouldUseSplitscreen();
+		
+		if (bNeedsAnyWidgets)
 		{
-			WidgetsToSpawn.Append(GameModeBase->GetHUDWidgetClasses());
-		}
-
-		for (const TSubclassOf<UUserWidget>& WidgetClass : WidgetsToSpawn)
-		{
-			if (UUserWidget* NewWidget = CreateWidget(this, WidgetClass))
+			if (IsPrimaryPlayer())
 			{
-				if (GameModeBase->ShouldUseSplitscreen())
+				// Spawn whole screen widgets
+				for (const TSubclassOf<UUserWidget>& WidgetClass : GameMode->GetGameWidgetClasses())
 				{
-					// In splitscreen this widget should be added to the individual player screen 
-					NewWidget->AddToPlayerScreen();
-				}
-				else
-				{
-					NewWidget->AddToViewport();
+					if (UUserWidget* NewWidget = CreateWidget(this, WidgetClass))
+					{
+						NewWidget->AddToViewport();
+					}
 				}
 			}
-		}		
+			
+			TArray<TSubclassOf<UUserWidget>> CombinedPlayerWidgetClasses = PlayerWidgetClasses;
+			CombinedPlayerWidgetClasses.Append(GameMode->GetPlayerWidgetClasses());
+
+			// Spawn player unique widgets
+			for (const TSubclassOf<UUserWidget>& WidgetClass : CombinedPlayerWidgetClasses)
+			{
+				if (UUserWidget* NewWidget = CreateWidget(this, WidgetClass))
+				{
+					NewWidget->AddToPlayerScreen();
+				}
+			}
+		}
 	}
 }

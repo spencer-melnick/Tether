@@ -12,5 +12,5 @@ class UTetherGameInstance : public UGameInstance
 
 public:
 
-	virtual FGameInstancePIEResult InitializeForPlayInEditor(int32 PIEInstanceIndex, const FGameInstancePIEParameters& Params) override;
+	
 };

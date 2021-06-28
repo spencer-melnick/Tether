@@ -18,42 +18,24 @@ class ATetherPlayerController: public APlayerController
 
 public:
 
-	virtual void BeginPlay() override;
-	virtual void ReceivedPlayer() override;
-
-	template <typename T>
-	T* GetGameModeCDO() const
-	{
-		const UWorld* World = GetWorld();
-		const AGameStateBase* GameState = World ? World->GetGameState() : nullptr;
-		const TSubclassOf<AGameModeBase>& GameModeClass = GameState ? GameState->GameModeClass : nullptr;
-		if (GameModeClass->IsChildOf<T>())
-		{
-			return GameModeClass->GetDefaultObject<T>();
-		}
-
-		return nullptr;
-	}
-
+	/** Invoked by the game mode to spawn the initial HUD widgets */
+	void SpawnHUDWidgets();
 
 	// Accessors
-	const TArray<TSubclassOf<UUserWidget>>& GetHUDWidgetClasses() const { return HUDWidgetClasses; }
-
-
-protected:
-
-	virtual void SpawnHUDWidgets();
+	const TArray<TSubclassOf<UUserWidget>>& GetPlayerWidgetClasses() const { return PlayerWidgetClasses; }
 
 
 private:
 
 	// HUD tracking
+	
 	bool bSpawnedHUDWidgets = false;
 
 	
 	// Editor properties
 
-	// Widgets to be spawned on the player HUD regardless of game mode
+	/** Widgets to be spawned on this player controller regardless of game mode */
 	UPROPERTY(EditDefaultsOnly, Category="HUD")
-	TArray<TSubclassOf<UUserWidget>> HUDWidgetClasses;
+	TArray<TSubclassOf<UUserWidget>> PlayerWidgetClasses;
+
 };
