@@ -3,6 +3,7 @@
 
 #include "ProjectileEmitterComponent.h"
 
+#include "LinearMovementComponent.h"
 #include "Components/ArrowComponent.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 
@@ -37,22 +38,19 @@ void UProjectileEmitterComponent::TickComponent(float DeltaTime, ELevelTick Tick
 
 void UProjectileEmitterComponent::FireProjectile()
 {
-	FTimerHandle Handle;
 	if (UWorld* World = GetWorld())
 	{
+		FTimerHandle Handle;
 		AActor* Projectile = World->SpawnActor<AActor>(ProjectileType, GetComponentLocation(), GetComponentRotation());
-		UProjectileMovementComponent* MovementComponent = (UProjectileMovementComponent*) Projectile->GetComponentByClass(UProjectileMovementComponent::StaticClass());
+		ULinearMovementComponent* MovementComponent = (ULinearMovementComponent*) Projectile->GetComponentByClass(ULinearMovementComponent::StaticClass());
 		if(MovementComponent)
 		{
-			MovementComponent->SetVelocityInLocalSpace(FVector::ForwardVector * ProjectileVelocity);
+			MovementComponent->SetVelocity(FVector::ForwardVector * ProjectileVelocity);
 		}
 		Projectile->AttachToComponent(this, FAttachmentTransformRules::KeepWorldTransform);
-		World->GetTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(this, [=]
+		World->GetTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(Projectile, [Projectile]
 			{
-				if(Projectile)
-				{
-					Projectile->Destroy();
-				}
+				Projectile->Destroy();
 			}), Lifetime, false);
 	}
 }
