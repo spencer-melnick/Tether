@@ -52,6 +52,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Obstacles")
 	UCurveFloat* ObstacleSpeedCurve;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Timing", meta=(ClampMin="0.0"))
+	float WarmupTime = 10.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Health", meta=(ClampMin="0.0"))
+	float MaxHealth = 100.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Health", meta=(ClampMin="0.0"))
+	float DamagePerSecond;
+
 
 	// Delegates
 
@@ -69,7 +78,7 @@ private:
 	// Tether functions
 
 	void SpawnEdisons();
-	void CheckAllTethers();
+	void CheckAllTethers(float DeltaSeconds);
 	bool AreCharactersTethered(const ATetherCharacter* FirstCharacter, const ATetherCharacter* SecondCharacter) const;
 
 
@@ -91,4 +100,5 @@ private:
 	bool bHaveTethersExpired = false;
 
 	float LastTetheredTime = 0.f;
+
 };

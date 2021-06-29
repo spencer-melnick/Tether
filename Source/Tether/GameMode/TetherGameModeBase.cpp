@@ -32,22 +32,6 @@ void ATetherGameModeBase::BeginPlay()
 	SpawnHUDWidgets();
 }
 
-const ATetherGameModeBase* ATetherGameModeBase::GetGameModeCDO(const UObject* WorldContextObject)
-{
-	if (WorldContextObject)
-	{
-		const UWorld* World = WorldContextObject->GetWorld();
-		const AGameStateBase* GameState = World ? World->GetGameState() : nullptr;
-		const TSubclassOf<AGameModeBase>& GameModeClass = GameState ? GameState->GameModeClass : nullptr;
-		if (GameModeClass->IsChildOf<ATetherGameModeBase>())
-		{
-			return GameModeClass->GetDefaultObject<ATetherGameModeBase>();
-		}
-	}
-
-	return nullptr;
-}
-
 bool ATetherGameModeBase::IsPlayingInEditor() const
 {
 	if (const UWorld* World = GetWorld())

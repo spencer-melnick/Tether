@@ -7,7 +7,9 @@
 
 void ATetherPlayerController::SpawnHUDWidgets()
 {
-	const ATetherGameModeBase* GameMode = ATetherGameModeBase::GetGameModeCDO(this);
+	const UWorld* World = GetWorld();
+	const AGameStateBase* GameState = World ? World->GetGameState() : nullptr;
+	const ATetherGameModeBase* GameMode = GameState ? GameState->GetDefaultGameMode<ATetherGameModeBase>() : nullptr;
 	if (!bSpawnedHUDWidgets && GameMode)
 	{
 		bSpawnedHUDWidgets = true;

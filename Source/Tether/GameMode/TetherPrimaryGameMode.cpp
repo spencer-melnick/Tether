@@ -6,11 +6,13 @@
 #include "Tether/Character/TetherCharacter.h"
 #include "Tether/Edison/EdisonActor.h"
 #include "NiagaraFunctionLibrary.h"
+#include "TetherPrimaryGameState.h"
 #include "Tether/Tether.h"
 
 ATetherPrimaryGameMode::ATetherPrimaryGameMode()
 {
 	DefaultPawnClass = ATetherCharacter::StaticClass();
+	GameStateClass = ATetherPrimaryGameState::StaticClass();
 
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
@@ -23,7 +25,7 @@ void ATetherPrimaryGameMode::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	CheckAllTethers();
+	CheckAllTethers(DeltaSeconds);
 }
 
 void ATetherPrimaryGameMode::BeginPlay()
@@ -46,6 +48,18 @@ void ATetherPrimaryGameMode::BeginPlay()
 		if (!ObstacleVolume)
 		{
 			UE_LOG(LogTetherGame, Warning, TEXT("No obstacle volume found!"));
+		}
+
+		if (ATetherPrimaryGameState* TetherGameState = GetGameState<ATetherPrimaryGameState>())
+		{
+			TetherGameState->SetGlobalHealth(MaxHealth);
+			TetherGameState->SetGamePhase(ETetherGamePhase::Warmup);
+			
+			FTimerHandle WarmupTimerHandle;
+			World->GetTimerManager().SetTimer(WarmupTimerHandle, FTimerDelegate::CreateWeakLambda(TetherGameState, [TetherGameState]()
+			{
+				TetherGameState->SetGamePhase(ETetherGamePhase::Playing);
+			}), WarmupTime, false);
 		}
 	}
 }
@@ -92,10 +106,11 @@ void ATetherPrimaryGameMode::SpawnEdisons()
 	}
 }
 
-void ATetherPrimaryGameMode::CheckAllTethers()
+void ATetherPrimaryGameMode::CheckAllTethers(float DeltaSeconds)
 {
 	const UWorld* World = GetWorld();
-	if (World && !bHaveTethersExpired)
+	ATetherPrimaryGameState* TetherGameState = GetGameState<ATetherPrimaryGameState>();
+	if (World && TetherGameState && !bHaveTethersExpired)
 	{
 		TSet<const APlayerController*> AllTetheredPlayers;
 		TArray<TPair<const APlayerController*, const APlayerController*>> Tethers;
@@ -152,18 +167,21 @@ void ATetherPrimaryGameMode::CheckAllTethers()
 			OnTetheredChanged.Broadcast(bArePlayersTethered);
 		}
 
-		if (!bArePlayersTethered)
+		if (TetherGameState->GetCurrentGamePhase() == ETetherGamePhase::Playing)
 		{
-			const float CurrentUntetheredTime = (World->GetTimeSeconds() - LastTetheredTime) * GetObstacleSpeed() / BaseObstacleSpeed;
-			if (CurrentUntetheredTime >= MaxUntetheredTime)
+			if (!bArePlayersTethered)
 			{
-				OnTetherExpired.Broadcast();
-				bHaveTethersExpired = true;
-				UE_LOG(LogTetherGame, Verbose, TEXT("Tethers have expired! Game ending..."));
+				TetherGameState->SetGlobalHealth(TetherGameState->GetGlobalHealth() - DamagePerSecond * DeltaSeconds);
+
+				if (TetherGameState->GetGlobalHealth() <= 0.f)
+				{
+					TetherGameState->SetGlobalHealth(0.f);
+					TetherGameState->SetGamePhase(ETetherGamePhase::Ending);
+				}
 			}
 			else
 			{
-				OnUntetheredTimeElapsed.Broadcast(CurrentUntetheredTime);
+				TetherGameState->SetGlobalHealth(MaxHealth);
 			}
 		}
 	}

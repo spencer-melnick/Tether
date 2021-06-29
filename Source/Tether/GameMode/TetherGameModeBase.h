@@ -40,9 +40,6 @@ public:
 	UFUNCTION(BlueprintPure, Category="UI")
 	const TArray<TSubclassOf<UUserWidget>>& GetGameWidgetClasses() const { return GameWidgetClasses; }
 
-	/** Returns the default game mode object. Useful on clients when the live game mode is not available */
-	static const ATetherGameModeBase* GetGameModeCDO(const UObject* WorldContextObject);
-
 	bool IsPlayingInEditor() const;
 
 protected:
