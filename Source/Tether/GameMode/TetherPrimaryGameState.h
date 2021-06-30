@@ -62,6 +62,9 @@ public:
 
 	UFUNCTION(BlueprintPure)
 	float GetGlobalHealth() const { return GlobalHealth; }
+
+	UFUNCTION(BlueprintPure)
+	float GetBaseObstacleSpeed() const;
 	
 
 	// Delegates
@@ -73,7 +76,15 @@ public:
 	FOnGlobalHealthChanged OnGlobalHealthChanged;
 	
 
-protected:
+private:
+
+	// Replication functions
+
+	UFUNCTION()
+	void OnRep_GlobalHealth();
+
+
+	// Replicated properties
 
 	/** Current game phase */
 	UPROPERTY(Replicated)
@@ -86,10 +97,5 @@ protected:
 	/** Overall health pool of all players in the current game*/
 	UPROPERTY(ReplicatedUsing = OnRep_GlobalHealth)
 	float GlobalHealth = 100.f;
-
-
-private:
-
-	UFUNCTION()
-	void OnRep_GlobalHealth();
+	
 };

@@ -15,6 +15,7 @@ class UTetherBlueprintLibrary : public UBlueprintFunctionLibrary
 
 public:
 
+	/** Use with caution! The CDO for the game mode should not be modified! */
 	UFUNCTION(BlueprintPure, Category="Tether", meta=(WorldContext="WorldContextObject"))
 	static ATetherGameModeBase* GetGameModeCDO(const UObject* WorldContextObject);
 };

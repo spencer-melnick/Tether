@@ -57,13 +57,6 @@ void ATetherCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	const UWorld* World = GetWorld();
-	ATetherPrimaryGameMode* GameMode = World ? World->GetAuthGameMode<ATetherPrimaryGameMode>() : nullptr;
-	if (GameMode)
-	{
-		GameMode->OnTetherExpired.AddDynamic(this, &ATetherCharacter::OnTetherExpired);
-	}
-
 	if (UCharacterMovementComponent* CharacterMovementComponent = GetCharacterMovement())
 	{
 		CharacterMovementComponent->GroundFriction = NormalFriction;

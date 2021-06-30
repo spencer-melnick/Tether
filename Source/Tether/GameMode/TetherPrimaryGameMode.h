@@ -13,10 +13,6 @@ class ATetherPrimaryGameMode : public ATetherGameModeBase
 
 public:
 
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FTetheredChangedDelegate, bool, bNewTethered);
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FUntetheredTimeElapsed, float, TimeUntethered);
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FTetherExpired);
-
 
 	ATetherPrimaryGameMode();
 
@@ -31,74 +27,26 @@ public:
 
 	const AVolume* GetObstacleVolume() const { return ObstacleVolume; }
 
-	UFUNCTION(BlueprintCallable)
-	float GetObstacleSpeed() const;
+	float GetBaseObstacleSpeed(float GamePhaseTime) const;
 
 
 	// Editor properties
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tether")
-	float MaxUntetheredTime = 10.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tether")
-	TEnumAsByte<ECollisionChannel> TetherTraceChannel;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tether")
-	TSubclassOf<AEdisonActor> TetherEffectClass;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Obstacles")
-	float BaseObstacleSpeed = 100.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Obstacles")
-	UCurveFloat* ObstacleSpeedCurve;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Timing", meta=(ClampMin="0.0"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Timing", meta=(ClampMin="0.0"))
 	float WarmupTime = 10.f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Timing")
+	UCurveFloat* ObstacleSpeedCurve;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Health", meta=(ClampMin="0.0"))
 	float MaxHealth = 100.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Health", meta=(ClampMin="0.0"))
-	float DamagePerSecond;
-
-
-	// Delegates
-
-	UPROPERTY(BlueprintAssignable)
-	FTetheredChangedDelegate OnTetheredChanged;
-
-	UPROPERTY(BlueprintAssignable)
-	FUntetheredTimeElapsed OnUntetheredTimeElapsed;
-
-	UPROPERTY(BlueprintAssignable)
-	FTetherExpired OnTetherExpired;
+	float DamagePerSecond;	
 
 private:
 
-	// Tether functions
-
-	void SpawnEdisons();
-	void CheckAllTethers(float DeltaSeconds);
-	bool AreCharactersTethered(const ATetherCharacter* FirstCharacter, const ATetherCharacter* SecondCharacter) const;
-
-
-	// Tether effects
-
-	UPROPERTY(Transient)
-	TArray<AEdisonActor*> Edisons;
-
 	UPROPERTY(Transient)
 	AVolume* ObstacleVolume;
-
-	TMap<const APlayerController*, TMap<const APlayerController*, AEdisonActor*>> EdisonMap;
-
-
-	// Tether tracking
-
-	bool bArePlayersTethered = false;
-
-	bool bHaveTethersExpired = false;
-
-	float LastTetheredTime = 0.f;
 
 };

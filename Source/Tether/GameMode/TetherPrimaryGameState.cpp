@@ -1,6 +1,8 @@
 // Copyright (c) 2021 Spencer Melnick, Stephen Melnick
 
 #include "TetherPrimaryGameState.h"
+
+#include "TetherPrimaryGameMode.h"
 #include "Net/UnrealNetwork.h"
 #include "Tether/Tether.h"
 
@@ -42,6 +44,18 @@ float ATetherPrimaryGameState::GetTimeInCurrentPhase() const
 	if (ensureAlways(World))
 	{
 		return World->GetTimeSeconds() - PhaseStartTime;
+	}
+
+	return 0.f;
+}
+
+float ATetherPrimaryGameState::GetBaseObstacleSpeed() const
+{
+	const ATetherPrimaryGameMode* GameMode = GetDefaultGameMode<ATetherPrimaryGameMode>();
+
+	if (GamePhase == ETetherGamePhase::Playing && GameMode)
+	{
+		return GameMode->GetBaseObstacleSpeed(GetTimeInCurrentPhase());
 	}
 
 	return 0.f;
