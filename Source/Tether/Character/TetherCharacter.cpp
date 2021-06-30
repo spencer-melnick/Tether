@@ -2,9 +2,11 @@
 
 #include "TetherCharacter.h"
 
+#include "DrawDebugHelpers.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "Tether/Tether.h"
 #include "Tether/GameMode/TetherPrimaryGameMode.h"
 
 
@@ -61,6 +63,11 @@ void ATetherCharacter::BeginPlay()
 	{
 		GameMode->OnTetherExpired.AddDynamic(this, &ATetherCharacter::OnTetherExpired);
 	}
+
+	if (UCharacterMovementComponent* CharacterMovementComponent = GetCharacterMovement())
+	{
+		CharacterMovementComponent->GroundFriction = NormalFriction;
+	}
 }
 
 
@@ -111,23 +118,27 @@ void ATetherCharacter::OnJumped_Implementation()
 
 void ATetherCharacter::MoveX(float Scale)
 {
-	if(!bIsFlying)
+	if (CanMove())
 	{
 		FRotator ForwardDirection;
 		FVector Location;
 		GetController()->GetPlayerViewPoint(Location, ForwardDirection );
-		AddMovementInput(ForwardDirection.RotateVector(FVector::RightVector), Scale);
+		
+		const FRotator YawRotator = FRotator(0.f, ForwardDirection.Yaw, 0.f);
+		AddMovementInput(YawRotator.RotateVector(FVector::RightVector), Scale);
 	}
 }
 
 void ATetherCharacter::MoveY(float Scale)
 {
-	if(!bIsFlying)
+	if (CanMove())
 	{
 		FRotator ForwardDirection;
 		FVector Location;
 		GetController()->GetPlayerViewPoint(Location, ForwardDirection );
-		AddMovementInput(FVector::CrossProduct(ForwardDirection.RotateVector(FVector::RightVector), FVector::UpVector), Scale);
+		
+		const FRotator YawRotator = FRotator(0.f, ForwardDirection.Yaw, 0.f);
+		AddMovementInput(YawRotator.RotateVector(FVector::ForwardVector), Scale);
 	}
 }
 
@@ -192,6 +203,13 @@ void ATetherCharacter::GrabObject()
 	}
 }
 
+void ATetherCharacter::SetGroundFriction(float GroundFriction)
+{
+	if (UCharacterMovementComponent* CharacterMovementComponent = GetCharacterMovement())
+	{
+		CharacterMovementComponent->GroundFriction = GroundFriction;
+	}
+}
 
 
 // Accessors
@@ -212,16 +230,54 @@ FVector ATetherCharacter::GetTetherEffectLocation() const
 	return GetTetherTargetLocation();
 }
 
-void ATetherCharacter::Deflect(float DeflectTime)
+bool ATetherCharacter::CanMove() const
 {
-	bIsFlying = true;
+	return true;
+}
+
+void ATetherCharacter::Deflect(
+	FVector DeflectionNormal, float DeflectionScale,
+	FVector InstigatorVelocity, float InstigatorFactor,
+	float Elasticity, float DeflectTime, bool bLaunchVertically)
+{	
 	if (const UWorld* World = GetWorld())
 	{
-		World->GetTimerManager().SetTimer(DeflectTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
+		SetGroundFriction(BounceFriction);
+		bIsBouncing = true;
+		
+		// Only restart the timer if the remaining time would increase
+		const float DeflectTimeRemaining = DeflectTimerHandle.IsValid() ? World->GetTimerManager().GetTimerRemaining(DeflectTimerHandle) : 0.f;
+		if (DeflectTimeRemaining < DeflectTime)
+		{
+			World->GetTimerManager().SetTimer(DeflectTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
 			{
-				bIsFlying = false;
+				SetGroundFriction(NormalFriction);
+				bIsBouncing = false;
 			}), DeflectTime, false);
+		}
 	}
+
+	if (!bLaunchVertically)
+	{
+		DeflectionNormal.Z = 0.f;
+		DeflectionNormal.Normalize();
+	}
+
+	// Calculate the character's velocity relative to the instigator
+	const FVector RelativeVelocity = GetVelocity() - (InstigatorVelocity * InstigatorFactor);
+
+	// Limit the player's velocity along the deflection normal
+	const float NormalVelocity = FMath::Min(0.f, FVector::DotProduct(DeflectionNormal, RelativeVelocity));
+	const FVector ClampedVelocity = RelativeVelocity - NormalVelocity * DeflectionNormal;
+
+	// Add velocity equal to the deflection scale plus the elastic contribution
+	// Clamp elastic contribution in one direction
+	const float BounceFactor = DeflectionScale - (NormalVelocity * Elasticity);
+	const FVector BounceVelocity = ClampedVelocity + (DeflectionNormal * BounceFactor);
+
+	// Limit velocity by the max launch speed and then launch
+	const FVector FinalVelocity = BounceVelocity.GetClampedToSize(0.f, MaxLaunchSpeed);
+	LaunchCharacter(FinalVelocity, true, true);
 }
 
 
