@@ -3,6 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
+#include "SimpleProjectile.h"
 #include "Components/SceneComponent.h"
 #include "ProjectileEmitterComponent.generated.h"
 
@@ -28,7 +30,7 @@ public:
 	void FireProjectile();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile")
-	const TSubclassOf<AActor> ProjectileType;
+	const TSubclassOf<ASimpleProjectile> ProjectileType;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile")
 	float ProjectileVelocity;

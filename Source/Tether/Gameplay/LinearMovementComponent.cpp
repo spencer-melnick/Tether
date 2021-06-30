@@ -30,7 +30,8 @@ void ULinearMovementComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 	
 	AActor* Parent = GetOwner();
 	const FVector NewLocation = Parent->GetActorLocation() + Direction.RotateVector(LinearVelocity) * DeltaTime;
-	Parent->SetActorLocation(NewLocation);
+	FHitResult Result;
+	Parent->SetActorLocation(NewLocation, true, &Result, ETeleportType::None);
 }
 
 void ULinearMovementComponent::SetVelocity(const FVector& Velocity)

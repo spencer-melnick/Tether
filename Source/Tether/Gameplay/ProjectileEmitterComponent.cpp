@@ -3,15 +3,13 @@
 
 #include "ProjectileEmitterComponent.h"
 
-#include "LinearMovementComponent.h"
 #include "Components/ArrowComponent.h"
 #include "GameFramework/ProjectileMovementComponent.h"
+#include "Tether/Gameplay/SimpleProjectile.h"
 
 // Sets default values for this component's properties
 UProjectileEmitterComponent::UProjectileEmitterComponent()
 {
-	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
-	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = true;
 	UArrowComponent* Direction = CreateDefaultSubobject<UArrowComponent>(TEXT("Direction"));
 	Direction->SetupAttachment(this);
@@ -40,17 +38,17 @@ void UProjectileEmitterComponent::FireProjectile()
 {
 	if (UWorld* World = GetWorld())
 	{
-		FTimerHandle Handle;
-		AActor* Projectile = World->SpawnActor<AActor>(ProjectileType, GetComponentLocation(), GetComponentRotation());
-		ULinearMovementComponent* MovementComponent = (ULinearMovementComponent*) Projectile->GetComponentByClass(ULinearMovementComponent::StaticClass());
-		if(MovementComponent)
+		if (ProjectileType)
 		{
-			MovementComponent->SetVelocity(FVector::ForwardVector * ProjectileVelocity);
-		}
-		Projectile->AttachToComponent(this, FAttachmentTransformRules::KeepWorldTransform);
-		World->GetTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(Projectile, [Projectile]
+			ASimpleProjectile* Projectile = World->SpawnActor<ASimpleProjectile>(ProjectileType, GetComponentLocation(), GetComponentRotation());
+			Projectile->AttachToComponent(this, FAttachmentTransformRules::KeepWorldTransform);
+			Projectile->Velocity = GetForwardVector() * ProjectileVelocity;
+
+			FTimerHandle Handle;
+			World->GetTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(Projectile, [Projectile]
 			{
 				Projectile->Destroy();
 			}), Lifetime, false);
+		}
 	}
 }
