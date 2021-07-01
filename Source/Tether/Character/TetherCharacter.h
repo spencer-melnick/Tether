@@ -37,6 +37,7 @@ public:
 	
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaSeconds) override;
 
 	
 	// Character overrides
@@ -56,6 +57,23 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void SetGroundFriction(float GroundFriction);
+
+	/**
+	* Bounce the character off a obstacle.
+	*
+	* @param DeflectionNormal		The direction the character hit the obstacle in
+	* @param DeflectionScale		How fast the character should be moving in the direction after deflection (disregarding elasticity)
+	* @param InstigatorVelocity	Velocity of the object the caused the deflection
+	* @param InstigatorFactor		How much the instigator's velocity affects deflection speed (e.g. fast moving objects deflecting more)
+	* @param Elasticity			How much should the character's velocity impact the deflection speed
+	* @param DeflectTime			How long (in seconds) until the character regains normal control
+	* @param bLaunchVertically		Should the player be launched upwards or downwards at all?
+	*/
+	UFUNCTION(BlueprintCallable)
+	void Deflect(
+		FVector DeflectionNormal, float DeflectionScale,
+		FVector InstigatorVelocity, float InstigatorFactor,
+		float Elasticity, float DeflectTime, bool bLaunchVertically);
 
 
 	// Accessors
@@ -78,22 +96,10 @@ public:
 	UFUNCTION(BlueprintPure)
 	bool CanMove() const;
 
-	/**
-	 * Bounce the character off a obstacle.
-	 *
-	 * @param DeflectionNormal		The direction the character hit the obstacle in
-	 * @param DeflectionScale		How fast the character should be moving in the direction after deflection (disregarding elasticity)
-	 * @param InstigatorVelocity	Velocity of the object the caused the deflection
-	 * @param InstigatorFactor		How much the instigator's velocity affects deflection speed (e.g. fast moving objects deflecting more)
-	 * @param Elasticity			How much should the character's velocity impact the deflection speed
-	 * @param DeflectTime			How long (in seconds) until the character regains normal control
-	 * @param bLaunchVertically		Should the player be launched upwards or downwards at all?
-	 */
-	UFUNCTION(BlueprintCallable)
-	void Deflect(
-		FVector DeflectionNormal, float DeflectionScale,
-		FVector InstigatorVelocity, float InstigatorFactor,
-		float Elasticity, float DeflectTime, bool bLaunchVertically);
+	
+	// Events
+
+	virtual void HandlePenetration(const FHitResult& SweepResult);
 
 
 	// Editor properties
@@ -125,6 +131,7 @@ public:
 	/** Maximum speed that this character can be launched at when hitting an obstacle */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Deflection")
 	float MaxLaunchSpeed = 500.f;
+	
 
 private:
 
