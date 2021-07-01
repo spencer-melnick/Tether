@@ -16,7 +16,6 @@ public:
 
 	ASimpleProjectile();
 
-
 	// Actor overrides
 	
 	virtual void Tick(float DeltaSeconds) override;

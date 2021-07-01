@@ -30,6 +30,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void SpawnTelegraphForActor(TSubclassOf<ASimpleProjectile> ActorClass);
 
+	UFUNCTION(BlueprintCallable)
+	void Display(float Duration);
+
 
 	// Editor properties
 
@@ -43,5 +46,8 @@ private:
 
 	UPROPERTY()
 	UDecalComponent* DecalComponent;
+
+	FTimerHandle VisibilityTimer;
+	bool bVisible;
 	
 };

@@ -4,6 +4,8 @@
 #include "ProjectileEmitterComponent.h"
 
 #include "Components/ArrowComponent.h"
+#include "Components/SphereComponent.h"
+
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Tether/Gameplay/SimpleProjectile.h"
 
@@ -11,8 +13,16 @@
 UProjectileEmitterComponent::UProjectileEmitterComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
-	UArrowComponent* Direction = CreateDefaultSubobject<UArrowComponent>(TEXT("Direction"));
+	
+#if WITH_EDITOR
+	UArrowComponent* Direction = CreateEditorOnlyDefaultSubobject<UArrowComponent>(TEXT("Direction"));
 	Direction->SetupAttachment(this);
+	Direction->SetCollisionEnabled(ECollisionEnabled::NoCollision); 
+
+	USphereComponent* Sphere = CreateEditorOnlyDefaultSubobject<USphereComponent>(TEXT("Sphere"));
+	Sphere->SetupAttachment(this);
+	Sphere->SetCollisionEnabled(ECollisionEnabled::NoCollision); 
+#endif
 }
 
 
@@ -38,17 +48,12 @@ void UProjectileEmitterComponent::FireProjectile()
 {
 	if (UWorld* World = GetWorld())
 	{
-		if (ProjectileType)
+		if (ProjectileType && ProjectileLifetime > 0 && !isnan(ProjectileLifetime))
 		{
 			ASimpleProjectile* Projectile = World->SpawnActor<ASimpleProjectile>(ProjectileType, GetComponentLocation(), GetComponentRotation());
 			Projectile->AttachToComponent(this, FAttachmentTransformRules::KeepWorldTransform);
 			Projectile->Velocity = GetForwardVector() * ProjectileVelocity;
-
-			FTimerHandle Handle;
-			World->GetTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(Projectile, [Projectile]
-			{
-				Projectile->Destroy();
-			}), Lifetime, false);
+			Projectile->SetLifeSpan(ProjectileLifetime);
 		}
 	}
 }

@@ -6,6 +6,7 @@
 
 #include "SimpleProjectile.h"
 #include "Components/SceneComponent.h"
+
 #include "ProjectileEmitterComponent.generated.h"
 
 
@@ -30,12 +31,11 @@ public:
 	void FireProjectile();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile")
-	const TSubclassOf<ASimpleProjectile> ProjectileType;
+	TSubclassOf<ASimpleProjectile> ProjectileType;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile")
 	float ProjectileVelocity;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile")
-	float Lifetime;
-		
+	float ProjectileLifetime = 1.0f;
 };

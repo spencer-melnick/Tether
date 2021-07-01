@@ -10,6 +10,7 @@ const FName UProjectileTelegraphComponent::DecalComponentName(TEXT("DecalCompone
 UProjectileTelegraphComponent::UProjectileTelegraphComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
+	bVisible = false;
 }
 
 void UProjectileTelegraphComponent::BeginPlay()
@@ -35,6 +36,20 @@ void UProjectileTelegraphComponent::SpawnTelegraphForActor(TSubclassOf<ASimplePr
 		DecalComponent->DecalSize = FVector(Size, Length, Size);
 		DecalComponent->SetRelativeLocation(FVector(Length / 2.f, 0, 0));
 		DecalComponent->SetRelativeRotation(FRotator(90, 90, 0));
+		DecalComponent->SetVisibility(false);
 	}
 }
+
+void UProjectileTelegraphComponent::Display(float Duration)
+{
+	if (UWorld* World = GetWorld())
+	{
+		DecalComponent->SetVisibility(true);
+		World->GetTimerManager().SetTimer(VisibilityTimer, FTimerDelegate::CreateWeakLambda(this, [this]
+		{
+			DecalComponent->SetVisibility(false);
+		}), Duration, false);
+	}
+}
+
 
