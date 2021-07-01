@@ -293,7 +293,7 @@ void ATetherCharacter::HandlePenetration(const FHitResult& HitResult)
 	const UCapsuleComponent* Capsule = GetCapsuleComponent();
 	UMovementComponent* MovementComponent = GetMovementComponent();
 	
-	if (GetLocalRole() > ROLE_AutonomousProxy && Capsule && MovementComponent)
+	if (GetLocalRole() >= ROLE_AutonomousProxy && Capsule && MovementComponent)
 	{
 		const FVector RequestedAdjustment = MovementComponent->GetPenetrationAdjustment(HitResult);
 		MovementComponent->ResolvePenetration(RequestedAdjustment, HitResult, Capsule->GetComponentRotation());
