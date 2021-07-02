@@ -133,7 +133,12 @@ public:
 	/** Maximum speed that this character can be launched at when hitting an obstacle */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Deflection")
 	float MaxLaunchSpeed = 500.f;
-	
+
+	// Interaction settings
+
+	/** Trace channel to use when checking for interactive objects */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Interation")
+	TEnumAsByte<ECollisionChannel> InteractionTraceChannel;
 
 private:
 

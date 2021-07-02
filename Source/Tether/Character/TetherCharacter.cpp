@@ -3,6 +3,7 @@
 #include "TetherCharacter.h"
 
 #include "DrawDebugHelpers.h"
+#include "Algo/Transform.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -166,7 +167,25 @@ void ATetherCharacter::Interact()
 		else
 		{
 			TArray<AActor*> Overlaps;
-			GrabSphereComponent->GetOverlappingActors(Overlaps);
+			const UWorld* World = GetWorld();
+			if (World && GrabSphereComponent)
+			{
+				TArray<FOverlapResult> OutOverlaps;
+				World->OverlapMultiByChannel(OutOverlaps,
+					GrabSphereComponent->GetComponentLocation(), GrabSphereComponent->GetComponentQuat(),
+					InteractionTraceChannel,
+					GrabSphereComponent->GetCollisionShape());
+
+				Algo::TransformIf(OutOverlaps, Overlaps,
+					[](const FOverlapResult& Overlap)
+				{
+					return Overlap.Actor.IsValid();
+				},
+					[](const FOverlapResult& Overlap)
+				{
+					return Overlap.Actor.Get();
+				});
+			}
 			if(Overlaps.Num() <= 0)
 			{
 				return;
@@ -331,6 +350,9 @@ void ATetherCharacter::DropObject()
 
 void ATetherCharacter::AnchorToObject(AActor* Object)
 {
+	const FVector Distance = Object->GetActorLocation() - GetActorLocation();
+	const FRotator Rotation = Distance.ToOrientationRotator();
+	SetActorRotation(FRotator(0.0f, Rotation.Yaw, 0.0f));
 	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::White, TEXT("Anchoring character..."));
 	bAnchored = true;
 }
