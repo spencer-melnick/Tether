@@ -57,7 +57,7 @@ float ATetherPrimaryGameMode::GetBaseObstacleSpeed(float GamePhaseTime) const
 {
 	if (ObstacleSpeedCurve)
 	{
-		return ObstacleSpeedCurve->GetFloatValue(GamePhaseTime);
+		return ObstacleSpeedMultiplier * ObstacleSpeedCurve->GetFloatValue(GamePhaseTime);
 	}
 
 	UE_LOG(LogTetherGame, Warning, TEXT("TetherPrimaryGameMode::GetBaseObstacleSpeed failed - no speed curve specified"));

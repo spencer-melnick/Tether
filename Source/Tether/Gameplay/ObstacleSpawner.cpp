@@ -18,7 +18,10 @@ void AObstacleSpawner::BeginPlay()
 {
 	Super::BeginPlay();
 
-	SpawnRandomObstacle();
+	if (HasAuthority())
+	{
+		SpawnRandomObstacle();
+	}
 }
 
 void AObstacleSpawner::SpawnRandomObstacle()

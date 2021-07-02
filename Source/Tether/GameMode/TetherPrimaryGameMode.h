@@ -36,6 +36,9 @@ public:
 	float WarmupTime = 10.f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Timing")
+	float ObstacleSpeedMultiplier = 100.f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Timing")
 	UCurveFloat* ObstacleSpeedCurve;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Health", meta=(ClampMin="0.0"))

@@ -4,6 +4,7 @@
 
 #include "DrawDebugHelpers.h"
 #include "Camera/CameraComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Tether/GameMode/TetherPrimaryGameMode.h"
@@ -33,6 +34,9 @@ ATetherCharacter::ATetherCharacter()
 
 	GrabHandle = CreateDefaultSubobject<USceneComponent>(GrabHandleName);
 	GrabHandle->SetupAttachment(RootComponent);
+
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = true;
 }
 
 
@@ -62,6 +66,12 @@ void ATetherCharacter::BeginPlay()
 	{
 		CharacterMovementComponent->GroundFriction = NormalFriction;
 	}
+}
+
+void ATetherCharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
 }
 
 
@@ -265,6 +275,20 @@ void ATetherCharacter::Deflect(
 
 
 // Events
+
+void ATetherCharacter::HandlePenetration(const FHitResult& HitResult)
+{
+	// Todo: accumulate worst penetration and resolve during physics update
+	
+	const UCapsuleComponent* Capsule = GetCapsuleComponent();
+	UMovementComponent* MovementComponent = GetMovementComponent();
+	
+	if (GetLocalRole() >= ROLE_AutonomousProxy && Capsule && MovementComponent)
+	{
+		const FVector RequestedAdjustment = MovementComponent->GetPenetrationAdjustment(HitResult);
+		MovementComponent->ResolvePenetration(RequestedAdjustment, HitResult, Capsule->GetComponentRotation());
+	}
+}
 
 void ATetherCharacter::OnTetherExpired()
 {
