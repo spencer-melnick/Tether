@@ -6,7 +6,6 @@
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
-#include "Tether/Tether.h"
 #include "Tether/GameMode/TetherPrimaryGameMode.h"
 
 
@@ -177,9 +176,13 @@ void ATetherCharacter::GrabObject()
 			GEngine->AddOnScreenDebugMessage(INDEX_NONE, 1.f, FColor::Black, TEXT("Attached object"), true, FVector2D(1,1));
 			bCarryingObject = true;
 			GrabbedObject = Closest;
-			((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetSimulatePhysics(false);
-			((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetCollisionProfileName(TEXT("IgnoreOnlyPawn"));
-			((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
+			UStaticMeshComponent* Target = Cast<UStaticMeshComponent>(GrabbedObject->GetRootComponent());
+			if (Target)
+			{
+				Target->SetSimulatePhysics(false);
+				Target->SetCollisionProfileName(TEXT("IgnoreOnlyPawn"));
+				Target->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
+			}
 			Closest->AttachToComponent(GrabHandle, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 		}
 	}
@@ -190,9 +193,13 @@ void ATetherCharacter::GrabObject()
 		TArray<USceneComponent*> ChildComponents;
 		GrabHandle->GetChildrenComponents(false, ChildComponents);
 		GrabbedObject->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-		((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetCollisionProfileName(TEXT("PhysicsActor"));
-		((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetSimulatePhysics(true);
-		bCarryingObject = false;
+		UStaticMeshComponent* Target = Cast<UStaticMeshComponent>(GrabbedObject->GetRootComponent());
+		if (Target)
+		{
+			Target->SetCollisionProfileName(TEXT("PhysicsActor"));
+			Target->SetSimulatePhysics(true);
+			bCarryingObject = false;
+		}
 	}
 }
 
@@ -223,6 +230,7 @@ FVector ATetherCharacter::GetTetherEffectLocation() const
 	return GetTetherTargetLocation();
 }
 
+// ReSharper disable once CppMemberFunctionMayBeStatic
 bool ATetherCharacter::CanMove() const
 {
 	return true;

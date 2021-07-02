@@ -6,7 +6,6 @@
 
 #include "Components/SphereComponent.h"
 #include "GameFramework/Character.h"
-#include "PhysicsEngine/PhysicsConstraintComponent.h"
 
 #include "TetherCharacter.generated.h"
 
