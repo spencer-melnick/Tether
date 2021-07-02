@@ -17,9 +17,19 @@ public:
 
 	AMovingObstacle();
 
+	// Actor overrides
+	
 	virtual void Tick(float DeltaSeconds) override;
+	virtual void PostNetReceiveLocationAndRotation() override;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Movement")
 	float SpeedMultiplier = 1.f;
+
+
+protected:
+
+	virtual void TryMove(FVector NewLocation, FRotator NewRotation);
+	virtual void TryPushCharacter(FVector DeltaLocation);
+	float GetEstimatedLocalPing() const;
 
 };
