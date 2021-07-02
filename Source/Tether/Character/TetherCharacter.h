@@ -27,8 +27,9 @@ public:
 	static const FName GrabHandleName;
 
 	static const FName PickupTag;
+	static const FName AnchorTag;
 
-	
+
 	ATetherCharacter();
 
 	
@@ -51,7 +52,7 @@ public:
 	void MoveY(float Scale);
 	void RotateX(float Scale);
 	void RotateY(float Scale);
-	void GrabObject();
+	void Interact();
 
 	UFUNCTION(BlueprintCallable)
 	void SetGroundFriction(float GroundFriction);
@@ -113,6 +114,8 @@ public:
 
 	bool bCarryingObject = false;
 
+	bool bAnchored = false;
+
 	/** Ground friction when this character isn't being bounced around */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Deflection")
 	float NormalFriction = 8.f;
@@ -147,10 +150,6 @@ private:
 	UPROPERTY(VisibleAnywhere, Category="Components")
 	USceneComponent* GrabHandle;
 
-	UPROPERTY(Transient)
-	AActor* GrabbedObject;
-
-
 	// Jump tracking
 
 	FTimerHandle CoyoteJumpTimerHandle;
@@ -165,7 +164,17 @@ private:
 	
 
 	// Animation tracking
-
-	bool bAlive = true;
 	
+	bool bAlive = true;
+
+	// Interaction Handling
+	
+	void PickupObject(AActor* Object);
+	void DropObject();
+
+	UPROPERTY(Transient)
+	AActor* CarriedActor;
+
+	void AnchorToObject(AActor* Object);
+	void ReleaseAnchor();
 };

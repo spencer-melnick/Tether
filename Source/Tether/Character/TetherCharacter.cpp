@@ -17,6 +17,7 @@ const FName ATetherCharacter::GrabSphereComponentName(TEXT("GrabSphere"));
 const FName ATetherCharacter::GrabHandleName(TEXT("GrabHandle"));
 
 const FName ATetherCharacter::PickupTag(TEXT("Pickup"));
+const FName ATetherCharacter::AnchorTag(TEXT("Anchor"));
 
 
 ATetherCharacter::ATetherCharacter()
@@ -49,7 +50,8 @@ void ATetherCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 	PlayerInputComponent->BindAction(TEXT("Jump"), EInputEvent::IE_Pressed, this, &ACharacter::Jump);
 	PlayerInputComponent->BindAction(TEXT("Jump"), EInputEvent::IE_Released, this, &ACharacter::StopJumping);
 
-	PlayerInputComponent->BindAction(TEXT("Grab"), EInputEvent::IE_Pressed, this, &ATetherCharacter::GrabObject);
+	PlayerInputComponent->BindAction(TEXT("Grab"), EInputEvent::IE_Pressed, this, &ATetherCharacter::Interact);
+	PlayerInputComponent->BindAction(TEXT("Grab"), EInputEvent::IE_Released, this, &ATetherCharacter::ReleaseAnchor);
 }
 
 void ATetherCharacter::BeginPlay()
@@ -144,61 +146,37 @@ void ATetherCharacter::RotateY(float Scale)
 	AddControllerPitchInput(Scale);
 }
 
-void ATetherCharacter::GrabObject()
+void ATetherCharacter::Interact()
 {
-	// if object inside collision box and not holding anything, pick it up.
-	if(!bCarryingObject)
 	{
-		TArray<AActor*> Overlaps;
-		GrabSphereComponent->GetOverlappingActors(Overlaps);
-		if(Overlaps.Num() <= 0)
+		if (bCarryingObject)
 		{
-			return;
+			DropObject();
 		}
-		AActor* Closest = Overlaps[0];
-		float MinimumDist = 1000;
-		bool bValid = false;
-		for (AActor* Actor: Overlaps)
+		else
 		{
-			if(Actor->ActorHasTag(PickupTag))
+			TArray<AActor*> Overlaps;
+			GrabSphereComponent->GetOverlappingActors(Overlaps);
+			if(Overlaps.Num() <= 0)
 			{
-				const float Dist = GetDistanceTo(Actor);
-				if (Dist < MinimumDist)
+				return;
+			}
+			for (AActor* Actor: Overlaps)
+			{
+				if (Actor->ActorHasTag(PickupTag))
 				{
-					MinimumDist = Dist;
-					Closest = Actor;
-					bValid = true;
+					if(!bCarryingObject)
+					{
+						PickupObject(Actor);
+						break;
+					}
+				}
+				if (Actor->ActorHasTag(AnchorTag))
+				{
+					AnchorToObject(Actor);
+					break;
 				}
 			}
-		}
-		if(bValid)
-		{
-			GEngine->AddOnScreenDebugMessage(INDEX_NONE, 1.f, FColor::Black, TEXT("Attached object"), true, FVector2D(1,1));
-			bCarryingObject = true;
-			GrabbedObject = Closest;
-			UStaticMeshComponent* Target = Cast<UStaticMeshComponent>(GrabbedObject->GetRootComponent());
-			if (Target)
-			{
-				Target->SetSimulatePhysics(false);
-				Target->SetCollisionProfileName(TEXT("IgnoreOnlyPawn"));
-				Target->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
-			}
-			Closest->AttachToComponent(GrabHandle, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
-		}
-	}
-
-	else if(bCarryingObject)
-	{
-		GEngine->AddOnScreenDebugMessage(INDEX_NONE, 1.f, FColor::Black, TEXT("Removed object"), true, FVector2D(1,1));
-		TArray<USceneComponent*> ChildComponents;
-		GrabHandle->GetChildrenComponents(false, ChildComponents);
-		GrabbedObject->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-		UStaticMeshComponent* Target = Cast<UStaticMeshComponent>(GrabbedObject->GetRootComponent());
-		if (Target)
-		{
-			Target->SetCollisionProfileName(TEXT("PhysicsActor"));
-			Target->SetSimulatePhysics(true);
-			bCarryingObject = false;
 		}
 	}
 }
@@ -230,10 +208,9 @@ FVector ATetherCharacter::GetTetherEffectLocation() const
 	return GetTetherTargetLocation();
 }
 
-// ReSharper disable once CppMemberFunctionMayBeStatic
 bool ATetherCharacter::CanMove() const
 {
-	return true;
+	return !bAnchored;
 }
 
 void ATetherCharacter::Deflect(
@@ -258,6 +235,11 @@ void ATetherCharacter::Deflect(
 		}
 	}
 
+	if (bAnchored)
+	{
+		ReleaseAnchor();
+	}
+	
 	if (!bLaunchVertically)
 	{
 		DeflectionNormal.Z = 0.f;
@@ -294,3 +276,46 @@ void ATetherCharacter::OnTetherExpired()
 		MovementComponent->SetMovementMode(MOVE_None);
 	}
 }
+
+void ATetherCharacter::PickupObject(AActor* Object)
+{
+	bCarryingObject = true;
+	CarriedActor = Object;
+	UStaticMeshComponent* Target = Cast<UStaticMeshComponent>(CarriedActor->GetRootComponent());
+	if (Target)
+	{
+		Target->SetSimulatePhysics(false);
+		Target->SetCollisionProfileName(TEXT("IgnoreOnlyPawn"));
+	}
+	Object->AttachToComponent(GrabHandle, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+}
+
+void ATetherCharacter::DropObject()
+{
+	bCarryingObject = false;
+	if(CarriedActor)
+	{
+		CarriedActor->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+		UStaticMeshComponent* Target = Cast<UStaticMeshComponent>(CarriedActor->GetRootComponent());
+		if (Target)
+		{
+			Target->SetCollisionProfileName(TEXT("PhysicsActor"));
+			Target->SetSimulatePhysics(true);
+		}
+	}
+}
+
+void ATetherCharacter::AnchorToObject(AActor* Object)
+{
+	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::White, TEXT("Anchoring character..."));
+	bAnchored = true;
+}
+
+void ATetherCharacter::ReleaseAnchor()
+{
+	if (bAnchored)
+	{
+		bAnchored = false;
+	}
+}
+
