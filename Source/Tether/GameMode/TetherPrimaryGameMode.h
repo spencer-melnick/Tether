@@ -45,7 +45,13 @@ public:
 	float MaxHealth = 100.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Health", meta=(ClampMin="0.0"))
-	float DamagePerSecond;	
+	float DamagePerSecond;
+
+
+protected:
+
+	virtual bool ShouldSpawnPIEPlayers() const override { return true; }
+	
 
 private:
 

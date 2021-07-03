@@ -32,3 +32,19 @@ void UTetherGameInstance::SetNumberOfPlayers(int32 NumPlayers)
 		UE_LOG(LogTetherGame, Display, TEXT("TetherGameInstance - actual number of players is %d"), GetNumLocalPlayers());
 	}
 }
+
+void UTetherGameInstance::OnWorldChanged(UWorld* OldWorld, UWorld* NewWorld)
+{
+	Super::OnWorldChanged(OldWorld, NewWorld);
+
+#if WITH_EDITOR
+	if (!OldWorld && NewWorld && NewWorld->IsPlayInEditor())
+	{
+		bInStartingPIEWorld = true;
+	}
+	else
+	{
+		bInStartingPIEWorld = false;
+	}
+#endif
+}

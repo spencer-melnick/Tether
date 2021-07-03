@@ -23,8 +23,10 @@ void ATetherGameModeBase::BeginPlay()
 	}
 
 #if WITH_EDITOR
-	if (IsPlayingInEditor())
+	const UTetherGameInstance* GameInstance = GetGameInstance<UTetherGameInstance>();
+	if (IsPlayingInEditor() && ShouldSpawnPIEPlayers() && GameInstance && GameInstance->InStartingPIEWorld())
 	{
+		UE_LOG(LogTetherGame, Display, TEXT("TetherGameModeBase - spawning PIE players"));
 		SpawnPIEPlayers();
 	}
 #endif

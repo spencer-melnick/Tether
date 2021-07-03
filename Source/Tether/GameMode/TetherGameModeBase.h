@@ -47,6 +47,11 @@ protected:
 	/** Creates HUD widgets for all player controllers */
 	UFUNCTION(BlueprintCallable)
 	void SpawnHUDWidgets();
+
+#if WITH_EDITOR
+	/** Returns true if this game mode should spawn PIE players when it is the first loaded gamemode */
+	virtual bool ShouldSpawnPIEPlayers() const { return false; }
+#endif
 	
 
 	// UI Settings
