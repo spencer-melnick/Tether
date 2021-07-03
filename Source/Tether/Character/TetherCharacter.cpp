@@ -3,6 +3,7 @@
 #include "TetherCharacter.h"
 
 #include "DrawDebugHelpers.h"
+#include "TetherCharacterMovementComponent.h"
 #include "Algo/Transform.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -22,7 +23,8 @@ const FName ATetherCharacter::PickupTag(TEXT("Pickup"));
 const FName ATetherCharacter::AnchorTag(TEXT("Anchor"));
 
 
-ATetherCharacter::ATetherCharacter()
+ATetherCharacter::ATetherCharacter(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer.SetDefaultSubobjectClass<UTetherCharacterMovementComponent>(CharacterMovementComponentName))
 {
 	SpringArmComponent = CreateDefaultSubobject<USpringArmComponent>(SpringArmComponentName);
 	SpringArmComponent->SetupAttachment(RootComponent);
@@ -352,7 +354,9 @@ void ATetherCharacter::AnchorToObject(AActor* Object)
 {
 	const FVector Distance = Object->GetActorLocation() - GetActorLocation();
 	const FRotator Rotation = Distance.ToOrientationRotator();
-	SetActorRotation(FRotator(0.0f, Rotation.Yaw, 0.0f));
+	GetCharacterMovement()->SetMovementMode(MOVE_Custom, static_cast<int>(ETetherMovementType::Anchored));
+	static_cast<UTetherCharacterMovementComponent*>(GetCharacterMovement())->SetRotationOverride(Rotation);
+	
 	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::White, TEXT("Anchoring character..."));
 	bAnchored = true;
 }
@@ -361,6 +365,7 @@ void ATetherCharacter::ReleaseAnchor()
 {
 	if (bAnchored)
 	{
+		GetCharacterMovement()->SetDefaultMovementMode();
 		bAnchored = false;
 	}
 }

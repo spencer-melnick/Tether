@@ -30,7 +30,7 @@ public:
 	static const FName AnchorTag;
 
 
-	ATetherCharacter();
+	ATetherCharacter(const class FObjectInitializer& ObjectInitializer);
 
 	
 	// Actor overrides
@@ -38,7 +38,7 @@ public:
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
-
+	
 	
 	// Character overrides
 	
