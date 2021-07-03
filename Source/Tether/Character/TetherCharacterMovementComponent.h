@@ -19,11 +19,17 @@ public:
 	virtual void PhysCustom(float DeltaTime, int32 Iterations) override;
 	
 	UFUNCTION(BlueprintCallable)
-	void SetRotationOverride(const FRotator Rotation);
+	void SetAnchorRotation(const FRotator Rotation);
+
+	UFUNCTION(BlueprintCallable)
+	void SetAnchorLocation(const FVector Location);
 
 private:
-	FRotator GetCustomDeltaRotation(float DeltaTime);
-	FRotator RotationOverride;
+	FRotator GetAnchorDeltaRotation(float DeltaTime);
+	FRotator AnchorRotation;
+
+	FVector GetAnchorDeltaLocation(float DeltaTime);
+	FVector AnchorLocation;
 	
 };
 

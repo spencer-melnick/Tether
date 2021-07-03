@@ -326,11 +326,11 @@ void ATetherCharacter::PickupObject(AActor* Object)
 {
 	bCarryingObject = true;
 	CarriedActor = Object;
-	UStaticMeshComponent* Target = Cast<UStaticMeshComponent>(CarriedActor->GetRootComponent());
+	UPrimitiveComponent* Target = Cast<UPrimitiveComponent>(CarriedActor->GetRootComponent());
 	if (Target)
 	{
 		Target->SetSimulatePhysics(false);
-		Target->SetCollisionProfileName(TEXT("IgnoreOnlyPawn"));
+		Target->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Overlap);
 	}
 	Object->AttachToComponent(GrabHandle, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 }
@@ -341,10 +341,10 @@ void ATetherCharacter::DropObject()
 	if(CarriedActor)
 	{
 		CarriedActor->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-		UStaticMeshComponent* Target = Cast<UStaticMeshComponent>(CarriedActor->GetRootComponent());
+		UPrimitiveComponent* Target = Cast<UPrimitiveComponent>(CarriedActor->GetRootComponent());
 		if (Target)
 		{
-			Target->SetCollisionProfileName(TEXT("PhysicsActor"));
+			Target->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Block);
 			Target->SetSimulatePhysics(true);
 		}
 	}
@@ -352,12 +352,28 @@ void ATetherCharacter::DropObject()
 
 void ATetherCharacter::AnchorToObject(AActor* Object)
 {
-	const FVector Distance = Object->GetActorLocation() - GetActorLocation();
-	const FRotator Rotation = Distance.ToOrientationRotator();
-	GetCharacterMovement()->SetMovementMode(MOVE_Custom, static_cast<int>(ETetherMovementType::Anchored));
-	static_cast<UTetherCharacterMovementComponent*>(GetCharacterMovement())->SetRotationOverride(Rotation);
+	FVector ClosestPoint = GrabHandle->GetComponentLocation();
+
+	// Search only along XY in world space
+	if(UPrimitiveComponent* Target = Cast<UPrimitiveComponent>(Object->GetRootComponent()))
+	{
+		if(Target->GetDistanceToCollision(FVector(ClosestPoint.X, ClosestPoint.Y, Target->GetComponentLocation().Z), ClosestPoint) < 0.0f)
+		{
+			// If for some reason the search failed, anchor the character to their current location
+			ClosestPoint = GetActorLocation();
+		}
+	}
 	
-	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::White, TEXT("Anchoring character..."));
+	GetCharacterMovement()->SetMovementMode(MOVE_Custom, static_cast<int>(ETetherMovementType::Anchored));
+	const FVector Distance = ClosestPoint - GetActorLocation();
+	const FRotator Rotation = Distance.ToOrientationRotator();
+	ClosestPoint -= GrabHandle->GetRelativeLocation().RotateAngleAxis(Rotation.Yaw, FVector::UpVector);
+
+	UTetherCharacterMovementComponent* TetherCharacterMovementComponent = static_cast<UTetherCharacterMovementComponent*>(GetCharacterMovement());
+	TetherCharacterMovementComponent->SetAnchorRotation(Rotation);
+	TetherCharacterMovementComponent->SetAnchorLocation(FVector(ClosestPoint.X, ClosestPoint.Y, GetActorLocation().Z));
+		
+	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::White, *ClosestPoint.ToString());
 	bAnchored = true;
 }
 
