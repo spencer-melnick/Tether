@@ -6,7 +6,6 @@
 
 #include "Components/SphereComponent.h"
 #include "GameFramework/Character.h"
-#include "PhysicsEngine/PhysicsConstraintComponent.h"
 
 #include "TetherCharacter.generated.h"
 
@@ -28,9 +27,10 @@ public:
 	static const FName GrabHandleName;
 
 	static const FName PickupTag;
+	static const FName AnchorTag;
 
-	
-	ATetherCharacter();
+
+	ATetherCharacter(const class FObjectInitializer& ObjectInitializer);
 
 	
 	// Actor overrides
@@ -38,7 +38,7 @@ public:
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
-
+	
 	
 	// Character overrides
 	
@@ -53,7 +53,7 @@ public:
 	void MoveY(float Scale);
 	void RotateX(float Scale);
 	void RotateY(float Scale);
-	void GrabObject();
+	void Interact();
 
 	UFUNCTION(BlueprintCallable)
 	void SetGroundFriction(float GroundFriction);
@@ -120,6 +120,8 @@ public:
 
 	bool bCarryingObject = false;
 
+	bool bAnchored = false;
+
 	/** Ground friction when this character isn't being bounced around */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Deflection")
 	float NormalFriction = 8.f;
@@ -131,7 +133,12 @@ public:
 	/** Maximum speed that this character can be launched at when hitting an obstacle */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Deflection")
 	float MaxLaunchSpeed = 500.f;
-	
+
+	// Interaction settings
+
+	/** Trace channel to use when checking for interactive objects */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Interation")
+	TEnumAsByte<ECollisionChannel> InteractionTraceChannel;
 
 private:
 
@@ -155,10 +162,6 @@ private:
 	UPROPERTY(VisibleAnywhere, Category="Components")
 	USceneComponent* GrabHandle;
 
-	UPROPERTY(Transient)
-	AActor* GrabbedObject;
-
-
 	// Jump tracking
 
 	FTimerHandle CoyoteJumpTimerHandle;
@@ -173,7 +176,17 @@ private:
 	
 
 	// Animation tracking
-
-	bool bAlive = true;
 	
+	bool bAlive = true;
+
+	// Interaction Handling
+	
+	void PickupObject(AActor* Object);
+	void DropObject();
+
+	UPROPERTY(Transient)
+	AActor* CarriedActor;
+
+	void AnchorToObject(AActor* Object);
+	void ReleaseAnchor();
 };

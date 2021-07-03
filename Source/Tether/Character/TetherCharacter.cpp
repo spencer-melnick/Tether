@@ -3,11 +3,12 @@
 #include "TetherCharacter.h"
 
 #include "DrawDebugHelpers.h"
+#include "TetherCharacterMovementComponent.h"
+#include "Algo/Transform.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
-#include "Tether/Tether.h"
 #include "Tether/GameMode/TetherPrimaryGameMode.h"
 
 
@@ -19,9 +20,11 @@ const FName ATetherCharacter::GrabSphereComponentName(TEXT("GrabSphere"));
 const FName ATetherCharacter::GrabHandleName(TEXT("GrabHandle"));
 
 const FName ATetherCharacter::PickupTag(TEXT("Pickup"));
+const FName ATetherCharacter::AnchorTag(TEXT("Anchor"));
 
 
-ATetherCharacter::ATetherCharacter()
+ATetherCharacter::ATetherCharacter(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer.SetDefaultSubobjectClass<UTetherCharacterMovementComponent>(CharacterMovementComponentName))
 {
 	SpringArmComponent = CreateDefaultSubobject<USpringArmComponent>(SpringArmComponentName);
 	SpringArmComponent->SetupAttachment(RootComponent);
@@ -54,7 +57,8 @@ void ATetherCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 	PlayerInputComponent->BindAction(TEXT("Jump"), EInputEvent::IE_Pressed, this, &ACharacter::Jump);
 	PlayerInputComponent->BindAction(TEXT("Jump"), EInputEvent::IE_Released, this, &ACharacter::StopJumping);
 
-	PlayerInputComponent->BindAction(TEXT("Grab"), EInputEvent::IE_Pressed, this, &ATetherCharacter::GrabObject);
+	PlayerInputComponent->BindAction(TEXT("Grab"), EInputEvent::IE_Pressed, this, &ATetherCharacter::Interact);
+	PlayerInputComponent->BindAction(TEXT("Grab"), EInputEvent::IE_Released, this, &ATetherCharacter::ReleaseAnchor);
 }
 
 void ATetherCharacter::BeginPlay()
@@ -155,54 +159,56 @@ void ATetherCharacter::RotateY(float Scale)
 	AddControllerPitchInput(Scale);
 }
 
-void ATetherCharacter::GrabObject()
+void ATetherCharacter::Interact()
 {
-	// if object inside collision box and not holding anything, pick it up.
-	if(!bCarryingObject)
 	{
-		TArray<AActor*> Overlaps;
-		GrabSphereComponent->GetOverlappingActors(Overlaps);
-		if(Overlaps.Num() <= 0)
+		if (bCarryingObject)
 		{
-			return;
+			DropObject();
 		}
-		AActor* Closest = Overlaps[0];
-		float MinimumDist = 1000;
-		bool bValid = false;
-		for (AActor* Actor: Overlaps)
+		else
 		{
-			if(Actor->ActorHasTag(PickupTag))
+			TArray<AActor*> Overlaps;
+			const UWorld* World = GetWorld();
+			if (World && GrabSphereComponent)
 			{
-				const float Dist = GetDistanceTo(Actor);
-				if (Dist < MinimumDist)
+				TArray<FOverlapResult> OutOverlaps;
+				World->OverlapMultiByChannel(OutOverlaps,
+					GrabSphereComponent->GetComponentLocation(), GrabSphereComponent->GetComponentQuat(),
+					InteractionTraceChannel,
+					GrabSphereComponent->GetCollisionShape());
+
+				Algo::TransformIf(OutOverlaps, Overlaps,
+					[](const FOverlapResult& Overlap)
 				{
-					MinimumDist = Dist;
-					Closest = Actor;
-					bValid = true;
+					return Overlap.Actor.IsValid();
+				},
+					[](const FOverlapResult& Overlap)
+				{
+					return Overlap.Actor.Get();
+				});
+			}
+			if(Overlaps.Num() <= 0)
+			{
+				return;
+			}
+			for (AActor* Actor: Overlaps)
+			{
+				if (Actor->ActorHasTag(PickupTag))
+				{
+					if(!bCarryingObject)
+					{
+						PickupObject(Actor);
+						break;
+					}
+				}
+				if (Actor->ActorHasTag(AnchorTag))
+				{
+					AnchorToObject(Actor);
+					break;
 				}
 			}
 		}
-		if(bValid)
-		{
-			GEngine->AddOnScreenDebugMessage(INDEX_NONE, 1.f, FColor::Black, TEXT("Attached object"), true, FVector2D(1,1));
-			bCarryingObject = true;
-			GrabbedObject = Closest;
-			((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetSimulatePhysics(false);
-			((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetCollisionProfileName(TEXT("IgnoreOnlyPawn"));
-			((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
-			Closest->AttachToComponent(GrabHandle, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
-		}
-	}
-
-	else if(bCarryingObject)
-	{
-		GEngine->AddOnScreenDebugMessage(INDEX_NONE, 1.f, FColor::Black, TEXT("Removed object"), true, FVector2D(1,1));
-		TArray<USceneComponent*> ChildComponents;
-		GrabHandle->GetChildrenComponents(false, ChildComponents);
-		GrabbedObject->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-		((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetCollisionProfileName(TEXT("PhysicsActor"));
-		((UStaticMeshComponent*) GrabbedObject->GetRootComponent())->SetSimulatePhysics(true);
-		bCarryingObject = false;
 	}
 }
 
@@ -235,7 +241,7 @@ FVector ATetherCharacter::GetTetherEffectLocation() const
 
 bool ATetherCharacter::CanMove() const
 {
-	return true;
+	return !bAnchored;
 }
 
 void ATetherCharacter::Deflect(
@@ -260,6 +266,11 @@ void ATetherCharacter::Deflect(
 		}
 	}
 
+	if (bAnchored)
+	{
+		ReleaseAnchor();
+	}
+	
 	if (!bLaunchVertically)
 	{
 		DeflectionNormal.Z = 0.f;
@@ -310,3 +321,68 @@ void ATetherCharacter::OnTetherExpired()
 		MovementComponent->SetMovementMode(MOVE_None);
 	}
 }
+
+void ATetherCharacter::PickupObject(AActor* Object)
+{
+	bCarryingObject = true;
+	CarriedActor = Object;
+	UPrimitiveComponent* Target = Cast<UPrimitiveComponent>(CarriedActor->GetRootComponent());
+	if (Target)
+	{
+		Target->SetSimulatePhysics(false);
+		Target->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Overlap);
+	}
+	Object->AttachToComponent(GrabHandle, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+}
+
+void ATetherCharacter::DropObject()
+{
+	bCarryingObject = false;
+	if(CarriedActor)
+	{
+		CarriedActor->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+		UPrimitiveComponent* Target = Cast<UPrimitiveComponent>(CarriedActor->GetRootComponent());
+		if (Target)
+		{
+			Target->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Block);
+			Target->SetSimulatePhysics(true);
+		}
+	}
+}
+
+void ATetherCharacter::AnchorToObject(AActor* Object)
+{
+	FVector ClosestPoint = GrabHandle->GetComponentLocation();
+
+	// Search only along XY in world space
+	if(UPrimitiveComponent* Target = Cast<UPrimitiveComponent>(Object->GetRootComponent()))
+	{
+		if(Target->GetDistanceToCollision(FVector(ClosestPoint.X, ClosestPoint.Y, Target->GetComponentLocation().Z), ClosestPoint) < 0.0f)
+		{
+			// If for some reason the search failed, anchor the character to their current location
+			ClosestPoint = GetActorLocation();
+		}
+	}
+	
+	GetCharacterMovement()->SetMovementMode(MOVE_Custom, static_cast<int>(ETetherMovementType::Anchored));
+	const FVector Distance = ClosestPoint - GetActorLocation();
+	const FRotator Rotation = Distance.ToOrientationRotator();
+	ClosestPoint -= GrabHandle->GetRelativeLocation().RotateAngleAxis(Rotation.Yaw, FVector::UpVector);
+
+	UTetherCharacterMovementComponent* TetherCharacterMovementComponent = static_cast<UTetherCharacterMovementComponent*>(GetCharacterMovement());
+	TetherCharacterMovementComponent->SetAnchorRotation(Rotation);
+	TetherCharacterMovementComponent->SetAnchorLocation(FVector(ClosestPoint.X, ClosestPoint.Y, GetActorLocation().Z));
+		
+	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::White, *ClosestPoint.ToString());
+	bAnchored = true;
+}
+
+void ATetherCharacter::ReleaseAnchor()
+{
+	if (bAnchored)
+	{
+		GetCharacterMovement()->SetDefaultMovementMode();
+		bAnchored = false;
+	}
+}
+

@@ -88,8 +88,8 @@ void AProjectileEmitter::SetTelegraphSize()
 	if (ActorCDO && TelegraphComponent)
 	{
 		const float Size = ActorCDO->ProjectileRadius * 2;
-		TelegraphComponent->DecalSize = FVector(Size, Distance, Size);
-		TelegraphComponent->SetRelativeLocation(FVector(Distance / 2.f, 0, 0));
+		TelegraphComponent->DecalSize = FVector(Size, Distance + Size, Size);
+		TelegraphComponent->SetRelativeLocation(FVector((Distance / 2.f), 0, 0));
 	}
 }
 
