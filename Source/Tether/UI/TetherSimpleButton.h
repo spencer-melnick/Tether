@@ -17,11 +17,9 @@ public:
 	UTetherSimpleButton();
 	
 
-	// User widget interface
+	// Tether widget interface
 	
-	virtual void NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
-	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
-	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+	virtual void HandleWidgetPressed() override;
 
 
 	// Delegates

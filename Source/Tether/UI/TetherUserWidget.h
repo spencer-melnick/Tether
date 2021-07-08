@@ -24,12 +24,21 @@ public:
 	virtual void NativeOnFocusChanging(const FWeakWidgetPath& PreviousFocusPath, const FWidgetPath& NewWidgetPath, const FFocusEvent& InFocusEvent) override;
 	virtual void NativeOnAddedToFocusPath(const FFocusEvent& InFocusEvent) override;
 	virtual void NativeOnRemovedFromFocusPath(const FFocusEvent& InFocusEvent) override;
+	virtual void NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
+	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
 
 
 	// Event handlers
 
-	UFUNCTION(BlueprintImplementableEvent)
-	void HandleFocusChanged(bool bNewFocused);
+	virtual void HandleFocusChanged(bool bNewFocused);
+	virtual void HandleWidgetPressed();
+
+	UFUNCTION(BlueprintImplementableEvent, meta=(DisplayName="Handle Focus Changed"))
+	void BP_HandleFocusChanged(bool bNewFocused);
+
+	UFUNCTION(BlueprintImplementableEvent, meta=(DisplayName="Handle Widget Pressed"))
+	void BP_HandleWidgetPressed();
 
 
 	// Accessors
@@ -43,6 +52,9 @@ public:
 	/** If true this widget will trigger focus events if a child widget is focused */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Focus")
 	bool bCountChildFocus = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Focus")
+	bool bFocusOnMouseover = true;
 	
 
 private:

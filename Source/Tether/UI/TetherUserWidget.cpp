@@ -7,6 +7,7 @@ void UTetherUserWidget::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();
 
+	bFocused = false;
 	HandleFocusChanged(false);
 }
 
@@ -63,6 +64,52 @@ void UTetherUserWidget::NativeOnRemovedFromFocusPath(const FFocusEvent& InFocusE
 	{
 		UpdateFocus(false);
 	}
+}
+
+void UTetherUserWidget::NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+{
+	Super::NativeOnMouseEnter(InGeometry, InMouseEvent);
+
+	if (bFocusOnMouseover)
+	{
+		SetFocus();
+	}
+}
+
+FReply UTetherUserWidget::NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
+{
+	const FReply DefaultReply = Super::NativeOnKeyDown(InGeometry, InKeyEvent);
+	
+	if (!DefaultReply.IsEventHandled() && IsFocused() && FSlateApplication::Get().GetNavigationActionFromKey(InKeyEvent) == EUINavigationAction::Accept)
+	{
+		HandleWidgetPressed();
+		return FReply::Handled();
+	}
+
+	return DefaultReply;
+}
+
+FReply UTetherUserWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+{
+	const FReply DefaultReply = Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
+
+	if (!DefaultReply.IsEventHandled() && (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton || InMouseEvent.IsTouchEvent()))
+	{
+		HandleWidgetPressed();
+		return FReply::Handled();
+	}
+
+	return DefaultReply;
+}
+
+void UTetherUserWidget::HandleFocusChanged(bool bNewFocused)
+{
+	BP_HandleFocusChanged(bNewFocused);
+}
+
+void UTetherUserWidget::HandleWidgetPressed()
+{
+	BP_HandleWidgetPressed();
 }
 
 void UTetherUserWidget::UpdateFocus(bool bNewFocused)
