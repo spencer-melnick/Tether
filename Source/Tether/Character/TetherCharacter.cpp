@@ -18,6 +18,7 @@ const FName ATetherCharacter::CameraComponentName(TEXT("CameraComponent"));
 const FName ATetherCharacter::SpringArmComponentName(TEXT("SpringArm"));
 const FName ATetherCharacter::GrabSphereComponentName(TEXT("GrabSphere"));
 const FName ATetherCharacter::GrabHandleName(TEXT("GrabHandle"));
+const FName ATetherCharacter::BeamComponentName(TEXT("BeamComponent"));
 
 const FName ATetherCharacter::PickupTag(TEXT("Pickup"));
 const FName ATetherCharacter::AnchorTag(TEXT("Anchor"));
@@ -38,6 +39,9 @@ ATetherCharacter::ATetherCharacter(const FObjectInitializer& ObjectInitializer)
 	GrabHandle = CreateDefaultSubobject<USceneComponent>(GrabHandleName);
 	GrabHandle->SetupAttachment(RootComponent);
 
+	BeamComponent = CreateDefaultSubobject<UBeamComponent>(BeamComponentName);
+	BeamComponent->SetupAttachment(GetMesh());
+	
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
 }

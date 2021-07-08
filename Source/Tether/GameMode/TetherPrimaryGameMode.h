@@ -6,13 +6,15 @@
 #include "TetherGameModeBase.h"
 #include "TetherPrimaryGameMode.generated.h"
 
+class ABeamController;
+
+
 UCLASS()
 class ATetherPrimaryGameMode : public ATetherGameModeBase
 {
 	GENERATED_BODY()
 
 public:
-
 
 	ATetherPrimaryGameMode();
 
@@ -28,6 +30,8 @@ public:
 	const AVolume* GetObstacleVolume() const { return ObstacleVolume; }
 
 	float GetBaseObstacleSpeed(float GamePhaseTime) const;
+
+	ABeamController* GetBeamController() const { return BeamController; }
 
 
 	// Editor properties
@@ -47,6 +51,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Health", meta=(ClampMin="0.0"))
 	float DamagePerSecond;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Beam")
+	TSubclassOf<ABeamController> BeamControllerClass;
+
 
 protected:
 
@@ -57,5 +64,8 @@ private:
 
 	UPROPERTY(Transient)
 	AVolume* ObstacleVolume;
+
+	UPROPERTY(Transient)
+	ABeamController* BeamController;
 
 };

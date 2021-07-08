@@ -6,14 +6,17 @@
 
 #include "Components/SphereComponent.h"
 #include "GameFramework/Character.h"
+#include "Tether/Gameplay/BeamComponent.h"
 
 #include "TetherCharacter.generated.h"
 
 class UCameraComponent;
 class USpringArmComponent;
+class UBeamComponent;
+
 
 UCLASS(Blueprintable)
-class ATetherCharacter : public ACharacter
+class ATetherCharacter : public ACharacter, public IBeamTarget
 {
 	GENERATED_BODY()
 
@@ -25,6 +28,7 @@ public:
 	static const FName SpringArmComponentName;
 	static const FName GrabSphereComponentName;
 	static const FName GrabHandleName;
+	static const FName BeamComponentName;
 
 	static const FName PickupTag;
 	static const FName AnchorTag;
@@ -45,6 +49,11 @@ public:
 	virtual bool CanJumpInternal_Implementation() const override;
 	virtual void Falling() override;
 	virtual void OnJumped_Implementation() override;
+
+
+	// Beam target interface
+
+	virtual UBeamComponent* GetBeamComponent_Implementation() const override { return BeamComponent; }
 
 	
 	// Movement functions
@@ -161,6 +170,9 @@ private:
 
 	UPROPERTY(VisibleAnywhere, Category="Components")
 	USceneComponent* GrabHandle;
+
+	UPROPERTY(VisibleAnywhere)
+	UBeamComponent* BeamComponent;
 
 	// Jump tracking
 
