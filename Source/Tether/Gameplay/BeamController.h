@@ -10,6 +10,15 @@ enum class EBeamComponentMode : uint8;
 enum class EBeamComponentStatus : uint8;
 
 
+UENUM(BlueprintType)
+enum class EBeamControllerWeightingMode : uint8
+{
+	Linear,
+	Quadratic,
+	Custom
+};
+
+
 /**
  * Actor that creates and manages the lifecycle of beams connecting the player pawns.
  * Intended to be spawned by the game mode
@@ -47,6 +56,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Beam")
 	void UpdateBeamEffects();
 
+	/** Function used to calculate weighted distance if mode is set to custom */
+	UFUNCTION(BlueprintNativeEvent)
+	float CalculateWeightedDistanceCustom(FVector StartLocation, FVector EndLocation) const;
+	virtual float CalculateWeightedDistanceCustom_Implementation(FVector StartLocation, FVector EndLocation) const;
+
 
 	// Event handlers
 
@@ -78,13 +92,18 @@ public:
 	UPROPERTY(EditDefaultsOnly)
 	float TraversalTickInterval = 0.05f;
 
+	UPROPERTY(EditDefaultsOnly)
+	EBeamControllerWeightingMode WeightingMode;
+	
+
 private:
 
 	struct FBeamNode
 	{
 		AActor* BeamTarget;
 		UBeamComponent* BeamComponent;
-		TArray<float> NodeSquaredDistances;
+		TArray<float> NodeDistances;
+		int32 LinkedRequirement;
 		uint8 bRequired : 1;
 		uint8 bConnected : 1;
 	};
@@ -97,6 +116,9 @@ private:
 
 	/** Returns the path from the starting node to the nearest connected node as index pairs */
 	TArray<TPair<int32, int32>> FindClosestConnectedNode(const TArray<FBeamNode>& BeamNodes, int32 StartingIndex);
+
+	/** Calculate the weighted distance between targets based on the selected weighting mode */
+	float CalculateWeightedDistance(FVector StartLocation, FVector EndLocation) const;
 
 	UPROPERTY()
 	TArray<AActor*> BeamTargets;

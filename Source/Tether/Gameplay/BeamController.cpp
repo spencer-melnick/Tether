@@ -58,6 +58,11 @@ void ABeamController::UpdateBeamEffects()
 	// Do something?
 }
 
+float ABeamController::CalculateWeightedDistanceCustom_Implementation(FVector StartLocation, FVector EndLocation) const
+{
+	return FVector::Distance(StartLocation, EndLocation);
+}
+
 void ABeamController::HandleTargetDestroyed(AActor* Target)
 {
 	RemoveBeamTarget(Target);
@@ -92,20 +97,46 @@ void ABeamController::TraverseBeams(float DeltaTime)
 		return;
 	}
 
-	bool bPendingBeamsConnected = true;
+	bool bAllRequirementsLinked = true;
 	TArray<TPair<int32, int32>> AllPathIndices;
+	TArray<TPair<int32, int32>> RequiredPathIndices;
+	
 	for (int32 RequiredNodeIndex : RequiredNodeIndices)
 	{
 		TArray<TPair<int32, int32>> PathIndices = FindClosestConnectedNode(BeamNodes, RequiredNodeIndex);
 
-		if (PathIndices.Num() < 1)
+		// We found a valid connection!
+		if (PathIndices.Num() > 0)
 		{
-			bPendingBeamsConnected = false;
-		}
+			FBeamNode& StartingNode = BeamNodes[RequiredNodeIndex];
+			const int32 EndNodeIndex = PathIndices[0].Key;
+			const FBeamNode& EndNode = BeamNodes[EndNodeIndex];
 
-		AllPathIndices.Append(PathIndices);
+			// If the end node is not a required node, then defer to its linked requirement
+			const int32 EndRequiredIndex = EndNode.bRequired ? EndNodeIndex : EndNode.LinkedRequirement;
+			StartingNode.LinkedRequirement = EndRequiredIndex;
+			
+			// Mark every non-required node as linked to the starting node
+			for (TPair<int32, int32> PathEdge : PathIndices)
+			{
+				FBeamNode& EdgeNode = BeamNodes[PathEdge.Key];
+				if (EdgeNode.LinkedRequirement == INDEX_NONE)
+				{
+					EdgeNode.LinkedRequirement = RequiredNodeIndex;
+				}
+			}
+
+			// Add the path edges to the total path edges
+			AllPathIndices.Append(PathIndices);
+			RequiredPathIndices.Emplace(RequiredNodeIndex, EndRequiredIndex);
+		}
+		else
+		{
+			bAllRequirementsLinked = false;
+		}
 	}
 
+	// Draw debug lines
 	if (const UWorld* World = GetWorld())
 	{
 		for (TPair<int32, int32> PathEdge : AllPathIndices)
@@ -114,11 +145,18 @@ void ABeamController::TraverseBeams(float DeltaTime)
 			const FBeamNode& BeamNodeB = BeamNodes[PathEdge.Value];
 			DrawDebugLine(World,
 				BeamNodeA.BeamComponent->GetComponentLocation(), BeamNodeB.BeamComponent->GetComponentLocation(),
-				FColor::Cyan, false, DeltaTime, 0, 2.f);
+				FColor::Cyan, false, DeltaTime + 0.05f, 0, 2.f);
+		}
+
+		for (TPair<int32, int32> PathEdge : RequiredPathIndices)
+		{
+			const FBeamNode& BeamNodeA = BeamNodes[PathEdge.Key];
+			const FBeamNode& BeamNodeB = BeamNodes[PathEdge.Value];
+			DrawDebugLine(World,
+				BeamNodeA.BeamComponent->GetComponentLocation(), BeamNodeB.BeamComponent->GetComponentLocation(),
+				FColor::Yellow, false, DeltaTime + 0.05f, 0, 2.f);
 		}
 	}
-	
-	bBeamsConnected = bPendingBeamsConnected;
 }
 
 TArray<ABeamController::FBeamNode> ABeamController::BuildInitialNodes()
@@ -154,13 +192,12 @@ TArray<ABeamController::FBeamNode> ABeamController::BuildInitialNodes()
 	{
 		FBeamNode& NewNode = BeamNodes.Emplace_GetRef();
 		NewNode.BeamTarget = FilteredBeamTargets[Index];
-		NewNode.NodeSquaredDistances.SetNumUninitialized(NumNodes);
+		NewNode.NodeDistances.SetNumUninitialized(NumNodes);
 		NewNode.BeamComponent = NewNode.BeamTarget->Implements<UBeamTarget>() ? IBeamTarget::Execute_GetBeamComponent(NewNode.BeamTarget) : nullptr;
+		NewNode.LinkedRequirement = INDEX_NONE;
 		if (ensure(NewNode.BeamComponent))
 		{
-			const EBeamComponentMode ComponentMode = NewNode.BeamComponent->GetMode();
-			const EBeamComponentMode MaskedMode = ComponentMode & EBeamComponentMode::Required;
-			NewNode.bRequired = MaskedMode != EBeamComponentMode::None;
+			NewNode.bRequired = (NewNode.BeamComponent->GetMode() & EBeamComponentMode::Required) != EBeamComponentMode::None;
 			NewNode.bConnected = NewNode.bRequired;
 			NumRequiredNodes++;
 		}
@@ -177,30 +214,27 @@ TArray<ABeamController::FBeamNode> ABeamController::BuildInitialNodes()
 	for (int32 IndexI = 0; IndexI < NumNodes; IndexI++)
 	{
 		FBeamNode& NodeA = BeamNodes[IndexI];
-		NodeA.NodeSquaredDistances[IndexI] = -1.f;
+		NodeA.NodeDistances[IndexI] = -1.f;
 		
 		for (int32 IndexJ = IndexI + 1; IndexJ < NumNodes; IndexJ++)
 		{
 			FBeamNode& NodeB = BeamNodes[IndexJ];
-
-			float NodeDistanceSquared = -1.f;
+			float NodeDistance = -1.f;
 
 			if (ensure(NodeA.BeamComponent && NodeB.BeamComponent))
 			{
 				const FVector StartLocation = NodeA.BeamComponent->GetComponentLocation();
 				const FVector EndLocation = NodeB.BeamComponent->GetComponentLocation();
-				const float PendingDistanceSquared = FVector::Distance(StartLocation, EndLocation);
+				const float PendingDistance = CalculateWeightedDistance(StartLocation, EndLocation);
 
-				// DrawDebugLine(World, StartLocation, EndLocation, FColor::Green, false, TraversalTickInterval, 0, 2.f);
-				// Todo: change everything to reference distanced instead of distance squared!
-				if ((MaxNodeDistance < 0.f || PendingDistanceSquared < MaxNodeDistance) && !World->LineTraceTestByChannel(StartLocation, EndLocation, BeamTraceChannel))
+				if ((MaxNodeDistance < 0.f || PendingDistance < MaxNodeDistance) && !World->LineTraceTestByChannel(StartLocation, EndLocation, BeamTraceChannel))
 				{
-					NodeDistanceSquared = PendingDistanceSquared;
+					NodeDistance = PendingDistance;
 				}
 			}
 
-			NodeA.NodeSquaredDistances[IndexJ] = NodeDistanceSquared;
-			NodeB.NodeSquaredDistances[IndexI] = NodeDistanceSquared;
+			NodeA.NodeDistances[IndexJ] = NodeDistance;
+			NodeB.NodeDistances[IndexI] = NodeDistance;
 		}
 	}
 
@@ -246,13 +280,13 @@ TArray<TPair<int32, int32>> ABeamController::FindClosestConnectedNode(const TArr
 		// Analyze all adjacent nodes
 		for (int32 AdjacentIndex = 0; AdjacentIndex < BeamNodes.Num(); AdjacentIndex++)
 		{
-			if (!ensure(CurrentNode.NodeSquaredDistances.IsValidIndex(AdjacentIndex)) || CurrentNode.NodeSquaredDistances[AdjacentIndex] < 0.f)
+			if (!ensure(CurrentNode.NodeDistances.IsValidIndex(AdjacentIndex)) || CurrentNode.NodeDistances[AdjacentIndex] < 0.f)
 			{
 				continue;
 			}
 
 			// If the new path is shorter, add it to our pending edge nodes
-			const float PendingDistance = VisitedDistances[CurrentIndex] + CurrentNode.NodeSquaredDistances[AdjacentIndex];
+			const float PendingDistance = VisitedDistances[CurrentIndex] + CurrentNode.NodeDistances[AdjacentIndex];
 			if (!VisitedDistances.Contains(AdjacentIndex) || VisitedDistances[AdjacentIndex] > PendingDistance)
 			{
 				VisitedDistances.Emplace(AdjacentIndex, PendingDistance);
@@ -272,4 +306,19 @@ TArray<TPair<int32, int32>> ABeamController::FindClosestConnectedNode(const TArr
 	}
 
 	return Path;
+}
+
+float ABeamController::CalculateWeightedDistance(FVector StartLocation, FVector EndLocation) const
+{
+	switch (WeightingMode)
+	{
+		case EBeamControllerWeightingMode::Linear:
+			return FVector::Distance(StartLocation, EndLocation);
+
+		case EBeamControllerWeightingMode::Quadratic:
+			return FVector::DistSquared(StartLocation, EndLocation);
+
+		default:
+			return CalculateWeightedDistanceCustom(StartLocation, EndLocation);
+	}
 }
