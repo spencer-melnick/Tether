@@ -135,7 +135,8 @@ TArray<ABeamController::FBeamNode> ABeamController::BuildInitialNodes()
 {
 	static const auto FilterLambda = [](const AActor* Target)
 	{
-		const UBeamComponent* BeamComponent = Target->Implements<UBeamTarget>() ? IBeamTarget::Execute_GetBeamComponent(Target) : nullptr;
+		const bool bTargetIsValid = Target && Target->Implements<UBeamTarget>();
+		const UBeamComponent* BeamComponent = bTargetIsValid ? IBeamTarget::Execute_GetBeamComponent(Target) : nullptr;
 
 		if (BeamComponent)
 		{
