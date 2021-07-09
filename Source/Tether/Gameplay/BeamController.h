@@ -115,7 +115,7 @@ private:
 	TArray<FBeamNode> BuildInitialNodes();
 
 	/** Returns the path from the starting node to the nearest connected node as index pairs */
-	TArray<TPair<int32, int32>> FindClosestConnectedNode(const TArray<FBeamNode>& BeamNodes, int32 StartingIndex);
+	void FindLinkedNodes(const TArray<FBeamNode>& BeamNodes, int32 StartingIndex, TArray<TPair<int32, int32>>& OutPath, TSet<int32>& OutEndIndices);
 
 	/** Calculate the weighted distance between targets based on the selected weighting mode */
 	float CalculateWeightedDistance(FVector StartLocation, FVector EndLocation) const;

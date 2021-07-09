@@ -97,64 +97,36 @@ void ABeamController::TraverseBeams(float DeltaTime)
 		return;
 	}
 
-	bool bAllRequirementsLinked = true;
-	TArray<TPair<int32, int32>> AllPathIndices;
-	TArray<TPair<int32, int32>> RequiredPathIndices;
+	TArray<TPair<int32, int32>> PathIndices;
+	TSet<int32> EndIndices;
+	bool bAllNodesLinked = true;
 	
 	for (int32 RequiredNodeIndex : RequiredNodeIndices)
 	{
-		TArray<TPair<int32, int32>> PathIndices = FindClosestConnectedNode(BeamNodes, RequiredNodeIndex);
-
-		// We found a valid connection!
-		if (PathIndices.Num() > 0)
+		if (EndIndices.Contains(RequiredNodeIndex))
 		{
-			FBeamNode& StartingNode = BeamNodes[RequiredNodeIndex];
-			const int32 EndNodeIndex = PathIndices[0].Key;
-			const FBeamNode& EndNode = BeamNodes[EndNodeIndex];
-
-			// If the end node is not a required node, then defer to its linked requirement
-			const int32 EndRequiredIndex = EndNode.bRequired ? EndNodeIndex : EndNode.LinkedRequirement;
-			StartingNode.LinkedRequirement = EndRequiredIndex;
-			
-			// Mark every non-required node as linked to the starting node
-			for (TPair<int32, int32> PathEdge : PathIndices)
-			{
-				FBeamNode& EdgeNode = BeamNodes[PathEdge.Key];
-				if (EdgeNode.LinkedRequirement == INDEX_NONE)
-				{
-					EdgeNode.LinkedRequirement = RequiredNodeIndex;
-				}
-			}
-
-			// Add the path edges to the total path edges
-			AllPathIndices.Append(PathIndices);
-			RequiredPathIndices.Emplace(RequiredNodeIndex, EndRequiredIndex);
+			continue;
 		}
-		else
+		
+		FindLinkedNodes(BeamNodes, RequiredNodeIndex, PathIndices, EndIndices);
+
+		// Check if all of the required nodes are present
+		if (EndIndices.Num() < RequiredNodeIndices.Num())
 		{
-			bAllRequirementsLinked = false;
+			bAllNodesLinked = false;
 		}
 	}
 
 	// Draw debug lines
 	if (const UWorld* World = GetWorld())
 	{
-		for (TPair<int32, int32> PathEdge : AllPathIndices)
+		for (TPair<int32, int32> PathEdge : PathIndices)
 		{
 			const FBeamNode& BeamNodeA = BeamNodes[PathEdge.Key];
 			const FBeamNode& BeamNodeB = BeamNodes[PathEdge.Value];
 			DrawDebugLine(World,
 				BeamNodeA.BeamComponent->GetComponentLocation(), BeamNodeB.BeamComponent->GetComponentLocation(),
 				FColor::Cyan, false, DeltaTime + 0.05f, 0, 2.f);
-		}
-
-		for (TPair<int32, int32> PathEdge : RequiredPathIndices)
-		{
-			const FBeamNode& BeamNodeA = BeamNodes[PathEdge.Key];
-			const FBeamNode& BeamNodeB = BeamNodes[PathEdge.Value];
-			DrawDebugLine(World,
-				BeamNodeA.BeamComponent->GetComponentLocation(), BeamNodeB.BeamComponent->GetComponentLocation(),
-				FColor::Yellow, false, DeltaTime + 0.05f, 0, 2.f);
 		}
 	}
 }
@@ -241,17 +213,14 @@ TArray<ABeamController::FBeamNode> ABeamController::BuildInitialNodes()
 	return BeamNodes;
 }
 
-TArray<TPair<int32, int32>> ABeamController::FindClosestConnectedNode(const TArray<FBeamNode>& BeamNodes, int32 StartingIndex)
+void ABeamController::FindLinkedNodes(const TArray<FBeamNode>& BeamNodes, int32 StartingIndex, TArray<TPair<int32, int32>>& OutPath, TSet<int32>& OutEndIndices)
 {
-	TArray<TPair<int32, int32>> Path;
-
 	if (!ensure(BeamNodes.IsValidIndex(StartingIndex)))
 	{
-		return Path;
+		return;
 	}
 
 	// Reserve memory for all of our data structures
-	
 	TMap<int32, float> VisitedDistances;
 	VisitedDistances.Reserve(BeamNodes.Num());
 	VisitedDistances.Emplace(StartingIndex, 0.f);
@@ -263,18 +232,16 @@ TArray<TPair<int32, int32>> ABeamController::FindClosestConnectedNode(const TArr
 	EdgeNodes.Initialize(BeamNodes.Num());
 	EdgeNodes.Insert(StartingIndex, 0.f);
 
-	int32 EndingIndex = INDEX_NONE;
+	TSet<int32> EndIndices;
 
 	while (EdgeNodes.GetCount() > 0)
 	{
 		const int32 CurrentIndex = EdgeNodes.Dequeue();
 		const FBeamNode& CurrentNode = BeamNodes[CurrentIndex];
 
-		// Find the first node that is connected and not that starting node
-		if (CurrentIndex != StartingIndex && CurrentNode.bConnected)
+		if (CurrentNode.bRequired)
 		{
-			EndingIndex = CurrentIndex;
-			break;
+			EndIndices.Add(CurrentIndex);
 		}
 
 		// Analyze all adjacent nodes
@@ -297,15 +264,18 @@ TArray<TPair<int32, int32>> ABeamController::FindClosestConnectedNode(const TArr
 	}
 
 	// If we've found an end, traverse backwards and build the path
-	if (EndingIndex != INDEX_NONE)
+	for (int32 EndIndex : EndIndices)
 	{
-		for (int32 PathIndex = EndingIndex; PathIndex != StartingIndex; PathIndex = PreviousNodes[PathIndex])
+		for (int32 PathIndex = EndIndex; PathIndex != StartingIndex; PathIndex = PreviousNodes[PathIndex])
 		{
-			Path.Emplace(PathIndex, PreviousNodes[PathIndex]);
+			if (OutPath.AddUnique(TPair<int32, int32>(PathIndex, PreviousNodes[PathIndex])) == INDEX_NONE)
+			{
+				break;
+			}
 		}
 	}
 
-	return Path;
+	OutEndIndices.Append(EndIndices);
 }
 
 float ABeamController::CalculateWeightedDistance(FVector StartLocation, FVector EndLocation) const
