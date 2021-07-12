@@ -3,15 +3,8 @@
 
 #include "TetherCharacterMovementComponent.h"
 
+#include "PhysXInterfaceWrapperCore.h"
 #include "GameFramework/Character.h"
-
-void UTetherCharacterMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType,
-                                                      FActorComponentTickFunction* ThisTickFunction)
-{
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	
-}
 
 void UTetherCharacterMovementComponent::PhysCustom(float deltaTime, int32 Iterations)
 {
@@ -20,14 +13,25 @@ void UTetherCharacterMovementComponent::PhysCustom(float deltaTime, int32 Iterat
 	switch(CustomMovementMode)
 	{
 		case ETetherMovementType::Anchored:
-			GetCharacterOwner()->AddActorLocalRotation(GetAnchorDeltaRotation(deltaTime));
-			// GetCharacterOwner()->AddActorLocalOffset(GetAnchorDeltaLocation(deltaTime));
-			GetCharacterOwner()->SetActorLocation(GetAnchorDeltaLocation(deltaTime));
-			break;
+			UpdatedComponent->AddLocalRotation(GetAnchorDeltaRotation(deltaTime));
+			UpdatedComponent->SetWorldLocation(GetAnchorDeltaLocation(deltaTime));
+		break;
 		
 		default:
 
-			break;
+		break;
+	}
+}
+
+void UTetherCharacterMovementComponent::OnMovementModeChanged(EMovementMode PreviousMovementMode,
+	uint8 PreviousCustomMode)
+{
+	Super::OnMovementModeChanged(PreviousMovementMode, PreviousCustomMode);
+
+	if(MovementMode == MOVE_Custom && CustomMovementMode == static_cast<int>(ETetherMovementType::Anchored))
+	{
+		ClearAccumulatedForces();
+		Velocity = FVector::ZeroVector;
 	}
 }
 

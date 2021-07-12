@@ -49,6 +49,21 @@ public:
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph")
 	UMaterialInterface* TelegraphDecal;
 	
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph")
+	UMaterialInterface* ArrowMaterial;
+
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph")
+	USkeletalMesh* ArrowMesh;
+	
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph")
+	UAnimationAsset* FrontAnimation;
+
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph")
+	UAnimationAsset* MiddleAnimation;
+	
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph")
+	UAnimationAsset* BackAnimation;
+	
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -61,6 +76,10 @@ private:
 	void SetTelegraphSize();
 	
 	FTimerHandle WarningHandle;
+
+	UPROPERTY(VisibleAnywhere)
+	TArray<USkeletalMeshComponent*> ArrowComponents;
+
 
 public:	
 	// Called every frame

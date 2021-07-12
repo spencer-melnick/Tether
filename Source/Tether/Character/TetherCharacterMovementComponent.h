@@ -15,8 +15,9 @@ class TETHER_API UTetherCharacterMovementComponent : public UCharacterMovementCo
 	GENERATED_BODY()
 	
 public:
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	virtual void PhysCustom(float DeltaTime, int32 Iterations) override;
+
+	virtual void OnMovementModeChanged(EMovementMode PreviousMovementMode, uint8 PreviousCustomMode) override;
 	
 	UFUNCTION(BlueprintCallable)
 	void SetAnchorRotation(const FRotator Rotation);

@@ -335,8 +335,15 @@ void ATetherCharacter::PickupObject(AActor* Object)
 	{
 		Target->SetSimulatePhysics(false);
 		Target->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Overlap);
+
+		FVector GrabLocation;
+		if (Target->GetDistanceToCollision(GetActorLocation(), GrabLocation) > 0.f)
+		{
+			FVector GrabOffset = GrabLocation - Target->GetComponentLocation();
+			Object->AttachToComponent(GrabHandle, FAttachmentTransformRules(EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, EAttachmentRule::KeepWorld, false));
+			Object->AddActorWorldOffset(-GrabOffset);
+		}
 	}
-	Object->AttachToComponent(GrabHandle, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 }
 
 void ATetherCharacter::DropObject()
