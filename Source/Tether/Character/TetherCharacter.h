@@ -16,7 +16,7 @@ class UBeamComponent;
 
 
 UCLASS(Blueprintable)
-class ATetherCharacter : public ACharacter, public IBeamTarget
+class ATetherCharacter : public APawn, public IBeamTarget
 {
 	GENERATED_BODY()
 
@@ -46,9 +46,9 @@ public:
 	
 	// Character overrides
 	
-	virtual bool CanJumpInternal_Implementation() const override;
-	virtual void Falling() override;
-	virtual void OnJumped_Implementation() override;
+	// virtual bool CanJumpInternal_Implementation() const override;
+	// virtual void Falling() override;
+	// virtual void OnJumped_Implementation() override;
 
 
 	// Beam target interface

@@ -3,7 +3,7 @@
 #include "TetherCharacter.h"
 
 #include "DrawDebugHelpers.h"
-#include "TetherCharacterMovementComponent.h"
+#include "PupMovementComponent.h"
 #include "Algo/Transform.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -25,7 +25,7 @@ const FName ATetherCharacter::AnchorTag(TEXT("Anchor"));
 
 
 ATetherCharacter::ATetherCharacter(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer.SetDefaultSubobjectClass<UTetherCharacterMovementComponent>(CharacterMovementComponentName))
+	: Super(ObjectInitializer.SetDefaultSubobjectClass<UPupMovementComponent>(TEXT("MovementComponent")))
 {
 	SpringArmComponent = CreateDefaultSubobject<USpringArmComponent>(SpringArmComponentName);
 	SpringArmComponent->SetupAttachment(RootComponent);
@@ -40,7 +40,7 @@ ATetherCharacter::ATetherCharacter(const FObjectInitializer& ObjectInitializer)
 	GrabHandle->SetupAttachment(RootComponent);
 
 	BeamComponent = CreateDefaultSubobject<UBeamComponent>(BeamComponentName);
-	BeamComponent->SetupAttachment(GetMesh());
+	BeamComponent->SetupAttachment(RootComponent);
 	
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
@@ -58,8 +58,8 @@ void ATetherCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 	// PlayerInputComponent->BindAxis(TEXT("RotateX"), this, &ATetherCharacter::RotateX);
 	// PlayerInputComponent->BindAxis(TEXT("RotateY"), this, &ATetherCharacter::RotateY);
 
-	PlayerInputComponent->BindAction(TEXT("Jump"), EInputEvent::IE_Pressed, this, &ACharacter::Jump);
-	PlayerInputComponent->BindAction(TEXT("Jump"), EInputEvent::IE_Released, this, &ACharacter::StopJumping);
+	PlayerInputComponent->BindAction(TEXT("Jump"), EInputEvent::IE_Pressed, this, &ATetherCharacter::Jump);
+	PlayerInputComponent->BindAction(TEXT("Jump"), EInputEvent::IE_Released, this, &ATetherCharacter::StopJumping);
 
 	PlayerInputComponent->BindAction(TEXT("Grab"), EInputEvent::IE_Pressed, this, &ATetherCharacter::Interact);
 	PlayerInputComponent->BindAction(TEXT("Grab"), EInputEvent::IE_Released, this, &ATetherCharacter::ReleaseAnchor);
@@ -68,11 +68,6 @@ void ATetherCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 void ATetherCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-
-	if (UCharacterMovementComponent* CharacterMovementComponent = GetCharacterMovement())
-	{
-		CharacterMovementComponent->GroundFriction = NormalFriction;
-	}
 }
 
 void ATetherCharacter::Tick(float DeltaSeconds)
@@ -375,15 +370,15 @@ void ATetherCharacter::AnchorToObject(AActor* Object)
 		}
 	}
 	
-	GetCharacterMovement()->SetMovementMode(MOVE_Custom, static_cast<int>(ETetherMovementType::Anchored));
+	// GetCharacterMovement()->SetMovementMode(MOVE_Custom, static_cast<int>(ETetherMovementType::Anchored));
 	const FVector Distance = ClosestPoint - GetActorLocation();
 	const FRotator Rotation = Distance.ToOrientationRotator();
 	ClosestPoint -= GrabHandle->GetRelativeLocation().RotateAngleAxis(Rotation.Yaw, FVector::UpVector);
 
-	UTetherCharacterMovementComponent* TetherCharacterMovementComponent = static_cast<UTetherCharacterMovementComponent*>(GetCharacterMovement());
+	/* UTetherCharacterMovementComponent* TetherCharacterMovementComponent = static_cast<UTetherCharacterMovementComponent*>(GetCharacterMovement());
 	TetherCharacterMovementComponent->SetAnchorRotation(Rotation);
 	TetherCharacterMovementComponent->SetAnchorLocation(FVector(ClosestPoint.X, ClosestPoint.Y, GetActorLocation().Z));
-		
+	*/
 	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::White, *ClosestPoint.ToString());
 	bAnchored = true;
 }
