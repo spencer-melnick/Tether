@@ -8,14 +8,14 @@
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "GameFramework/SpringArmComponent.h"
 #include "Tether/GameMode/TetherPrimaryGameMode.h"
 
 
 // Component name constants
 
-const FName ATetherCharacter::CameraComponentName(TEXT("CameraComponent"));
-const FName ATetherCharacter::SpringArmComponentName(TEXT("SpringArm"));
+const FName ATetherCharacter::CapsuleComponentName(TEXT("CapsuleComponent"));
+const FName ATetherCharacter::MovementComponentName(TEXT("CharacterMovementComponent"));
+const FName ATetherCharacter::SkeletalMeshComponentName(TEXT("SkeletalMesh"));
 const FName ATetherCharacter::GrabSphereComponentName(TEXT("GrabSphere"));
 const FName ATetherCharacter::GrabHandleName(TEXT("GrabHandle"));
 const FName ATetherCharacter::BeamComponentName(TEXT("BeamComponent"));
@@ -25,14 +25,16 @@ const FName ATetherCharacter::AnchorTag(TEXT("Anchor"));
 
 
 ATetherCharacter::ATetherCharacter(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer.SetDefaultSubobjectClass<UPupMovementComponent>(TEXT("MovementComponent")))
+	//: Super(ObjectInitializer.SetDefaultSubobjectClass<UCapsuleComponent>(CapsuleComponentName))
 {
-	SpringArmComponent = CreateDefaultSubobject<USpringArmComponent>(SpringArmComponentName);
-	SpringArmComponent->SetupAttachment(RootComponent);
-	
-	// CameraComponent = CreateDefaultSubobject<UCameraComponent>(CameraComponentName);
-	// CameraComponent->SetupAttachment(SpringArmComponent);
+	CapsuleComponent = CreateDefaultSubobject<UCapsuleComponent>(CapsuleComponentName);
+	RootComponent = GetCapsuleComponent();
 
+	MovementComponent = CreateDefaultSubobject<UPupMovementComponent>(MovementComponentName);
+	
+	SkeletalMeshComponent = CreateDefaultSubobject<USkeletalMeshComponent>(SkeletalMeshComponentName);
+	SkeletalMeshComponent->SetupAttachment(RootComponent);
+	
 	GrabSphereComponent = CreateDefaultSubobject<USphereComponent>(GrabSphereComponentName);
 	GrabSphereComponent->SetupAttachment(RootComponent);
 
@@ -55,8 +57,6 @@ void ATetherCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 
 	PlayerInputComponent->BindAxis(TEXT("MoveX"), this, &ATetherCharacter::MoveX);
 	PlayerInputComponent->BindAxis(TEXT("MoveY"), this, &ATetherCharacter::MoveY);
-	// PlayerInputComponent->BindAxis(TEXT("RotateX"), this, &ATetherCharacter::RotateX);
-	// PlayerInputComponent->BindAxis(TEXT("RotateY"), this, &ATetherCharacter::RotateY);
 
 	PlayerInputComponent->BindAction(TEXT("Jump"), EInputEvent::IE_Pressed, this, &ATetherCharacter::Jump);
 	PlayerInputComponent->BindAction(TEXT("Jump"), EInputEvent::IE_Released, this, &ATetherCharacter::StopJumping);
@@ -76,18 +76,17 @@ void ATetherCharacter::Tick(float DeltaSeconds)
 
 }
 
-
-// Character overrides
-
-bool ATetherCharacter::CanJumpInternal_Implementation() const
+void ATetherCharacter::Jump()
 {
-	return bCoyoteJumpAvailable || Super::CanJumpInternal_Implementation();
+	MovementComponent->AddImpulse(FVector(0.0f, 0.0f, 500.0f));
+}
+
+void ATetherCharacter::StopJumping()
+{
 }
 
 void ATetherCharacter::Falling()
 {
-	Super::Falling();
-
 	if (FMath::IsNearlyZero(CoyoteTime))
 	{
 		bCoyoteJumpAvailable = false;
@@ -119,43 +118,14 @@ void ATetherCharacter::OnJumped_Implementation()
 	}
 }
 
-
-// Movement functions
-
-void ATetherCharacter::MoveX(float Scale)
+void ATetherCharacter::MoveX(const float Scale)
 {
-	if (CanMove())
-	{
-		FRotator ForwardDirection;
-		FVector Location;
-		GetController()->GetPlayerViewPoint(Location, ForwardDirection );
-		
-		const FRotator YawRotator = FRotator(0.f, ForwardDirection.Yaw, 0.f);
-		AddMovementInput(YawRotator.RotateVector(FVector::RightVector), Scale);
-	}
+	MovementComponent->AddInputVector(FVector::RightVector * Scale);
 }
 
-void ATetherCharacter::MoveY(float Scale)
+void ATetherCharacter::MoveY(const float Scale)
 {
-	if (CanMove())
-	{
-		FRotator ForwardDirection;
-		FVector Location;
-		GetController()->GetPlayerViewPoint(Location, ForwardDirection );
-		
-		const FRotator YawRotator = FRotator(0.f, ForwardDirection.Yaw, 0.f);
-		AddMovementInput(YawRotator.RotateVector(FVector::ForwardVector), Scale);
-	}
-}
-
-void ATetherCharacter::RotateX(float Scale)
-{
-	AddControllerYawInput(Scale);
-}
-
-void ATetherCharacter::RotateY(float Scale)
-{
-	AddControllerPitchInput(Scale);
+	MovementComponent->AddInputVector(FVector::ForwardVector * Scale);
 }
 
 void ATetherCharacter::Interact()
@@ -213,10 +183,7 @@ void ATetherCharacter::Interact()
 
 void ATetherCharacter::SetGroundFriction(float GroundFriction)
 {
-	if (UCharacterMovementComponent* CharacterMovementComponent = GetCharacterMovement())
-	{
-		CharacterMovementComponent->GroundFriction = GroundFriction;
-	}
+
 }
 
 
@@ -229,13 +196,22 @@ FVector ATetherCharacter::GetTetherTargetLocation() const
 
 FVector ATetherCharacter::GetTetherEffectLocation() const
 {
-	const USkeletalMeshComponent* MeshComponent = GetMesh();
-	if (MeshComponent && MeshComponent->DoesSocketExist(TetherEffectSocket))
+	if (SkeletalMeshComponent && SkeletalMeshComponent->DoesSocketExist(TetherEffectSocket))
 	{
-		return MeshComponent->GetSocketLocation(TetherEffectSocket);
+		return SkeletalMeshComponent->GetSocketLocation(TetherEffectSocket);
 	}
 	
 	return GetTetherTargetLocation();
+}
+
+USkeletalMeshComponent* ATetherCharacter::GetMeshComponent() const
+{
+	return SkeletalMeshComponent;
+}
+
+UCapsuleComponent* ATetherCharacter::GetCapsuleComponent() const
+{
+	return CapsuleComponent;
 }
 
 bool ATetherCharacter::CanMove() const
@@ -290,7 +266,7 @@ void ATetherCharacter::Deflect(
 
 	// Limit velocity by the max launch speed and then launch
 	const FVector FinalVelocity = BounceVelocity.GetClampedToSize(0.f, MaxLaunchSpeed);
-	LaunchCharacter(FinalVelocity, true, true);
+	// LaunchCharacter(FinalVelocity, true, true);
 }
 
 
@@ -299,14 +275,11 @@ void ATetherCharacter::Deflect(
 void ATetherCharacter::HandlePenetration(const FHitResult& HitResult)
 {
 	// Todo: accumulate worst penetration and resolve during physics update
-	
-	const UCapsuleComponent* Capsule = GetCapsuleComponent();
-	UMovementComponent* MovementComponent = GetMovementComponent();
-	
-	if (GetLocalRole() >= ROLE_AutonomousProxy && Capsule && MovementComponent)
+		
+	if (GetLocalRole() >= ROLE_AutonomousProxy && CapsuleComponent && MovementComponent)
 	{
 		const FVector RequestedAdjustment = MovementComponent->GetPenetrationAdjustment(HitResult);
-		MovementComponent->ResolvePenetration(RequestedAdjustment, HitResult, Capsule->GetComponentRotation());
+		MovementComponent->ResolvePenetration(RequestedAdjustment, HitResult, CapsuleComponent->GetComponentRotation());
 	}
 }
 
@@ -314,10 +287,9 @@ void ATetherCharacter::OnTetherExpired()
 {
 	bAlive = false;
 
-	UCharacterMovementComponent* MovementComponent = Cast<UCharacterMovementComponent>(GetMovementComponent());
 	if (MovementComponent)
 	{
-		MovementComponent->SetMovementMode(MOVE_None);
+		// MovementComponent->SetMovementMode(MOVE_None);
 	}
 }
 
@@ -387,7 +359,7 @@ void ATetherCharacter::ReleaseAnchor()
 {
 	if (bAnchored)
 	{
-		GetCharacterMovement()->SetDefaultMovementMode();
+		// MovementComponent->SetDefaultMovementMode();
 		bAnchored = false;
 	}
 }
