@@ -3,6 +3,7 @@
 
 #include "PupMovementComponent.h"
 
+#include "DrawDebugHelpers.h"
 #include "TetherCharacter.h"
 #include "Components/CapsuleComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -16,22 +17,31 @@ void UPupMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	FActorComponentTickFunction* TickFunction)
 {
 	HandleInputAxis();
-	UpdateGravity(DeltaTime);
-	
 	UpdatedComponent->SetWorldRotation(GetNewRotation(DeltaTime));
+
+	FVector LocationOnFloor;
+	bGrounded = FindFloor(-10.0f, LocationOnFloor);
+	if (!bGrounded)
+	{
+		TickGravity(DeltaTime);
+	}
+	else
+	{
+		Velocity.Z = FMath::Max(Velocity.Z, 0.0f);
+	}
 	if(bIsWalking)
 	{
 		Velocity = GetNewVelocity(DeltaTime);
 	}
-
 	ApplyFriction(DeltaTime);
 	UpdateComponentVelocity();
-	UpdatedComponent->AddWorldOffset(Velocity * DeltaTime);
+	
+	PerformMovement(UpdatedComponent->GetComponentLocation() + Velocity * DeltaTime);
 }
 
 
 
-bool UPupMovementComponent::SweepCapsule(const FVector Offset, FHitResult& OutHit, bool bIgnoreFloor) const
+bool UPupMovementComponent::SweepCapsule(const FVector Offset, FHitResult& OutHit) const
 {
 	ATetherCharacter* Character = Cast<ATetherCharacter>(GetPawnOwner());
 	UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
@@ -44,9 +54,37 @@ bool UPupMovementComponent::SweepCapsule(const FVector Offset, FHitResult& OutHi
 		
 		FCollisionQueryParams QueryParams = FCollisionQueryParams::DefaultQueryParam;
 		QueryParams.AddIgnoredActor(Character);
-
+		
 		const FCollisionResponseParams ResponseParams = FCollisionResponseParams::DefaultResponseParam;
 		
+		return World->SweepSingleByChannel(OutHit, Start, End, Capsule->GetComponentQuat(), ECC_Pawn,
+			Capsule->GetCollisionShape(), QueryParams, ResponseParams);
+	}
+	return false;
+}
+
+
+bool UPupMovementComponent::SweepCapsuleMultiple(const FVector DesiredLocation, FHitResult& OutHit) const
+{
+	ATetherCharacter* Character = Cast<ATetherCharacter>(GetPawnOwner());
+	UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
+	UWorld* World = GetWorld();
+	
+	if (IsValid(Character) && IsValid(Capsule) && World)
+	{
+		const FVector Start = Capsule->GetComponentLocation();
+		const FVector End = DesiredLocation;
+		
+		FCollisionQueryParams QueryParams = FCollisionQueryParams::DefaultQueryParam;
+		QueryParams.AddIgnoredActor(Character);
+
+		if(CurrentFloorComponent && bGrounded)
+		{
+			QueryParams.AddIgnoredComponent(CurrentFloorComponent);
+		}
+		
+		const FCollisionResponseParams ResponseParams = FCollisionResponseParams::DefaultResponseParam;
+
 		return World->SweepSingleByChannel(OutHit, Start, End, Capsule->GetComponentQuat(), ECC_Pawn,
 			Capsule->GetCollisionShape(), QueryParams, ResponseParams);
 	}
@@ -66,45 +104,53 @@ float UPupMovementComponent::GetMaxSpeed() const
 }
 
 
-bool UPupMovementComponent::CheckForFloor(const float Distance, FVector& Location)
+bool UPupMovementComponent::FindFloor(const float Distance, FVector& Location)
 {
 	FHitResult FloorHitResult;
-	if (SweepCapsule(FVector(0.0f, 0.0f, Distance), FloorHitResult))
+	const FVector Offset = FVector(0.0f, 0.0f, FMath::Min(Distance, 0.0f));
+	if (SweepCapsule(Offset, FloorHitResult))
 	{
 		UPrimitiveComponent* FloorComponent = FloorHitResult.GetComponent();
+		CurrentFloorComponent = FloorComponent;
 		Location = FloorHitResult.Location;
 
 		if (FloorHitResult.bStartPenetrating)
 		{
-			Location = UpdatedComponent->GetComponentLocation() + FloorHitResult.Normal * FloorHitResult.PenetrationDepth;
+			return false;
 		}
+		
+		RenderHitResult(FloorHitResult, FColor::Red);
 		return FloorComponent && FloorComponent->CanCharacterStepUp(GetPawnOwner());
 	}
-
+	CurrentFloorComponent = nullptr;
 	return false;
 }
 
-
-void UPupMovementComponent::UpdateGravity(float DeltaTime)
+void UPupMovementComponent::PerformMovement(const FVector& NewLocation)
 {
-	FVector NewLocation;
-	const float FloorDistance = FMath::Min (DeltaTime * Velocity.Z, -0.f);
-	if (CheckForFloor(FloorDistance, NewLocation))
+	FHitResult HitResult;
+
+	if(!SweepCapsuleMultiple(NewLocation, HitResult))
 	{
-		Velocity.Z = FMath::Max(Velocity.Z, 0.0f);
 		UpdatedComponent->SetWorldLocation(NewLocation);
-		bGrounded = true;
 	}
 	else
 	{
-		// We are falling!
-		bGrounded = false;
-		if (UWorld* World = GetWorld())
-		{
-			Velocity.Z = FMath::Max(Velocity.Z + World->GetGravityZ() * DeltaTime, TerminalVelocity);
-		}
+		UpdatedComponent->SetWorldLocation(HitResult.Location + HitResult.ImpactNormal);
+		Velocity -= FVector::DotProduct(Velocity, HitResult.ImpactNormal) * HitResult.ImpactNormal;
+	}
+	RenderHitResult(HitResult, FColor::Blue);
+}
+
+
+void UPupMovementComponent::TickGravity(float DeltaTime)
+{
+	if (UWorld* World = GetWorld())
+	{
+		Velocity.Z = FMath::Max(Velocity.Z + World->GetGravityZ() * DeltaTime, TerminalVelocity);
 	}
 }
+
 
 void UPupMovementComponent::HandleInputAxis()
 {
@@ -121,7 +167,6 @@ void UPupMovementComponent::HandleInputAxis()
 		bIsWalking = false;
 		DirectionVector = FVector::ZeroVector;
 	}
-	
 }
 
 
@@ -164,5 +209,15 @@ void UPupMovementComponent::ApplyFriction(float DeltaTime)
 			Velocity.X = NewVelocity.X;
 			Velocity.Y = NewVelocity.Y;
 		}
+	}
+}
+
+
+void UPupMovementComponent::RenderHitResult(const FHitResult& HitResult, const FColor Color) const
+{
+	if (HitResult.GetComponent())
+	{
+		DrawDebugLine(GetWorld(), HitResult.ImpactPoint, HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f, Color, false, 1.0f, 1.0f, 2.0f);
+		DrawDebugString(GetWorld(), HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f, HitResult.GetComponent()->GetName(), 0, Color, 0.02f, false, 1.0f);
 	}
 }

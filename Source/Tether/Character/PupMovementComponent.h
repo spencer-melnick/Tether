@@ -19,7 +19,10 @@ public:
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* TickFunction) override;
 
-	bool SweepCapsule(const FVector Offset, FHitResult& OutHit, bool bIgnoreFloor = false) const;
+	bool SweepCapsule(const FVector Offset, FHitResult& OutHit) const;
+
+	bool SweepCapsuleMultiple(const FVector DesiredLocation, FHitResult& OutHit) const;
+
 
 	void AddImpulse(const FVector Impulse);
 	
@@ -30,12 +33,14 @@ public:
 
 	// Movement Logic
 
-	bool CheckForFloor(const float Distance, FVector& Location);
+	bool FindFloor(const float Distance, FVector& Location);
 
 	
 private:
+
+	void PerformMovement(const FVector& NewLocation);
 	
-	void UpdateGravity(float DeltaTime);
+	void TickGravity(float DeltaTime);
 	
 	void HandleInputAxis();
 	
@@ -45,6 +50,7 @@ private:
 
 	void ApplyFriction(float DeltaTime);
 
+	void RenderHitResult(const FHitResult& HitResult, const FColor Color = FColor::White) const;
 	
 public:
 	// Properties
@@ -95,4 +101,5 @@ public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement: Jumping")
 	bool bGrounded = false;
 
+	UPrimitiveComponent* CurrentFloorComponent;
 };
