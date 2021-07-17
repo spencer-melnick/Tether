@@ -35,6 +35,17 @@ public:
 
 	bool FindFloor(const float Distance, FVector& Location);
 
+	/** Sweeps for a valid floor beneath the character. If true, OutHitResult contains the sweep result */
+	bool FindFloor(float SweepDistance, FHitResult& OutHitResult) const;
+
+	/** Checks if the hit result was for a valid floor based on component settings and floor slope */
+	bool IsValidFloorHit(const FHitResult& FloorHit) const;
+
+	/** Moves the character to the floor, but does not update velocity */
+	void SnapToFloor(const FHitResult& FloorHit);
+
+	// MovementComponent interface
+	virtual float GetGravityZ() const override;
 	
 private:
 
@@ -45,6 +56,12 @@ private:
 
 	/** Attempts to move the character delta location. Returns the "time" of the movement actually applied */
 	float PerformMovement(const FVector& DeltaLocation);
+
+	/** Perform one single movement step, with potential substeps */
+	void StepMovement(float DeltaTime);
+
+	/** Perform a single movement substep, returning the amount of time actually simulated in the substep */
+	float SubstepMovement(float DeltaTime);
 	
 	void TickGravity(float DeltaTime);
 	

@@ -11,6 +11,13 @@
 
 namespace PupMovementCVars
 {
+	static float TimestepLength = 1.f / 60.f;
+	static FAutoConsoleVariableRef CVarTimestepLength(
+		TEXT("PupMovement.TimestepLength"),
+		TimestepLength,
+		TEXT("Maximum length of a physics timestep before splitting into multiple steps"),
+		ECVF_Default);
+	
 	static float MinimumTraceDistance = 0.5f;
 	static FAutoConsoleVariableRef CVarMinimumTraceDistance(
 		TEXT("PupMovement.MinimumTraceDistance"),
@@ -34,40 +41,16 @@ UPupMovementComponent::UPupMovementComponent()
 void UPupMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	FActorComponentTickFunction* TickFunction)
 {
+	// Gather all of the input we've accumulated since the last frame
 	HandleInputAxis();
-	UpdatedComponent->SetWorldRotation(GetNewRotation(DeltaTime));
+	
+	while (DeltaTime > SMALL_NUMBER)
+	{
+		// Break frame time into actual movement steps
+		const float ActualStepLength = FMath::Min(DeltaTime, PupMovementCVars::TimestepLength);
+		DeltaTime -= ActualStepLength;
 
-	FVector LocationOnFloor;
-	bGrounded = FindFloor(-10.0f, LocationOnFloor);
-	if (!bGrounded)
-	{
-		TickGravity(DeltaTime);
-	}
-	else
-	{
-		Velocity.Z = FMath::Max(Velocity.Z, 0.0f);
-	}
-	if(bIsWalking)
-	{
-		Velocity = GetNewVelocity(DeltaTime);
-	}
-	ApplyFriction(DeltaTime);
-
-
-	float TimeRemaining = DeltaTime;
-	int32 NumSubsteps = 0;
-	while (TimeRemaining > SMALL_NUMBER && NumSubsteps < PupMovementCVars::MaxSubsteps)
-	{
-		NumSubsteps++;
-		TimeRemaining -= TickMovement(TimeRemaining);
-	}
-
-	// We're probably stuck in something, try to cancel player movement and do one last tick (for falling)
-	if (TimeRemaining > SMALL_NUMBER)
-	{
-		Velocity.X = 0.f;
-		Velocity.Y = 0.f;
-		TickMovement(TimeRemaining);
+		StepMovement(ActualStepLength);
 	}
 }
 
@@ -86,6 +69,7 @@ bool UPupMovementComponent::SweepCapsule(const FVector Offset, FHitResult& OutHi
 		
 		FCollisionQueryParams QueryParams = FCollisionQueryParams::DefaultQueryParam;
 		QueryParams.AddIgnoredActor(Character);
+		QueryParams.bIgnoreTouches = true;
 		
 		const FCollisionResponseParams ResponseParams = FCollisionResponseParams::DefaultResponseParam;
 		
@@ -158,6 +142,48 @@ bool UPupMovementComponent::FindFloor(const float Distance, FVector& Location)
 	return false;
 }
 
+bool UPupMovementComponent::FindFloor(float SweepDistance, FHitResult& OutHitResult) const
+{
+	const FVector SweepOffset = FVector::DownVector * SweepDistance;
+	if (SweepCapsule(SweepOffset, OutHitResult))
+	{
+		if (IsValidFloorHit(OutHitResult))
+		{
+			return true;
+		}
+
+		// If this wasn't a valid floor hit, clear the hit result but keep the trace data
+		OutHitResult.Reset(1.f, true);
+	}
+
+	return false;
+}
+
+bool UPupMovementComponent::IsValidFloorHit(const FHitResult& FloorHit) const
+{
+	// Check if we actually hit a floor component
+	const UPrimitiveComponent* FloorComponent = FloorHit.GetComponent();
+	if (FloorComponent && FloorComponent->CanCharacterStepUp(GetPawnOwner()))
+	{
+		// Optionally check floor slope here!
+		return true;
+	}
+
+	return false;
+}
+
+void UPupMovementComponent::SnapToFloor(const FHitResult& FloorHit)
+{
+	FHitResult DiscardHit;
+	SafeMoveUpdatedComponent(FloorHit.Location - UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentQuat(), true, DiscardHit);
+}
+
+float UPupMovementComponent::GetGravityZ() const
+{
+	// Gravity scale here?
+	return Super::GetGravityZ();
+}
+
 float UPupMovementComponent::TickMovement(float DeltaTime)
 {
 	const float MovementTime = PerformMovement(Velocity * DeltaTime);
@@ -213,6 +239,67 @@ float UPupMovementComponent::PerformMovement(const FVector& DeltaLocation)
 }
 
 
+
+void UPupMovementComponent::StepMovement(float DeltaTime)
+{
+	// First check if we're on the floor
+	FHitResult FloorHit;
+	bGrounded = FindFloor(10.f, FloorHit);
+
+	if (bGrounded)
+	{
+		Velocity.Z = 0.f;
+		SnapToFloor(FloorHit);
+	}
+	else
+	{
+		// To avoid potential stuttering, only apply gravity if we're not on the ground
+		Velocity.Z += GetGravityZ() * DeltaTime;
+	}
+
+	// Apply friction outside of substeps for consistency (substeps should only be slowing us down anyways)
+	Velocity = GetNewVelocity(DeltaTime);
+	ApplyFriction(DeltaTime);
+
+	// Break up physics into substeps based on collisions
+	int32 NumSubsteps = 0;
+	while (NumSubsteps < PupMovementCVars::MaxSubsteps && DeltaTime > SMALL_NUMBER)
+	{
+		NumSubsteps++;
+		DeltaTime -= SubstepMovement(DeltaTime);
+	}
+
+	// Let our primitive component know what its new velocity should be
+	UpdateComponentVelocity();
+
+	// Update rotation
+	const FRotator NewRotation = GetNewRotation(DeltaTime);
+	if (UpdatedComponent)
+	{
+		UpdatedComponent->SetWorldRotation(DesiredRotation);
+	}
+}
+
+float UPupMovementComponent::SubstepMovement(float DeltaTime)
+{
+	FHitResult HitResult;
+	const FVector Movement = Velocity * DeltaTime;
+	
+	SafeMoveUpdatedComponent(Movement, UpdatedComponent->GetComponentQuat(), true, HitResult);
+	
+	if (HitResult.bBlockingHit)
+	{
+		const float ImpactVelocityMagnitude = FMath::Max(FVector::DotProduct(-HitResult.Normal, Velocity), 0.f);
+		Velocity += HitResult.Normal * ImpactVelocityMagnitude;
+
+		return HitResult.Time * DeltaTime;
+	}
+
+	// Completed the move with no collisions!
+	return DeltaTime;
+}
+
+
 void UPupMovementComponent::TickGravity(float DeltaTime)
 {
 	if (UWorld* World = GetWorld())
@@ -225,7 +312,7 @@ void UPupMovementComponent::TickGravity(float DeltaTime)
 void UPupMovementComponent::HandleInputAxis()
 {
 	const FVector InputVector = ConsumeInputVector();
-	if(InputVector != FVector::ZeroVector)
+	if (!InputVector.IsNearlyZero())
 	{
 		bIsWalking = true;
 		DirectionVector = UpdatedComponent->GetForwardVector().RotateAngleAxis(CameraYaw, UpdatedComponent->GetUpVector()) * FMath::Min(InputVector.Size(), 1.0f);
