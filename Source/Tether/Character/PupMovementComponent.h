@@ -38,7 +38,13 @@ public:
 	
 private:
 
-	void PerformMovement(const FVector& NewLocation);
+	/**
+	 * Attempts to move the character and update the velocity over the time period. Returns the amount of time that was resolved (in seconds)
+	 */
+	float TickMovement(float DeltaTime);
+
+	/** Attempts to move the character delta location. Returns the "time" of the movement actually applied */
+	float PerformMovement(const FVector& DeltaLocation);
 	
 	void TickGravity(float DeltaTime);
 	

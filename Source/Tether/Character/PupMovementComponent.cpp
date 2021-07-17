@@ -8,6 +8,24 @@
 #include "Components/CapsuleComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
 
+
+namespace PupMovementCVars
+{
+	static float MinimumTraceDistance = 0.5f;
+	static FAutoConsoleVariableRef CVarMinimumTraceDistance(
+		TEXT("PupMovement.MinimumTraceDistance"),
+		MinimumTraceDistance,
+		TEXT("Minimum distance to trace while moving"),
+		ECVF_Default);
+
+	static int32 MaxSubsteps = 3;
+	static FAutoConsoleVariableRef CVarMaxSubsteps(
+		TEXT("PupMovement.MaxSubsteps"),
+		MaxSubsteps,
+		TEXT("Maximum number of substeps to perform while resolving movement collision"),
+		ECVF_Default);
+}
+
 UPupMovementComponent::UPupMovementComponent()
 {
 
@@ -34,9 +52,23 @@ void UPupMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 		Velocity = GetNewVelocity(DeltaTime);
 	}
 	ApplyFriction(DeltaTime);
-	UpdateComponentVelocity();
-	
-	PerformMovement(UpdatedComponent->GetComponentLocation() + Velocity * DeltaTime);
+
+
+	float TimeRemaining = DeltaTime;
+	int32 NumSubsteps = 0;
+	while (TimeRemaining > SMALL_NUMBER && NumSubsteps < PupMovementCVars::MaxSubsteps)
+	{
+		NumSubsteps++;
+		TimeRemaining -= TickMovement(TimeRemaining);
+	}
+
+	// We're probably stuck in something, try to cancel player movement and do one last tick (for falling)
+	if (TimeRemaining > SMALL_NUMBER)
+	{
+		Velocity.X = 0.f;
+		Velocity.Y = 0.f;
+		TickMovement(TimeRemaining);
+	}
 }
 
 
@@ -126,20 +158,58 @@ bool UPupMovementComponent::FindFloor(const float Distance, FVector& Location)
 	return false;
 }
 
-void UPupMovementComponent::PerformMovement(const FVector& NewLocation)
+float UPupMovementComponent::TickMovement(float DeltaTime)
+{
+	const float MovementTime = PerformMovement(Velocity * DeltaTime);
+	UpdateComponentVelocity();
+
+	return MovementTime * DeltaTime;
+}
+
+float UPupMovementComponent::PerformMovement(const FVector& DeltaLocation)
 {
 	FHitResult HitResult;
 
-	if(!SweepCapsuleMultiple(NewLocation, HitResult))
+	const float MovementDistance = DeltaLocation.Size();
+	const float TraceDistance = FMath::Max(MovementDistance, PupMovementCVars::MinimumTraceDistance);
+
+	if (FMath::IsNearlyZero(MovementDistance))
 	{
-		UpdatedComponent->SetWorldLocation(NewLocation);
+		return 1.f;
+	}
+
+	const FVector StartingLocation = UpdatedComponent->GetComponentLocation();
+	const FVector MovementDirection = DeltaLocation / MovementDistance;
+	const FVector NewLocation = StartingLocation + MovementDirection * TraceDistance;
+	
+	if (!SweepCapsuleMultiple(NewLocation, HitResult))
+	{
+		UpdatedComponent->SetWorldLocation(StartingLocation + DeltaLocation);
+		return 1.f;
+	}
+
+	FVector Movement;
+
+	// Push the character some distance back from the impact to avoid getting stuck
+	const float InflationDistance = PupMovementCVars::MinimumTraceDistance;
+	float ActualMoveDistance;
+	
+	if (HitResult.bStartPenetrating)
+	{
+		ActualMoveDistance = 0.f;
+		Movement = HitResult.Normal * HitResult.PenetrationDepth; 
 	}
 	else
 	{
-		UpdatedComponent->SetWorldLocation(HitResult.Location + HitResult.ImpactNormal);
+		ActualMoveDistance = FMath::Min(HitResult.Distance - InflationDistance, MovementDistance);
+		Movement = MovementDirection * ActualMoveDistance;
 		Velocity -= FVector::DotProduct(Velocity, HitResult.ImpactNormal) * HitResult.ImpactNormal;
 	}
+	
+	UpdatedComponent->SetWorldLocation(StartingLocation + Movement);
 	RenderHitResult(HitResult, FColor::Blue);
+
+	return ActualMoveDistance / MovementDistance;
 }
 
 
