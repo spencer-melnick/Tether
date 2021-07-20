@@ -30,6 +30,8 @@ public:
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* TickFunction) override;
 
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	
 	bool SweepCapsule(const FVector Offset, FHitResult& OutHit) const;
 
 	void SetDefaultMovementMode();
@@ -43,10 +45,8 @@ public:
 
 	// Movement Logic
 
-	bool FindFloor(const float Distance, FVector& Location);
-
 	/** Sweeps for a valid floor beneath the character. If true, OutHitResult contains the sweep result */
-	bool FindFloor(float SweepDistance, FHitResult& OutHitResult) const;
+	bool FindFloor(float SweepDistance, FHitResult& OutHitResult);
 
 	/** Checks if the hit result was for a valid floor based on component settings and floor slope */
 	bool IsValidFloorHit(const FHitResult& FloorHit) const;
@@ -79,6 +79,8 @@ private:
 	void TickGravity(const float DeltaTime);
 	
 	void HandleInputAxis();
+
+	FVector ClampToPlaneMaxSize(const FVector& VectorIn, const FVector& Normal, const float MaxSize) const;
 	
 	FRotator GetNewRotation(const float DeltaTime) const;
 	
@@ -161,12 +163,22 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Anchored")
 	float SnapRotationVelocity = 360.f;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement | Planar")
+	FVector FloorNormal;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Planar")
+	float MaxIncline = 60.f;
+	
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement | Planar")
+	float MaxInclineZComponent = 0.5f;
 	
 private:
 
 	UPROPERTY(Transient)
 	UPrimitiveComponent* CurrentFloorComponent;
-
+	
+	UPROPERTY(Transient)
 	FVector PendingImpulses;
 
 	FTimerHandle CoyoteTimer;

@@ -3,6 +3,7 @@
 
 #include "PupMovementComponent.h"
 
+#include "AITypes.h"
 #include "DrawDebugHelpers.h"
 #include "TetherCharacter.h"
 #include "Components/CapsuleComponent.h"
@@ -53,6 +54,16 @@ void UPupMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	}
 }
 
+void UPupMovementComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	const FName PropertyName = PropertyChangedEvent.Property ? PropertyChangedEvent.GetPropertyName() : NAME_None;
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UPupMovementComponent, MaxIncline))
+	{
+		MaxInclineZComponent = FMath::Cos(FMath::DegreesToRadians(MaxIncline));
+	}
+}
 
 
 bool UPupMovementComponent::SweepCapsule(const FVector Offset, FHitResult& OutHit) const
@@ -106,42 +117,21 @@ float UPupMovementComponent::GetMaxSpeed() const
 }
 
 
-bool UPupMovementComponent::FindFloor(const float Distance, FVector& Location)
-{
-	FHitResult FloorHitResult;
-	const FVector Offset = FVector(0.0f, 0.0f, FMath::Min(Distance, 0.0f));
-	if (SweepCapsule(Offset, FloorHitResult))
-	{
-		UPrimitiveComponent* FloorComponent = FloorHitResult.GetComponent();
-		CurrentFloorComponent = FloorComponent;
-		Location = FloorHitResult.Location;
-
-		if (FloorHitResult.bStartPenetrating)
-		{
-			return false;
-		}
-		
-		RenderHitResult(FloorHitResult, FColor::Red);
-		return FloorComponent && FloorComponent->CanCharacterStepUp(GetPawnOwner());
-	}
-	CurrentFloorComponent = nullptr;
-	return false;
-}
-
-bool UPupMovementComponent::FindFloor(float SweepDistance, FHitResult& OutHitResult) const
+bool UPupMovementComponent::FindFloor(float SweepDistance, FHitResult& OutHitResult)
 {
 	const FVector SweepOffset = FVector::DownVector * SweepDistance;
 	if (SweepCapsule(SweepOffset, OutHitResult))
 	{
 		if (IsValidFloorHit(OutHitResult))
 		{
+			CurrentFloorComponent = OutHitResult.GetComponent();
+			FloorNormal = OutHitResult.ImpactNormal;
 			return true;
 		}
 
 		// If this wasn't a valid floor hit, clear the hit result but keep the trace data
 		OutHitResult.Reset(1.f, true);
 	}
-
 	return false;
 }
 
@@ -149,9 +139,8 @@ bool UPupMovementComponent::IsValidFloorHit(const FHitResult& FloorHit) const
 {
 	// Check if we actually hit a floor component
 	const UPrimitiveComponent* FloorComponent = FloorHit.GetComponent();
-	if (FloorComponent && FloorComponent->CanCharacterStepUp(GetPawnOwner()))
+	if (FloorComponent && FloorComponent->CanCharacterStepUp(GetPawnOwner()) && FloorHit.ImpactNormal.Z >= MaxInclineZComponent)
 	{
-		// Optionally check floor slope here!
 		return true;
 	}
 
@@ -219,14 +208,16 @@ void UPupMovementComponent::StepMovement(float DeltaTime)
 		// First check if we're on the floor
 		FHitResult FloorHit;
 
-		if (FindFloor(10.f, FloorHit) && Velocity.Z <= 0.0f)
+		if (FindFloor(10.f, FloorHit) &&
+			IsValidFloorHit(FloorHit) &&
+			FVector::DotProduct(Velocity, FloorNormal) <= KINDA_SMALL_NUMBER) // Avoid floating point errors..
 		{
 			if (!bGrounded && MovementMode == EPupMovementMode::M_Falling)
 			{
 				Land();
 			}
 			bGrounded = true;
-			Velocity.Z = 0.f;
+			Velocity -= FVector::DotProduct(Velocity, FloorNormal) * FloorNormal;
 			SnapToFloor(FloorHit);
 		}
 		else
@@ -247,6 +238,7 @@ void UPupMovementComponent::StepMovement(float DeltaTime)
 	{
 		NumSubsteps++;
 		DeltaTime -= SubstepMovement(DeltaTime);
+		// GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Substeps: %d"), NumSubsteps).Append(Velocity.ToString()));
 	}
 
 	// Update the alpha value to be used for turning friction
@@ -260,7 +252,6 @@ float UPupMovementComponent::SubstepMovement(float DeltaTime)
 {
 	FHitResult HitResult;
 	const FVector Movement = Velocity * DeltaTime;
-	
 	SafeMoveUpdatedComponent(Movement, UpdatedComponent->GetComponentQuat(), true, HitResult);
 	
 	if (HitResult.bBlockingHit)
@@ -327,6 +318,20 @@ void UPupMovementComponent::HandleInputAxis()
 }
 
 
+FVector UPupMovementComponent::ClampToPlaneMaxSize(const FVector& VectorIn, const FVector& Normal, const float MaxSize) const
+{
+	FVector Planar = VectorIn;
+	const FVector VectorAlongNormal = FVector::DotProduct(Planar, Normal) * Normal;
+	Planar -= VectorAlongNormal;
+	
+	if (Planar.Size() > MaxSize)
+	{
+		Planar = Planar.GetSafeNormal() * MaxSize;
+	}
+	return Planar + VectorAlongNormal;
+}
+
+
 FRotator UPupMovementComponent::GetNewRotation(const float DeltaTime) const
 {
 	switch (MovementMode)
@@ -363,9 +368,15 @@ FVector UPupMovementComponent::GetNewVelocity(const float DeltaTime)
 	{
 		case EPupMovementMode::M_Walking:
 			{
-				const FVector Acceleration = MaxAcceleration * DirectionVector * DeltaTime;
-				const FVector NewVelocity = (Velocity + Acceleration).GetClampedToMaxSize2D(MaxSpeed) + ConsumeImpulse();
-				return ApplyFriction(NewVelocity, DeltaTime);
+				DirectionVector = FQuat::FindBetweenNormals(FVector::UpVector, FloorNormal).RotateVector(DirectionVector);
+				const FVector Acceleration = DirectionVector.IsNearlyZero() ? FVector::ZeroVector : MaxAcceleration * DirectionVector;
+				FVector NewVelocity = Velocity + Acceleration * DeltaTime;
+
+				NewVelocity = ClampToPlaneMaxSize(NewVelocity, FloorNormal, MaxSpeed);
+				NewVelocity += ConsumeImpulse();
+				NewVelocity = ApplyFriction(NewVelocity, DeltaTime);
+				
+				return NewVelocity;
 			}
 		case EPupMovementMode::M_Falling:
 			{
@@ -393,15 +404,15 @@ FVector UPupMovementComponent::GetNewVelocity(const float DeltaTime)
 
 FVector UPupMovementComponent::ApplyFriction(const FVector& VelocityIn, const float DeltaTime) const
 {
+	const FVector VelocityVertical = FVector::DotProduct(FloorNormal, VelocityIn) * FloorNormal;
 	if(bIsWalking)
 	{
+		// Take the Vertical Velocity (along the Floor Normal) out of the interpolation, and add it back in later.
 		const FVector DirectionVectorNormalized = DirectionVector.GetSafeNormal();
-		FVector VelocityInCurrentDirection = FVector::DotProduct(VelocityIn, DirectionVectorNormalized) * DirectionVectorNormalized;
-		VelocityInCurrentDirection.Z += VelocityIn.Z;
-		return FMath::VInterpConstantTo(VelocityIn, VelocityInCurrentDirection, DeltaTime, RunningFriction);
+		return FMath::VInterpConstantTo(VelocityIn - VelocityVertical, FVector::DotProduct(VelocityIn, DirectionVectorNormalized) * DirectionVectorNormalized, DeltaTime, RunningFriction) + VelocityVertical;
 	}
-	const FVector NewVelocity = FMath::VInterpConstantTo(VelocityIn, FVector::ZeroVector, DeltaTime, BreakingFriction);
-	return FVector(NewVelocity.X, NewVelocity.Y, VelocityIn.Z);
+	const FVector NewVelocity = FMath::VInterpConstantTo(VelocityIn, VelocityVertical, DeltaTime, BreakingFriction);
+	return NewVelocity;
 }
 
 
