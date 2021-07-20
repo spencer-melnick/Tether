@@ -85,6 +85,7 @@ void UPupMovementComponent::SetDefaultMovementMode()
 	{
 		MovementMode = EPupMovementMode::M_Walking;
 		SnapToFloor(FloorResult);
+		bCanJump = true;
 	}
 	else
 	{
