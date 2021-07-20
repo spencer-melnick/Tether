@@ -78,7 +78,7 @@ void ATetherCharacter::Tick(float DeltaSeconds)
 
 void ATetherCharacter::Jump()
 {
-	MovementComponent->AddImpulse(FVector(0.0f, 0.0f, 500.0f));
+	MovementComponent->Jump();
 }
 
 void ATetherCharacter::StopJumping()
@@ -228,6 +228,7 @@ void ATetherCharacter::Deflect(
 	{
 		SetGroundFriction(BounceFriction);
 		bIsBouncing = true;
+		MovementComponent->MovementMode = EPupMovementMode::M_Deflected;
 		
 		// Only restart the timer if the remaining time would increase
 		const float DeflectTimeRemaining = DeflectTimerHandle.IsValid() ? World->GetTimerManager().GetTimerRemaining(DeflectTimerHandle) : 0.f;
@@ -237,6 +238,7 @@ void ATetherCharacter::Deflect(
 			{
 				SetGroundFriction(NormalFriction);
 				bIsBouncing = false;
+				MovementComponent->SetDefaultMovementMode();
 			}), DeflectTime, false);
 		}
 	}
@@ -267,6 +269,7 @@ void ATetherCharacter::Deflect(
 	// Limit velocity by the max launch speed and then launch
 	const FVector FinalVelocity = BounceVelocity.GetClampedToSize(0.f, MaxLaunchSpeed);
 	// LaunchCharacter(FinalVelocity, true, true);
+	MovementComponent->AddImpulse(FinalVelocity);
 }
 
 
@@ -342,15 +345,13 @@ void ATetherCharacter::AnchorToObject(AActor* Object)
 		}
 	}
 	
-	// GetCharacterMovement()->SetMovementMode(MOVE_Custom, static_cast<int>(ETetherMovementType::Anchored));
+	MovementComponent->MovementMode = EPupMovementMode::M_Anchored;
 	const FVector Distance = ClosestPoint - GetActorLocation();
 	const FRotator Rotation = Distance.ToOrientationRotator();
 	ClosestPoint -= GrabHandle->GetRelativeLocation().RotateAngleAxis(Rotation.Yaw, FVector::UpVector);
 
-	/* UTetherCharacterMovementComponent* TetherCharacterMovementComponent = static_cast<UTetherCharacterMovementComponent*>(GetCharacterMovement());
-	TetherCharacterMovementComponent->SetAnchorRotation(Rotation);
-	TetherCharacterMovementComponent->SetAnchorLocation(FVector(ClosestPoint.X, ClosestPoint.Y, GetActorLocation().Z));
-	*/
+	MovementComponent->AnchorToLocation(ClosestPoint);
+	
 	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::White, *ClosestPoint.ToString());
 	bAnchored = true;
 }
@@ -359,7 +360,7 @@ void ATetherCharacter::ReleaseAnchor()
 {
 	if (bAnchored)
 	{
-		// MovementComponent->SetDefaultMovementMode();
+		MovementComponent->BreakAnchor(bIsBouncing);
 		bAnchored = false;
 	}
 }

@@ -9,6 +9,17 @@
 /**
  * 
  */
+
+UENUM(BlueprintType)
+enum class EPupMovementMode : uint8
+{
+	M_None		UMETA(DisplayName = "None"),
+	M_Walking	UMETA(DisplayName = "Walking"),
+	M_Falling	UMETA(DisplayName = "Falling"),
+	M_Anchored	UMETA(DisplayName = "Anchored"),
+	M_Deflected UMETA(DisplayName = "Deflected")
+};
+
 UCLASS()
 class TETHER_API UPupMovementComponent : public UPawnMovementComponent
 {
@@ -21,9 +32,8 @@ public:
 
 	bool SweepCapsule(const FVector Offset, FHitResult& OutHit) const;
 
-	bool SweepCapsuleMultiple(const FVector DesiredLocation, FHitResult& OutHit) const;
-
-
+	void SetDefaultMovementMode();
+	
 	void AddImpulse(const FVector Impulse);
 	
 	// Accessor Overrides
@@ -44,39 +54,47 @@ public:
 	/** Moves the character to the floor, but does not update velocity */
 	void SnapToFloor(const FHitResult& FloorHit);
 
+	/** Attempts to jump, returns false if the jump can't be executed */
+	bool Jump();
+	
 	// MovementComponent interface
 	virtual float GetGravityZ() const override;
+
+	void AnchorToLocation(const FVector& AnchorLocationIn);
+
+	void BreakAnchor(const bool bForceBreak = false);
 	
 private:
-
-	/**
-	 * Attempts to move the character and update the velocity over the time period. Returns the amount of time that was resolved (in seconds)
-	 */
-	float TickMovement(float DeltaTime);
-
-	/** Attempts to move the character delta location. Returns the "time" of the movement actually applied */
-	float PerformMovement(const FVector& DeltaLocation);
 
 	/** Perform one single movement step, with potential substeps */
 	void StepMovement(float DeltaTime);
 
 	/** Perform a single movement substep, returning the amount of time actually simulated in the substep */
 	float SubstepMovement(float DeltaTime);
+
+	void Land();
+
+	void Fall();
 	
-	void TickGravity(float DeltaTime);
+	void TickGravity(const float DeltaTime);
 	
 	void HandleInputAxis();
 	
-	FRotator GetNewRotation(float DeltaTime);
+	FRotator GetNewRotation(const float DeltaTime) const;
 	
-	FVector GetNewVelocity(float DeltaTime);
+	FVector GetNewVelocity(const float DeltaTime);
 
-	void ApplyFriction(float DeltaTime);
+	FVector ApplyFriction(const FVector& VelocityIn, const float DeltaTime) const;
 
 	void RenderHitResult(const FHitResult& HitResult, const FColor Color = FColor::White) const;
+
+	FVector ConsumeImpulse();
 	
-public:
+public:	
 	// Properties
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement")
+	EPupMovementMode MovementMode = EPupMovementMode::M_Falling;
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement")
 	float MaxSpeed;
@@ -90,39 +108,66 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement")
 	float RunningFriction = 1200.f;
 	
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Movement")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement")
 	FVector DirectionVector;
 	
-	UPROPERTY(BlueprintReadOnly, Category = "Movement")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement")
 	bool bIsWalking = false;
+	
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement")
+	float MovementSpeedAlpha = 0.0f;
 
 	
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement: Rotation")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Rotation")
 	FRotator DesiredRotation = FRotator(0.f,0.f,0.f);
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement: Rotation")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Rotation")
 	float RotationSpeed = 360.f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement: Rotation")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Rotation")
 	bool bSlip = true;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement: Rotation")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Rotation")
 	float SlipFactor = 0.8;
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement: Rotation")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Rotation")
 	float CameraYaw = 0.f;
 
+	
 
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement | Jumping")
+	bool bCanJump = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Jumping")
+	float CoyoteTime = 0.5f;
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement: Jumping")
-	float AirControlFactor = 0.2;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Jumping")
+	float AirControlFactor = 0.2f;
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement: Jumping")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Jumping")
 	float TerminalVelocity = -4000.f;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement: Jumping")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement | Jumping")
 	bool bGrounded = false;
 
+
+	
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Anchored")
+	FVector AnchorLocation;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Anchored")
+	float SnapVelocity = 1000.f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Anchored")
+	float SnapRotationVelocity = 360.f;
+	
+private:
+
+	UPROPERTY(Transient)
 	UPrimitiveComponent* CurrentFloorComponent;
+
+	FVector PendingImpulses;
+
+	FTimerHandle CoyoteTimer;
 };
