@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 
+#include "PupMovementComponent.h"
 #include "Components/SphereComponent.h"
 #include "GameFramework/Character.h"
 #include "Tether/Gameplay/BeamComponent.h"
@@ -16,7 +17,7 @@ class UBeamComponent;
 
 
 UCLASS(Blueprintable)
-class ATetherCharacter : public ACharacter, public IBeamTarget
+class ATetherCharacter : public APawn, public IBeamTarget
 {
 	GENERATED_BODY()
 
@@ -24,8 +25,9 @@ public:
 
 	// Component name constants
 	
-	static const FName CameraComponentName;
-	static const FName SpringArmComponentName;
+	static const FName CapsuleComponentName;
+	static const FName MovementComponentName;
+	static const FName SkeletalMeshComponentName;
 	static const FName GrabSphereComponentName;
 	static const FName GrabHandleName;
 	static const FName BeamComponentName;
@@ -34,7 +36,7 @@ public:
 	static const FName AnchorTag;
 
 
-	ATetherCharacter(const class FObjectInitializer& ObjectInitializer);
+	ATetherCharacter(const FObjectInitializer& ObjectInitializer);
 
 	
 	// Actor overrides
@@ -43,12 +45,14 @@ public:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 	
-	
+	void Jump();
+	void StopJumping();
+
+
 	// Character overrides
 	
-	virtual bool CanJumpInternal_Implementation() const override;
-	virtual void Falling() override;
-	virtual void OnJumped_Implementation() override;
+	void Falling();
+	void OnJumped_Implementation();
 
 
 	// Beam target interface
@@ -58,10 +62,8 @@ public:
 	
 	// Movement functions
 
-	void MoveX(float Scale);
-	void MoveY(float Scale);
-	void RotateX(float Scale);
-	void RotateY(float Scale);
+	void MoveX(const float Scale);
+	void MoveY(const float Scale);
 	void Interact();
 
 	UFUNCTION(BlueprintCallable)
@@ -87,17 +89,17 @@ public:
 
 	// Accessors
 
-	// UFUNCTION(BlueprintCallable)
-	// UCameraComponent* GetCameraComponent() const { return CameraComponent; }
-
-	UFUNCTION(BlueprintPure)
-	USpringArmComponent* GetSpringArmComponent() const { return SpringArmComponent; }
-
 	UFUNCTION(BlueprintCallable)
 	FVector GetTetherTargetLocation() const;
 
 	UFUNCTION(BlueprintCallable)
 	FVector GetTetherEffectLocation() const;
+
+	UFUNCTION(BlueprintCallable)
+	USkeletalMeshComponent* GetMeshComponent() const;
+
+	UFUNCTION(BlueprintCallable)
+	UCapsuleComponent* GetCapsuleComponent() const;
 
 	UFUNCTION(BlueprintPure)
 	bool IsAlive() const { return bAlive; }
@@ -155,25 +157,8 @@ private:
 
 	UFUNCTION()
 	void OnTetherExpired();
+
 	
-
-	// Components
-	
-	// UPROPERTY(VisibleAnywhere, Category="Components")
-	// UCameraComponent* CameraComponent;
-
-	UPROPERTY(VisibleAnywhere, Category="Components")
-	USpringArmComponent* SpringArmComponent;
-
-	UPROPERTY(VisibleAnywhere, Category="Components")
-	USphereComponent* GrabSphereComponent;
-
-	UPROPERTY(VisibleAnywhere, Category="Components")
-	USceneComponent* GrabHandle;
-
-	UPROPERTY(VisibleAnywhere)
-	UBeamComponent* BeamComponent;
-
 	// Jump tracking
 
 	FTimerHandle CoyoteJumpTimerHandle;
@@ -201,4 +186,27 @@ private:
 
 	void AnchorToObject(AActor* Object);
 	void ReleaseAnchor();
+
+
+	
+	// Components
+public:
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category="Components")
+	UCapsuleComponent* CapsuleComponent;
+
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category="Components")
+	UPupMovementComponent* MovementComponent;
+	
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category="Components")
+	USkeletalMeshComponent* SkeletalMeshComponent;
+
+private:
+	UPROPERTY(VisibleAnywhere, Category="Components")
+	USphereComponent* GrabSphereComponent;
+
+	UPROPERTY(VisibleAnywhere, Category="Components")
+	USceneComponent* GrabHandle;
+
+	UPROPERTY(VisibleAnywhere)
+	UBeamComponent* BeamComponent;
 };

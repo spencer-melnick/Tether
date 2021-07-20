@@ -57,7 +57,9 @@ public:
 
 protected:
 
+#if WITH_EDITOR
 	virtual bool ShouldSpawnPIEPlayers() const override { return true; }
+#endif
 	
 
 private:

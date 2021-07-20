@@ -54,7 +54,10 @@ void AProjectileEmitter::OnConstruction(const FTransform& Transform)
 	ProjectileEmitterComponent->ProjectileVelocity = Velocity;
 	ProjectileLifetime = (Velocity <= 0 || Distance <= 0) ? 0.0f : Distance / Velocity;
 	ProjectileEmitterComponent->ProjectileLifetime = ProjectileLifetime;
-	TelegraphComponent->SetMaterial(0, TelegraphDecal);
+	if (TelegraphComponent && TelegraphDecal)
+	{
+		TelegraphComponent->SetMaterial(0, TelegraphDecal);
+	}
 	SetTelegraphSize();
 }
 
@@ -79,7 +82,6 @@ void AProjectileEmitter::BeginPlay()
 			ArrowComponents[i]->PlayAnimation(MiddleAnimation, true);
 		}
 	}
-	// ProjectileEmitterComponent->ProjectileLifetime = ProjectileLifetime;
 }
 
 void AProjectileEmitter::DisplayTelegraph()
@@ -92,6 +94,8 @@ void AProjectileEmitter::DisplayTelegraph()
 	{
 		Component->SetVisibility(true);
 	}
+
+	DisplayWarning();
 }
 
 void AProjectileEmitter::HideTelegraph()
@@ -109,7 +113,7 @@ void AProjectileEmitter::HideTelegraph()
 void AProjectileEmitter::SetTelegraphSize()
 {
 	const ASimpleProjectile* ActorCDO = ProjectileClass ? ProjectileClass->GetDefaultObject<ASimpleProjectile>() : nullptr;
-	if (ActorCDO && TelegraphComponent)
+	if (ActorCDO && TelegraphComponent && ArrowMaterial && ArrowMesh)
 	{
 		const float Size = ActorCDO->ProjectileRadius * 2;
 		TelegraphComponent->DecalSize = FVector(Size, Distance + Size, Size);
@@ -117,20 +121,19 @@ void AProjectileEmitter::SetTelegraphSize()
 
 		for (USkeletalMeshComponent* Component: ArrowComponents)
 		{
-			Component->DestroyComponent();
+			if(Component)
+			{
+				Component->DestroyComponent();
+			}
 		}
 		ArrowComponents.Empty();
 
-		FVector ArrowScale = FVector(Size / 100, Size / 100, Size / 100 / 10);
-		int ArrowCount = FMath::Floor(Distance / Size / 2) + 2;
+		const FVector ArrowScale = FVector(Size / 100, Size / 100, Size / 10000);
+		const int ArrowCount = FMath::Floor(Distance / Size / 2) + 2;
 
-		if(!(ArrowMesh && ArrowMaterial))
-		{
-			return;
-		}
 		for (int i = 0; i < ArrowCount; i++)
 		{
-			USkeletalMeshComponent* Arrow = NewObject<USkeletalMeshComponent>(RootComponent, TEXT("TestArrow") + i);
+			USkeletalMeshComponent* Arrow = NewObject<USkeletalMeshComponent>(RootComponent);
 			Arrow->RegisterComponent();
 			ArrowComponents.Add(Arrow);
 			

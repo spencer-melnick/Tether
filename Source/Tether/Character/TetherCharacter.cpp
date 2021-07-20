@@ -3,19 +3,19 @@
 #include "TetherCharacter.h"
 
 #include "DrawDebugHelpers.h"
-#include "TetherCharacterMovementComponent.h"
+#include "PupMovementComponent.h"
 #include "Algo/Transform.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "GameFramework/SpringArmComponent.h"
 #include "Tether/GameMode/TetherPrimaryGameMode.h"
 
 
 // Component name constants
 
-const FName ATetherCharacter::CameraComponentName(TEXT("CameraComponent"));
-const FName ATetherCharacter::SpringArmComponentName(TEXT("SpringArm"));
+const FName ATetherCharacter::CapsuleComponentName(TEXT("CapsuleComponent"));
+const FName ATetherCharacter::MovementComponentName(TEXT("CharacterMovementComponent"));
+const FName ATetherCharacter::SkeletalMeshComponentName(TEXT("SkeletalMesh"));
 const FName ATetherCharacter::GrabSphereComponentName(TEXT("GrabSphere"));
 const FName ATetherCharacter::GrabHandleName(TEXT("GrabHandle"));
 const FName ATetherCharacter::BeamComponentName(TEXT("BeamComponent"));
@@ -25,14 +25,16 @@ const FName ATetherCharacter::AnchorTag(TEXT("Anchor"));
 
 
 ATetherCharacter::ATetherCharacter(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer.SetDefaultSubobjectClass<UTetherCharacterMovementComponent>(CharacterMovementComponentName))
+	//: Super(ObjectInitializer.SetDefaultSubobjectClass<UCapsuleComponent>(CapsuleComponentName))
 {
-	SpringArmComponent = CreateDefaultSubobject<USpringArmComponent>(SpringArmComponentName);
-	SpringArmComponent->SetupAttachment(RootComponent);
-	
-	// CameraComponent = CreateDefaultSubobject<UCameraComponent>(CameraComponentName);
-	// CameraComponent->SetupAttachment(SpringArmComponent);
+	CapsuleComponent = CreateDefaultSubobject<UCapsuleComponent>(CapsuleComponentName);
+	RootComponent = GetCapsuleComponent();
 
+	MovementComponent = CreateDefaultSubobject<UPupMovementComponent>(MovementComponentName);
+	
+	SkeletalMeshComponent = CreateDefaultSubobject<USkeletalMeshComponent>(SkeletalMeshComponentName);
+	SkeletalMeshComponent->SetupAttachment(RootComponent);
+	
 	GrabSphereComponent = CreateDefaultSubobject<USphereComponent>(GrabSphereComponentName);
 	GrabSphereComponent->SetupAttachment(RootComponent);
 
@@ -40,7 +42,7 @@ ATetherCharacter::ATetherCharacter(const FObjectInitializer& ObjectInitializer)
 	GrabHandle->SetupAttachment(RootComponent);
 
 	BeamComponent = CreateDefaultSubobject<UBeamComponent>(BeamComponentName);
-	BeamComponent->SetupAttachment(GetMesh());
+	BeamComponent->SetupAttachment(RootComponent);
 	
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
@@ -55,11 +57,9 @@ void ATetherCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 
 	PlayerInputComponent->BindAxis(TEXT("MoveX"), this, &ATetherCharacter::MoveX);
 	PlayerInputComponent->BindAxis(TEXT("MoveY"), this, &ATetherCharacter::MoveY);
-	// PlayerInputComponent->BindAxis(TEXT("RotateX"), this, &ATetherCharacter::RotateX);
-	// PlayerInputComponent->BindAxis(TEXT("RotateY"), this, &ATetherCharacter::RotateY);
 
-	PlayerInputComponent->BindAction(TEXT("Jump"), EInputEvent::IE_Pressed, this, &ACharacter::Jump);
-	PlayerInputComponent->BindAction(TEXT("Jump"), EInputEvent::IE_Released, this, &ACharacter::StopJumping);
+	PlayerInputComponent->BindAction(TEXT("Jump"), EInputEvent::IE_Pressed, this, &ATetherCharacter::Jump);
+	PlayerInputComponent->BindAction(TEXT("Jump"), EInputEvent::IE_Released, this, &ATetherCharacter::StopJumping);
 
 	PlayerInputComponent->BindAction(TEXT("Grab"), EInputEvent::IE_Pressed, this, &ATetherCharacter::Interact);
 	PlayerInputComponent->BindAction(TEXT("Grab"), EInputEvent::IE_Released, this, &ATetherCharacter::ReleaseAnchor);
@@ -68,11 +68,6 @@ void ATetherCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 void ATetherCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-
-	if (UCharacterMovementComponent* CharacterMovementComponent = GetCharacterMovement())
-	{
-		CharacterMovementComponent->GroundFriction = NormalFriction;
-	}
 }
 
 void ATetherCharacter::Tick(float DeltaSeconds)
@@ -81,18 +76,17 @@ void ATetherCharacter::Tick(float DeltaSeconds)
 
 }
 
-
-// Character overrides
-
-bool ATetherCharacter::CanJumpInternal_Implementation() const
+void ATetherCharacter::Jump()
 {
-	return bCoyoteJumpAvailable || Super::CanJumpInternal_Implementation();
+	MovementComponent->Jump();
+}
+
+void ATetherCharacter::StopJumping()
+{
 }
 
 void ATetherCharacter::Falling()
 {
-	Super::Falling();
-
 	if (FMath::IsNearlyZero(CoyoteTime))
 	{
 		bCoyoteJumpAvailable = false;
@@ -124,43 +118,14 @@ void ATetherCharacter::OnJumped_Implementation()
 	}
 }
 
-
-// Movement functions
-
-void ATetherCharacter::MoveX(float Scale)
+void ATetherCharacter::MoveX(const float Scale)
 {
-	if (CanMove())
-	{
-		FRotator ForwardDirection;
-		FVector Location;
-		GetController()->GetPlayerViewPoint(Location, ForwardDirection );
-		
-		const FRotator YawRotator = FRotator(0.f, ForwardDirection.Yaw, 0.f);
-		AddMovementInput(YawRotator.RotateVector(FVector::RightVector), Scale);
-	}
+	MovementComponent->AddInputVector(FVector::RightVector * Scale);
 }
 
-void ATetherCharacter::MoveY(float Scale)
+void ATetherCharacter::MoveY(const float Scale)
 {
-	if (CanMove())
-	{
-		FRotator ForwardDirection;
-		FVector Location;
-		GetController()->GetPlayerViewPoint(Location, ForwardDirection );
-		
-		const FRotator YawRotator = FRotator(0.f, ForwardDirection.Yaw, 0.f);
-		AddMovementInput(YawRotator.RotateVector(FVector::ForwardVector), Scale);
-	}
-}
-
-void ATetherCharacter::RotateX(float Scale)
-{
-	AddControllerYawInput(Scale);
-}
-
-void ATetherCharacter::RotateY(float Scale)
-{
-	AddControllerPitchInput(Scale);
+	MovementComponent->AddInputVector(FVector::ForwardVector * Scale);
 }
 
 void ATetherCharacter::Interact()
@@ -218,10 +183,7 @@ void ATetherCharacter::Interact()
 
 void ATetherCharacter::SetGroundFriction(float GroundFriction)
 {
-	if (UCharacterMovementComponent* CharacterMovementComponent = GetCharacterMovement())
-	{
-		CharacterMovementComponent->GroundFriction = GroundFriction;
-	}
+
 }
 
 
@@ -234,13 +196,22 @@ FVector ATetherCharacter::GetTetherTargetLocation() const
 
 FVector ATetherCharacter::GetTetherEffectLocation() const
 {
-	const USkeletalMeshComponent* MeshComponent = GetMesh();
-	if (MeshComponent && MeshComponent->DoesSocketExist(TetherEffectSocket))
+	if (SkeletalMeshComponent && SkeletalMeshComponent->DoesSocketExist(TetherEffectSocket))
 	{
-		return MeshComponent->GetSocketLocation(TetherEffectSocket);
+		return SkeletalMeshComponent->GetSocketLocation(TetherEffectSocket);
 	}
 	
 	return GetTetherTargetLocation();
+}
+
+USkeletalMeshComponent* ATetherCharacter::GetMeshComponent() const
+{
+	return SkeletalMeshComponent;
+}
+
+UCapsuleComponent* ATetherCharacter::GetCapsuleComponent() const
+{
+	return CapsuleComponent;
 }
 
 bool ATetherCharacter::CanMove() const
@@ -257,6 +228,7 @@ void ATetherCharacter::Deflect(
 	{
 		SetGroundFriction(BounceFriction);
 		bIsBouncing = true;
+		MovementComponent->MovementMode = EPupMovementMode::M_Deflected;
 		
 		// Only restart the timer if the remaining time would increase
 		const float DeflectTimeRemaining = DeflectTimerHandle.IsValid() ? World->GetTimerManager().GetTimerRemaining(DeflectTimerHandle) : 0.f;
@@ -266,6 +238,7 @@ void ATetherCharacter::Deflect(
 			{
 				SetGroundFriction(NormalFriction);
 				bIsBouncing = false;
+				MovementComponent->SetDefaultMovementMode();
 			}), DeflectTime, false);
 		}
 	}
@@ -295,7 +268,8 @@ void ATetherCharacter::Deflect(
 
 	// Limit velocity by the max launch speed and then launch
 	const FVector FinalVelocity = BounceVelocity.GetClampedToSize(0.f, MaxLaunchSpeed);
-	LaunchCharacter(FinalVelocity, true, true);
+	// LaunchCharacter(FinalVelocity, true, true);
+	MovementComponent->AddImpulse(FinalVelocity);
 }
 
 
@@ -304,14 +278,11 @@ void ATetherCharacter::Deflect(
 void ATetherCharacter::HandlePenetration(const FHitResult& HitResult)
 {
 	// Todo: accumulate worst penetration and resolve during physics update
-	
-	const UCapsuleComponent* Capsule = GetCapsuleComponent();
-	UMovementComponent* MovementComponent = GetMovementComponent();
-	
-	if (GetLocalRole() >= ROLE_AutonomousProxy && Capsule && MovementComponent)
+		
+	if (GetLocalRole() >= ROLE_AutonomousProxy && CapsuleComponent && MovementComponent)
 	{
 		const FVector RequestedAdjustment = MovementComponent->GetPenetrationAdjustment(HitResult);
-		MovementComponent->ResolvePenetration(RequestedAdjustment, HitResult, Capsule->GetComponentRotation());
+		MovementComponent->ResolvePenetration(RequestedAdjustment, HitResult, CapsuleComponent->GetComponentRotation());
 	}
 }
 
@@ -319,10 +290,9 @@ void ATetherCharacter::OnTetherExpired()
 {
 	bAlive = false;
 
-	UCharacterMovementComponent* MovementComponent = Cast<UCharacterMovementComponent>(GetMovementComponent());
 	if (MovementComponent)
 	{
-		MovementComponent->SetMovementMode(MOVE_None);
+		// MovementComponent->SetMovementMode(MOVE_None);
 	}
 }
 
@@ -375,15 +345,13 @@ void ATetherCharacter::AnchorToObject(AActor* Object)
 		}
 	}
 	
-	GetCharacterMovement()->SetMovementMode(MOVE_Custom, static_cast<int>(ETetherMovementType::Anchored));
+	MovementComponent->MovementMode = EPupMovementMode::M_Anchored;
 	const FVector Distance = ClosestPoint - GetActorLocation();
 	const FRotator Rotation = Distance.ToOrientationRotator();
 	ClosestPoint -= GrabHandle->GetRelativeLocation().RotateAngleAxis(Rotation.Yaw, FVector::UpVector);
 
-	UTetherCharacterMovementComponent* TetherCharacterMovementComponent = static_cast<UTetherCharacterMovementComponent*>(GetCharacterMovement());
-	TetherCharacterMovementComponent->SetAnchorRotation(Rotation);
-	TetherCharacterMovementComponent->SetAnchorLocation(FVector(ClosestPoint.X, ClosestPoint.Y, GetActorLocation().Z));
-		
+	MovementComponent->AnchorToLocation(ClosestPoint);
+	
 	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::White, *ClosestPoint.ToString());
 	bAnchored = true;
 }
@@ -392,7 +360,7 @@ void ATetherCharacter::ReleaseAnchor()
 {
 	if (bAnchored)
 	{
-		GetCharacterMovement()->SetDefaultMovementMode();
+		MovementComponent->BreakAnchor(bIsBouncing);
 		bAnchored = false;
 	}
 }
