@@ -159,9 +159,15 @@ bool UPupMovementComponent::Jump()
 	{
 		AddImpulse(UpdatedComponent->GetUpVector() * 500.0f);
 		bCanJump = false;
+		bJumping = true;
 		return true;
 	}
 	return false;
+}
+
+void UPupMovementComponent::StopJumping()
+{
+	bJumping = false;
 }
 
 float UPupMovementComponent::GetGravityZ() const
@@ -313,6 +319,7 @@ void UPupMovementComponent::HandleInputAxis()
 		{
 			bIsWalking = false;
 			DirectionVector = FVector::ZeroVector;
+			DesiredRotation = UpdatedComponent->GetComponentRotation();
 		}
 	}
 }
