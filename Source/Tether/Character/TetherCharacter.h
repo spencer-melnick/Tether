@@ -96,6 +96,9 @@ public:
 	FVector GetTetherEffectLocation() const;
 
 	UFUNCTION(BlueprintCallable)
+	bool GetIsJumping() const;
+
+	UFUNCTION(BlueprintCallable)
 	USkeletalMeshComponent* GetMeshComponent() const;
 
 	UFUNCTION(BlueprintCallable)

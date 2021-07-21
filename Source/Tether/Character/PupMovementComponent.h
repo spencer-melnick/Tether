@@ -34,8 +34,10 @@ public:
 	
 	bool SweepCapsule(const FVector Offset, FHitResult& OutHit) const;
 
+	UFUNCTION(BlueprintCallable)
 	void SetDefaultMovementMode();
-	
+
+	UFUNCTION(BlueprintCallable)
 	void AddImpulse(const FVector Impulse);
 	
 	// Accessor Overrides
@@ -55,11 +57,15 @@ public:
 	void SnapToFloor(const FHitResult& FloorHit);
 
 	/** Attempts to jump, returns false if the jump can't be executed */
+	UFUNCTION(BlueprintCallable)
 	bool Jump();
+
+	void StopJumping();
 	
 	// MovementComponent interface
 	virtual float GetGravityZ() const override;
 
+	UFUNCTION(BlueprintCallable)
 	void AnchorToLocation(const FVector& AnchorLocationIn);
 
 	void BreakAnchor(const bool bForceBreak = false);
@@ -110,18 +116,16 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement")
 	float RunningFriction = 1200.f;
 	
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement")
 	FVector DirectionVector;
 	
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement")
 	bool bIsWalking = false;
 	
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement")
 	float MovementSpeedAlpha = 0.0f;
-
 	
-	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Rotation")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Transient, Category = "Movement | Rotation")
 	FRotator DesiredRotation = FRotator(0.f,0.f,0.f);
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Rotation")
@@ -150,12 +154,13 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Jumping")
 	float TerminalVelocity = -4000.f;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement | Jumping")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement | Jumping")
 	bool bGrounded = false;
 
+	bool bJumping = false;
 
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Anchored")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Transient, Category = "Movement | Anchored")
 	FVector AnchorLocation;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Anchored")

@@ -83,6 +83,7 @@ void ATetherCharacter::Jump()
 
 void ATetherCharacter::StopJumping()
 {
+	MovementComponent->StopJumping();
 }
 
 void ATetherCharacter::Falling()
@@ -202,6 +203,15 @@ FVector ATetherCharacter::GetTetherEffectLocation() const
 	}
 	
 	return GetTetherTargetLocation();
+}
+
+bool ATetherCharacter::GetIsJumping() const
+{
+	if (MovementComponent)
+	{
+		return MovementComponent->bJumping;
+	}
+	return false;
 }
 
 USkeletalMeshComponent* ATetherCharacter::GetMeshComponent() const
