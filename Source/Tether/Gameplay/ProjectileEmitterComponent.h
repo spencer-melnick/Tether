@@ -27,15 +27,20 @@ public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	
 	UFUNCTION(BlueprintCallable)
 	void FireProjectile();
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile")
 	TSubclassOf<ASimpleProjectile> ProjectileType;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile")
 	float ProjectileVelocity;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Projectile")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile")
 	float ProjectileLifetime = 1.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Projectile")
+	float ProjectileRadius;
 };

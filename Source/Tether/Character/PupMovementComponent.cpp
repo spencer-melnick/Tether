@@ -34,12 +34,21 @@ namespace PupMovementCVars
 		ECVF_Default);
 }
 
+
 UPupMovementComponent::UPupMovementComponent()
 {
 }
 
+void UPupMovementComponent::BeginPlay()
+{
+	Super::BeginPlay();
+
+	SetDefaultMovementMode();
+}
+
+
 void UPupMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType,
-	FActorComponentTickFunction* TickFunction)
+                                          FActorComponentTickFunction* TickFunction)
 {
 	// Gather all of the input we've accumulated since the last frame
 	HandleInputAxis();
@@ -54,6 +63,7 @@ void UPupMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	}
 }
 
+
 void UPupMovementComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -62,6 +72,10 @@ void UPupMovementComponent::PostEditChangeProperty(FPropertyChangedEvent& Proper
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UPupMovementComponent, MaxIncline))
 	{
 		MaxInclineZComponent = FMath::Cos(FMath::DegreesToRadians(MaxIncline));
+	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UPupMovementComponent, ApexVelocity) || PropertyName == GET_MEMBER_NAME_CHECKED(UPupMovementComponent, MaxJumpTime) || PropertyName == GET_MEMBER_NAME_CHECKED(UPupMovementComponent, JumpInitialVelocity))
+	{
+		HoldJumpAcceleration = MaxJumpTime <= 0.0f ? 0.0f : (ApexVelocity - JumpInitialVelocity) / MaxJumpTime;
 	}
 }
 
@@ -88,6 +102,7 @@ bool UPupMovementComponent::SweepCapsule(const FVector Offset, FHitResult& OutHi
 	}
 	return false;
 }
+
 
 void UPupMovementComponent::SetDefaultMovementMode()
 {
@@ -135,6 +150,7 @@ bool UPupMovementComponent::FindFloor(float SweepDistance, FHitResult& OutHitRes
 	return false;
 }
 
+
 bool UPupMovementComponent::IsValidFloorHit(const FHitResult& FloorHit) const
 {
 	// Check if we actually hit a floor component
@@ -147,34 +163,56 @@ bool UPupMovementComponent::IsValidFloorHit(const FHitResult& FloorHit) const
 	return false;
 }
 
+
 void UPupMovementComponent::SnapToFloor(const FHitResult& FloorHit)
 {
 	FHitResult DiscardHit;
 	SafeMoveUpdatedComponent(FloorHit.Location - UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentQuat(), true, DiscardHit);
 }
 
+
 bool UPupMovementComponent::Jump()
 {
 	if (bCanJump)
 	{
-		AddImpulse(UpdatedComponent->GetUpVector() * 500.0f);
+		AddImpulse(UpdatedComponent->GetUpVector() * JumpInitialVelocity);
+		JumpAppliedVelocity += JumpInitialVelocity;
 		bCanJump = false;
 		bJumping = true;
+
+		if (UWorld* World = GetWorld())
+		{
+			if (MaxJumpTime > 0.0f)
+			{
+				World->GetTimerManager().SetTimer(JumpTimer, FTimerDelegate::CreateWeakLambda(this, [this]
+				{
+					StopJumping();
+				}), MaxJumpTime, false);
+			}
+			else
+			{
+				StopJumping();
+			}
+		}
 		return true;
 	}
 	return false;
 }
 
+
 void UPupMovementComponent::StopJumping()
 {
 	bJumping = false;
+	JumpAppliedVelocity = 0.0f;
 }
+
 
 float UPupMovementComponent::GetGravityZ() const
 {
 	// Gravity scale here?
 	return Super::GetGravityZ();
 }
+
 
 void UPupMovementComponent::AnchorToLocation(const FVector& AnchorLocationIn)
 {
@@ -183,6 +221,7 @@ void UPupMovementComponent::AnchorToLocation(const FVector& AnchorLocationIn)
 	const FVector Offset = AnchorLocationIn - UpdatedComponent->GetComponentLocation();
 	DesiredRotation = FRotator(0.0f, FMath::RadiansToDegrees(FMath::Atan2(Offset.Y, Offset.X)), 0.0f);
 }
+
 
 void UPupMovementComponent::BreakAnchor(const bool bForceBreak)
 {
@@ -204,10 +243,12 @@ void UPupMovementComponent::StepMovement(float DeltaTime)
 	const FRotator NewRotation = GetNewRotation(DeltaTime);
 	if (UpdatedComponent)
 	{
+		const float DeltaYaw = FMath::FindDeltaAngleDegrees(NewRotation.Yaw, UpdatedComponent->GetComponentRotation().Yaw);
+		TurningDirection = DeltaYaw;
+	
 		UpdatedComponent->SetWorldRotation(NewRotation);
 	}
 	Velocity = GetNewVelocity(DeltaTime);
-
 	
 	if (MovementMode == EPupMovementMode::M_Walking ||  MovementMode == EPupMovementMode::M_Falling || MovementMode == EPupMovementMode::M_Deflected)
 	{
@@ -233,6 +274,7 @@ void UPupMovementComponent::StepMovement(float DeltaTime)
 				Fall();
 			}
 			bGrounded = false;
+			
 			// To avoid potential stuttering, only apply gravity if we're not on the ground
 			Velocity.Z += GetGravityZ() * DeltaTime;
 		}
@@ -254,6 +296,7 @@ void UPupMovementComponent::StepMovement(float DeltaTime)
 	UpdateComponentVelocity();
 }
 
+
 float UPupMovementComponent::SubstepMovement(float DeltaTime)
 {
 	FHitResult HitResult;
@@ -272,11 +315,13 @@ float UPupMovementComponent::SubstepMovement(float DeltaTime)
 	return DeltaTime;
 }
 
+
 void UPupMovementComponent::Land()
 {
 	MovementMode = EPupMovementMode::M_Walking;
 	bCanJump = true;
 }
+
 
 void UPupMovementComponent::Fall()
 {
@@ -387,7 +432,11 @@ FVector UPupMovementComponent::GetNewVelocity(const float DeltaTime)
 			}
 		case EPupMovementMode::M_Falling:
 			{
-				const FVector Acceleration = MaxAcceleration * DirectionVector * DeltaTime * AirControlFactor;
+				FVector Acceleration = MaxAcceleration * DirectionVector * DeltaTime * AirControlFactor;
+				if (bJumping)
+				{
+					Acceleration += HoldJump(DeltaTime);
+				}
 				return (Velocity + Acceleration).GetClampedToMaxSize2D(MaxSpeed) + ConsumeImpulse();
 			}
 		case EPupMovementMode::M_Anchored:
@@ -399,7 +448,13 @@ FVector UPupMovementComponent::GetNewVelocity(const float DeltaTime)
 			}
 		case EPupMovementMode::M_Deflected:
 			{
-				return Velocity + ConsumeImpulse();
+				FVector NewVelocity = Velocity;
+				if (bGrounded)
+				{
+					NewVelocity = ApplySlidingFriction(Velocity, DeltaTime, DeflectionFriction);
+				}
+				NewVelocity += DirectionVector.IsNearlyZero() ? FVector::ZeroVector : DeltaTime * MaxAcceleration * DirectionVector * DeflectionControlInfluence;
+				return NewVelocity + ConsumeImpulse();
 			}
 		default:
 			{
@@ -408,18 +463,34 @@ FVector UPupMovementComponent::GetNewVelocity(const float DeltaTime)
 	}
 }
 
+FVector UPupMovementComponent::HoldJump(const float DeltaTime)
+{
+	
+	const float JumpAcceleration = FMath::Min(HoldJumpAcceleration * DeltaTime, ApexVelocity - JumpAppliedVelocity);
+	JumpAppliedVelocity += JumpAcceleration;
+	return JumpAcceleration * UpdatedComponent->GetUpVector();
+}
+
 
 FVector UPupMovementComponent::ApplyFriction(const FVector& VelocityIn, const float DeltaTime) const
 {
-	const FVector VelocityVertical = FVector::DotProduct(FloorNormal, VelocityIn) * FloorNormal;
 	if(bIsWalking)
 	{
+		const FVector VelocityVertical = FVector::DotProduct(FloorNormal, VelocityIn) * FloorNormal;
+
 		// Take the Vertical Velocity (along the Floor Normal) out of the interpolation, and add it back in later.
 		const FVector DirectionVectorNormalized = DirectionVector.GetSafeNormal();
 		return FMath::VInterpConstantTo(VelocityIn - VelocityVertical, FVector::DotProduct(VelocityIn, DirectionVectorNormalized) * DirectionVectorNormalized, DeltaTime, RunningFriction) + VelocityVertical;
 	}
-	const FVector NewVelocity = FMath::VInterpConstantTo(VelocityIn, VelocityVertical, DeltaTime, BreakingFriction);
-	return NewVelocity;
+	return ApplySlidingFriction(VelocityIn, DeltaTime, BreakingFriction);
+}
+
+
+FVector UPupMovementComponent::ApplySlidingFriction(const FVector& VelocityIn, const float DeltaTime,
+	const float Friction) const
+{
+	const FVector VelocityVertical = FVector::DotProduct(FloorNormal, VelocityIn) * FloorNormal;
+	return FMath::VInterpConstantTo(VelocityIn, VelocityVertical, DeltaTime, Friction);
 }
 
 

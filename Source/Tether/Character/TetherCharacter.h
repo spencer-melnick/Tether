@@ -110,6 +110,9 @@ public:
 	UFUNCTION(BlueprintPure)
 	bool CanMove() const;
 
+	UFUNCTION(BlueprintImplementableEvent)
+	void OnJump();
+
 	
 	// Events
 
@@ -132,6 +135,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tether")
 	FName TetherEffectSocket;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	bool bCarryingObject = false;
 
 	bool bAnchored = false;

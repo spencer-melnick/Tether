@@ -38,6 +38,13 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Emitter")
 	float Distance;
 
+	
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Emitter | Queue")
+	int MaxQueuedProjectiles = 10;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Emitter | Queue")
+	int QueuedProjectiles = 0;
+
 	float ProjectileLifetime;
 
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph")
@@ -48,20 +55,21 @@ public:
 	
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph")
 	UMaterialInterface* TelegraphDecal;
+
 	
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph | Arrows")
 	UMaterialInterface* ArrowMaterial;
 
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph | Arrows")
 	USkeletalMesh* ArrowMesh;
 	
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph | Arrows")
 	UAnimationAsset* FrontAnimation;
 
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph | Arrows")
 	UAnimationAsset* MiddleAnimation;
 	
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph | Arrows")
 	UAnimationAsset* BackAnimation;
 	
 protected:

@@ -33,7 +33,7 @@ ATetherCharacter::ATetherCharacter(const FObjectInitializer& ObjectInitializer)
 	MovementComponent = CreateDefaultSubobject<UPupMovementComponent>(MovementComponentName);
 	
 	SkeletalMeshComponent = CreateDefaultSubobject<USkeletalMeshComponent>(SkeletalMeshComponentName);
-	SkeletalMeshComponent->SetupAttachment(RootComponent);
+	SkeletalMeshComponent->SetupAttachment(CapsuleComponent);
 	
 	GrabSphereComponent = CreateDefaultSubobject<USphereComponent>(GrabSphereComponentName);
 	GrabSphereComponent->SetupAttachment(RootComponent);
@@ -74,11 +74,22 @@ void ATetherCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
+	/* float Pitch  = FMath::Clamp(50.0f * MovementComponent->TurningDirection * MovementComponent->MovementSpeedAlpha, -50.0f, 50.0f);
+	FRotator Rotation = SkeletalMeshComponent->GetRelativeRotation();
+
+	Pitch = FMath::FInterpTo(Rotation.Pitch, Pitch, DeltaSeconds, 0.5f);
+	
+	Rotation.Pitch = Pitch;
+
+	SkeletalMeshComponent->SetRelativeRotation(Rotation); */
 }
 
 void ATetherCharacter::Jump()
 {
-	MovementComponent->Jump();
+	if (MovementComponent->Jump())
+	{
+		OnJump();
+	}
 }
 
 void ATetherCharacter::StopJumping()
@@ -362,7 +373,7 @@ void ATetherCharacter::AnchorToObject(AActor* Object)
 
 	MovementComponent->AnchorToLocation(ClosestPoint);
 	
-	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::White, *ClosestPoint.ToString());
+	// GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::White, *ClosestPoint.ToString());
 	bAnchored = true;
 }
 

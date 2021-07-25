@@ -28,6 +28,8 @@ class TETHER_API UPupMovementComponent : public UPawnMovementComponent
 public:
 	UPupMovementComponent();
 
+	virtual  void BeginPlay() override;
+	
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* TickFunction) override;
 
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -77,7 +79,7 @@ private:
 
 	/** Perform a single movement substep, returning the amount of time actually simulated in the substep */
 	float SubstepMovement(float DeltaTime);
-
+	
 	void Land();
 
 	void Fall();
@@ -92,8 +94,12 @@ private:
 	
 	FVector GetNewVelocity(const float DeltaTime);
 
+	FVector HoldJump(const float DeltaTime);
+
 	FVector ApplyFriction(const FVector& VelocityIn, const float DeltaTime) const;
 
+	FVector ApplySlidingFriction(const FVector& VelocityIn, const float DeltaTime, const float Friction) const;
+	
 	void RenderHitResult(const FHitResult& HitResult, const FColor Color = FColor::White) const;
 
 	FVector ConsumeImpulse();
@@ -140,11 +146,26 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Rotation")
 	float CameraYaw = 0.f;
 
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement | Rotation")
+	float TurningDirection = 0.0f;
+
 	
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement | Jumping")
 	bool bCanJump = false;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Jumping")
+	float JumpInitialVelocity = 300.0f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Jumping")
+	float ApexVelocity = 500.0f;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement | Jumping")
+	float HoldJumpAcceleration = 400.0f;
+	
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Jumping")
+	float MaxJumpTime = 0.5f;
+	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Jumping")
 	float CoyoteTime = 0.5f;
 	
@@ -177,6 +198,13 @@ public:
 	
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement | Planar")
 	float MaxInclineZComponent = 0.5f;
+
+	
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Deflections")
+	float DeflectionFriction = 800.0f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Deflections")
+	float DeflectionControlInfluence = 0.2f;
 	
 private:
 
@@ -186,5 +214,9 @@ private:
 	UPROPERTY(Transient)
 	FVector PendingImpulses;
 
+	float JumpAppliedVelocity;
+
 	FTimerHandle CoyoteTimer;
+
+	FTimerHandle JumpTimer;
 };

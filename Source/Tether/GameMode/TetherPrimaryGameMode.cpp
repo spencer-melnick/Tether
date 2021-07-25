@@ -11,6 +11,7 @@
 #include "Tether/Core/TetherUtils.h"
 #include "Tether/Gameplay/BeamComponent.h"
 #include "Tether/Gameplay/BeamController.h"
+#include "Tether/Gameplay/TopDownCameraComponent.h"
 
 ATetherPrimaryGameMode::ATetherPrimaryGameMode()
 {
@@ -55,7 +56,7 @@ void ATetherPrimaryGameMode::BeginPlay()
 				TetherGameState->SetGamePhase(ETetherGamePhase::Playing);
 			}), WarmupTime, false);
 		}
-
+		
 		if (BeamControllerClass)
 		{
 			FActorSpawnParameters SpawnParameters;

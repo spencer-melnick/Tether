@@ -30,8 +30,6 @@ UProjectileEmitterComponent::UProjectileEmitterComponent()
 void UProjectileEmitterComponent::BeginPlay()
 {
 	Super::BeginPlay();
-
-	// ...
 	
 }
 
@@ -41,8 +39,23 @@ void UProjectileEmitterComponent::TickComponent(float DeltaTime, ELevelTick Tick
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	// ...
 }
+
+
+void UProjectileEmitterComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	const FName PropertyName = PropertyChangedEvent.Property ? PropertyChangedEvent.GetPropertyName() : NAME_None;
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UProjectileEmitterComponent, ProjectileType))
+	{
+		FVector ProjectileOrigin;
+		FVector ProjectileExtent;
+		ProjectileType.GetDefaultObject()->GetActorBounds(true, ProjectileOrigin, ProjectileExtent);
+		ProjectileRadius = FMath::Abs(ProjectileOrigin.X - ProjectileExtent.X) / 2;
+	}
+}
+
 
 void UProjectileEmitterComponent::FireProjectile()
 {

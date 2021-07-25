@@ -28,16 +28,26 @@ AProjectileEmitter::AProjectileEmitter()
 void AProjectileEmitter::FireProjectile()
 {
 	if(bTelegraph)
-	{		
-		if(UWorld* World = GetWorld())
+	{
+		if(QueuedProjectiles < MaxQueuedProjectiles)
 		{
-			DisplayTelegraph();
-			
-			World->GetTimerManager().SetTimer(WarningHandle, FTimerDelegate::CreateWeakLambda(this, [this]
-				{
-					ProjectileEmitterComponent->FireProjectile();
-					HideTelegraph();
-				}), WarningTime, false);
+			if(UWorld* World = GetWorld())
+			{
+				DisplayTelegraph();
+				
+				World->GetTimerManager().SetTimer(WarningHandle, FTimerDelegate::CreateWeakLambda(this, [this]
+					{
+						HideTelegraph();
+					}), WarningTime, false);
+
+				FTimerHandle FireHandle;
+				QueuedProjectiles++;
+				World->GetTimerManager().SetTimer(FireHandle, FTimerDelegate::CreateWeakLambda(this, [this]
+					{
+						ProjectileEmitterComponent->FireProjectile();
+						QueuedProjectiles--;
+					}), WarningTime, false);
+			}
 		}
 	}
 	else
@@ -52,7 +62,7 @@ void AProjectileEmitter::OnConstruction(const FTransform& Transform)
 
 	ProjectileEmitterComponent->ProjectileType = ProjectileClass;
 	ProjectileEmitterComponent->ProjectileVelocity = Velocity;
-	ProjectileLifetime = (Velocity <= 0 || Distance <= 0) ? 0.0f : Distance / Velocity;
+	ProjectileLifetime = Velocity <= 0 || Distance <= 0 ? 0.0f : Distance / Velocity;
 	ProjectileEmitterComponent->ProjectileLifetime = ProjectileLifetime;
 	if (TelegraphComponent && TelegraphDecal)
 	{
