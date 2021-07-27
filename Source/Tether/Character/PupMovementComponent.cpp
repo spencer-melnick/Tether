@@ -42,10 +42,9 @@ UPupMovementComponent::UPupMovementComponent()
 void UPupMovementComponent::BeginPlay()
 {
 	Super::BeginPlay();
-
+	
 	SetDefaultMovementMode();
 }
-
 
 void UPupMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType,
                                           FActorComponentTickFunction* TickFunction)
@@ -350,13 +349,23 @@ void UPupMovementComponent::TickGravity(const float DeltaTime)
 
 void UPupMovementComponent::HandleInputAxis()
 {
+	if (APawn* Pawn = GetPawnOwner())
+	{
+		if (AController* Controller = Pawn->GetController())
+		{
+			FVector ViewLocation;
+			FRotator ViewRotation;
+			Controller->GetPlayerViewPoint(ViewLocation, ViewRotation);
+			CameraYaw = ViewRotation.Yaw;
+		}
+	}
 	const FVector InputVector = ConsumeInputVector();
 	if (MovementMode == EPupMovementMode::M_Walking || MovementMode == EPupMovementMode::M_Falling || MovementMode == EPupMovementMode::M_Deflected)
 	{
 		if (!InputVector.IsNearlyZero())
 		{
 			bIsWalking = true;
-			DirectionVector = UpdatedComponent->GetForwardVector().RotateAngleAxis(CameraYaw, UpdatedComponent->GetUpVector()) * FMath::Min(InputVector.Size(), 1.0f);
+			DirectionVector = UpdatedComponent->GetForwardVector() * FMath::Min(InputVector.Size(), 1.0f);
 			const float Angle = FMath::RadiansToDegrees(FMath::Atan2(InputVector.GetSafeNormal2D().Y, InputVector.GetSafeNormal2D().X));
 			DesiredRotation.Yaw = Angle + CameraYaw;
 		}

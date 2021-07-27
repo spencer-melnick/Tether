@@ -9,6 +9,7 @@
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Tether/GameMode/TetherPrimaryGameMode.h"
+#include "Tether/Gameplay/TopDownCameraComponent.h"
 
 
 // Component name constants
@@ -19,6 +20,7 @@ const FName ATetherCharacter::SkeletalMeshComponentName(TEXT("SkeletalMesh"));
 const FName ATetherCharacter::GrabSphereComponentName(TEXT("GrabSphere"));
 const FName ATetherCharacter::GrabHandleName(TEXT("GrabHandle"));
 const FName ATetherCharacter::BeamComponentName(TEXT("BeamComponent"));
+const FName ATetherCharacter::CameraComponentName(TEXT("CameraComponent"));
 
 const FName ATetherCharacter::PickupTag(TEXT("Pickup"));
 const FName ATetherCharacter::AnchorTag(TEXT("Anchor"));
@@ -39,10 +41,13 @@ ATetherCharacter::ATetherCharacter(const FObjectInitializer& ObjectInitializer)
 	GrabSphereComponent->SetupAttachment(RootComponent);
 
 	GrabHandle = CreateDefaultSubobject<USceneComponent>(GrabHandleName);
-	GrabHandle->SetupAttachment(RootComponent);
+	GrabHandle->SetupAttachment(SkeletalMeshComponent, TEXT("HandleSocket"));
 
 	BeamComponent = CreateDefaultSubobject<UBeamComponent>(BeamComponentName);
 	BeamComponent->SetupAttachment(RootComponent);
+
+	CameraComponent = CreateDefaultSubobject<UTopDownCameraComponent>(CameraComponentName);
+	CameraComponent->SetupAttachment(RootComponent);
 	
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
@@ -63,6 +68,9 @@ void ATetherCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 
 	PlayerInputComponent->BindAction(TEXT("Grab"), EInputEvent::IE_Pressed, this, &ATetherCharacter::Interact);
 	PlayerInputComponent->BindAction(TEXT("Grab"), EInputEvent::IE_Released, this, &ATetherCharacter::ReleaseAnchor);
+
+	PlayerInputComponent->BindAxis(TEXT("RotateX"), this, &ATetherCharacter::RotateX);
+	PlayerInputComponent->BindAxis(TEXT("RotateY"), this, &ATetherCharacter::RotateY);
 }
 
 void ATetherCharacter::BeginPlay()
@@ -73,15 +81,6 @@ void ATetherCharacter::BeginPlay()
 void ATetherCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-
-	/* float Pitch  = FMath::Clamp(50.0f * MovementComponent->TurningDirection * MovementComponent->MovementSpeedAlpha, -50.0f, 50.0f);
-	FRotator Rotation = SkeletalMeshComponent->GetRelativeRotation();
-
-	Pitch = FMath::FInterpTo(Rotation.Pitch, Pitch, DeltaSeconds, 0.5f);
-	
-	Rotation.Pitch = Pitch;
-
-	SkeletalMeshComponent->SetRelativeRotation(Rotation); */
 }
 
 void ATetherCharacter::Jump()
@@ -130,15 +129,32 @@ void ATetherCharacter::OnJumped_Implementation()
 	}
 }
 
+
 void ATetherCharacter::MoveX(const float Scale)
 {
 	MovementComponent->AddInputVector(FVector::RightVector * Scale);
 }
 
+
 void ATetherCharacter::MoveY(const float Scale)
 {
 	MovementComponent->AddInputVector(FVector::ForwardVector * Scale);
 }
+
+
+
+void ATetherCharacter::RotateX(const float Scale)
+{
+	CameraComponent->AddCameraRotation(FRotator(0.0f, Scale, 0.0f));
+}
+
+
+void ATetherCharacter::RotateY(const float Scale)
+{
+	CameraComponent->AddCameraRotation(FRotator(-Scale, 0.0f, 0.0f));
+}
+
+
 
 void ATetherCharacter::Interact()
 {
@@ -307,6 +323,7 @@ void ATetherCharacter::HandlePenetration(const FHitResult& HitResult)
 	}
 }
 
+
 void ATetherCharacter::OnTetherExpired()
 {
 	bAlive = false;
@@ -316,6 +333,7 @@ void ATetherCharacter::OnTetherExpired()
 		// MovementComponent->SetMovementMode(MOVE_None);
 	}
 }
+
 
 void ATetherCharacter::PickupObject(AActor* Object)
 {
@@ -327,15 +345,10 @@ void ATetherCharacter::PickupObject(AActor* Object)
 		Target->SetSimulatePhysics(false);
 		Target->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Overlap);
 
-		FVector GrabLocation;
-		if (Target->GetDistanceToCollision(GetActorLocation(), GrabLocation) > 0.f)
-		{
-			FVector GrabOffset = GrabLocation - Target->GetComponentLocation();
-			Object->AttachToComponent(GrabHandle, FAttachmentTransformRules(EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, EAttachmentRule::KeepWorld, false));
-			Object->AddActorWorldOffset(-GrabOffset);
-		}
+		Object->AttachToComponent(GrabHandle, FAttachmentTransformRules(EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, EAttachmentRule::KeepWorld, false));
 	}
 }
+
 
 void ATetherCharacter::DropObject()
 {
@@ -351,6 +364,7 @@ void ATetherCharacter::DropObject()
 		}
 	}
 }
+
 
 void ATetherCharacter::AnchorToObject(AActor* Object)
 {
@@ -373,9 +387,9 @@ void ATetherCharacter::AnchorToObject(AActor* Object)
 
 	MovementComponent->AnchorToLocation(ClosestPoint);
 	
-	// GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::White, *ClosestPoint.ToString());
 	bAnchored = true;
 }
+
 
 void ATetherCharacter::ReleaseAnchor()
 {

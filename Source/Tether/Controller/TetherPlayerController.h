@@ -21,6 +21,8 @@ public:
 	/** Invoked by the game mode to spawn the initial HUD widgets */
 	void SpawnHUDWidgets();
 
+	virtual void BeginPlay() override;
+
 	// Accessors
 	const TArray<TSubclassOf<UUserWidget>>& GetPlayerWidgetClasses() const { return PlayerWidgetClasses; }
 

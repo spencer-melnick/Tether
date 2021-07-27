@@ -5,6 +5,7 @@
 
 #include "GameFramework/GameStateBase.h"
 #include "GameFramework/PlayerState.h"
+#include "Tether/Character/TetherCharacter.h"
 
 // Sets default values
 UTopDownCameraComponent::UTopDownCameraComponent()
@@ -27,7 +28,18 @@ void UTopDownCameraComponent::BeginPlay()
 	DesiredSubjectDistance = GetMinimumDistance();
 	
 	FocalPoint = DesiredFocalPoint;
-	SubjectDistance = DesiredSubjectDistance;
+	SubjectDistance =  FMath::Max(DesiredSubjectDistance, MinimumSubjectDistance);
+	SubjectDistance = MinimumSubjectDistance;
+
+	if (UWorld* World = GetWorld())
+	{
+		if (APlayerController* PlayerController = World->GetFirstPlayerController())
+		{
+			int ScreenSizeX, ScreenSizeY;
+			PlayerController->GetViewportSize(ScreenSizeX, ScreenSizeY);
+			ScreenSize = FVector2D(ScreenSizeX, ScreenSizeY);
+		}
+	}
 }
 
 
@@ -36,43 +48,87 @@ void UTopDownCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
+	if (!bLockRotation)
+	{
+		SetWorldRotation(CalcDeltaRotation(DeltaTime));
+	}
+	SetWorldLocation(CalcDeltaLocation(DeltaTime));
+}
+
+
+void UTopDownCameraComponent::AddCameraRotation(const FRotator Rotator)
+{
+	PendingRotations += Rotator;
+}
+
+
+FVector UTopDownCameraComponent::CalcDeltaLocation(const float DeltaTime)
+{
 	DesiredFocalPoint = AverageLocationOfTargets(Subjects);
 	DesiredSubjectDistance = GetMinimumDistance();
 
-	FocalPoint = FMath::VInterpTo(FocalPoint, DesiredFocalPoint, DeltaTime, ZoomSpeed);
+	FocalPoint = FMath::VInterpTo(FocalPoint, DesiredFocalPoint, DeltaTime, TrackingSpeed);
 	SubjectDistance = FMath::Max(FMath::FInterpTo(SubjectDistance, DesiredSubjectDistance, DeltaTime, ZoomSpeed), MinimumSubjectDistance);
-	
-	SetWorldLocation(FocalPoint + GetWorldOffset());
+	SubjectDistance = MinimumSubjectDistance;
+
+	return FocalPoint + GetWorldOffset();
 }
 
 
-FVector UTopDownCameraComponent::ConvertVectorToViewSpace(const FVector& WorldLocation) const
+FRotator UTopDownCameraComponent::CalcDeltaRotation(const float DeltaTime)
 {
-	FVector Offset = DesiredFocalPoint - WorldLocation;
+	FRotator NewRotation = GetComponentRotation();
+	RotationalVelocity = ConsumeRotations() * RotationSensitivity;
 
-	const float X = FVector::DotProduct(Offset, GetRightVector());
-	const float Y = FVector::DotProduct(Offset, GetForwardVector());
-	return FVector(X, Y, 0.0f);
+	NewRotation += RotationalVelocity;
+	NewRotation.Pitch = FMath::ClampAngle(NewRotation.Pitch, -85.0f, 85.0f);
+	return NewRotation;
 }
 
 
-FVector2D UTopDownCameraComponent::CalcMinScreenBounds() const
+FVector2D UTopDownCameraComponent::ConvertVectorToViewSpace(const FVector& WorldLocation) const
+{
+	if (UWorld* World = GetWorld())
+	{
+		if (APlayerController* Player = World->GetFirstPlayerController())
+		{
+			FVector2D ScreenLocation;
+			Player->ProjectWorldLocationToScreen(WorldLocation, ScreenLocation);
+			return ScreenLocation - ScreenSize / 2;
+		}
+	}
+	return FVector2D::ZeroVector;
+}
+
+
+FVector2D UTopDownCameraComponent::CalcSubjectScreenLocations()
 {
 	float MaxX = 0, MaxY = 0;
-	
-	for (AActor* Subject : Subjects)
-	{
-		FVector ScreenSpace = ConvertVectorToViewSpace(Subject->GetActorLocation());
-		ScreenSpace = ScreenSpace.GetAbs();
-		
-		if (ScreenSpace.X > MaxX)
-		{
-			MaxX = ScreenSpace.X;
-		}
 
-		if (ScreenSpace.Y > MaxY)
+	const int SubjectCount = Subjects.Num();
+	if (SubjectCount != SubjectLocations.Num())
+	{
+		SubjectLocations.SetNum(SubjectCount);
+	}
+	
+	for (int i = 0; i < Subjects.Num(); i++)
+	{
+		if (Subjects[i])
 		{
-			MaxY = ScreenSpace.Y;
+			FVector2D ScreenSpace = ConvertVectorToViewSpace(Subjects[i]->GetActorLocation());
+			SubjectLocations[i] = ScreenSpace * 2 / ScreenSize;
+			
+			ScreenSpace = ScreenSpace.GetAbs();
+			
+			if (ScreenSpace.X > MaxX)
+			{
+				MaxX = ScreenSpace.X;
+			}
+
+			if (ScreenSpace.Y > MaxY)
+			{
+				MaxY = ScreenSpace.Y;
+			}
 		}
 	}
 	if (MaxX < MaxY * AspectRatio)
@@ -108,22 +164,42 @@ TArray<AActor*> UTopDownCameraComponent::GetPlayerControlledActors() const
 FVector UTopDownCameraComponent::AverageLocationOfTargets(TArray<AActor*> Targets)
 {
 	FVector Average = FVector::ZeroVector;
+	int Count = Targets.Num();
 	
 	for (AActor* Target : Targets)
 	{
-		Average += (Target->GetActorLocation());
+		if (Target)
+		{
+			Average += Target->GetActorLocation();
+
+			if (bTrackAheadOfMotion)
+			{
+				Average += Target->GetVelocity() * TrackAnticipationTime;
+			}
+		}
+		else
+		{
+			Count --;
+		}
 	}
-	return Targets.Num() == 0 ? FVector::ZeroVector : Average / Targets.Num();
+	return Count == 0 ? FVector::ZeroVector : Average / Count;
 }
 
 
-float UTopDownCameraComponent::GetMinimumDistance() const
+float UTopDownCameraComponent::GetMinimumDistance()
 {
-	return CalcMinScreenBounds().X / (2 * FMath::Tan(FMath::DegreesToRadians(FieldOfView / 2)));
+	return CalcSubjectScreenLocations().X / (2 * FMath::Tan(FMath::DegreesToRadians(FieldOfView / 2)));
 }
 
 
 FVector UTopDownCameraComponent::GetWorldOffset() const
 {
-	return GetForwardVector() * -SubjectDistance * 1.6;
+	return GetForwardVector() * -SubjectDistance;
+}
+
+FRotator UTopDownCameraComponent::ConsumeRotations()
+{
+	const FRotator Rotation = PendingRotations;
+	PendingRotations = FRotator::ZeroRotator;
+	return Rotation;
 }

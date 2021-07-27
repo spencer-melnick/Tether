@@ -43,3 +43,26 @@ void ATetherPlayerController::SpawnHUDWidgets()
 		}
 	}
 }
+
+
+void ATetherPlayerController::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (GetPawn()->HasActiveCameraComponent())
+	{
+		return;
+	}
+	
+	if (UWorld* World = GetWorld())
+	{
+		for (AActor* Actor : World->GetCurrentLevel()->Actors)
+		{
+			if (Actor && Actor->ActorHasTag(TEXT("Camera")))
+			{
+				SetViewTarget(Actor);
+				return;
+			}
+		}
+	}
+}

@@ -11,6 +11,7 @@
 #include "Tether/Core/TetherUtils.h"
 #include "Tether/Gameplay/BeamComponent.h"
 #include "Tether/Gameplay/BeamController.h"
+#include "Tether/Gameplay/TopDownCamera.h"
 #include "Tether/Gameplay/TopDownCameraComponent.h"
 
 ATetherPrimaryGameMode::ATetherPrimaryGameMode()

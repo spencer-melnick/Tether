@@ -8,6 +8,7 @@
 #include "Components/SphereComponent.h"
 #include "GameFramework/Character.h"
 #include "Tether/Gameplay/BeamComponent.h"
+#include "Tether/Gameplay/TopDownCameraComponent.h"
 
 #include "TetherCharacter.generated.h"
 
@@ -31,6 +32,7 @@ public:
 	static const FName GrabSphereComponentName;
 	static const FName GrabHandleName;
 	static const FName BeamComponentName;
+	static const FName CameraComponentName;
 
 	static const FName PickupTag;
 	static const FName AnchorTag;
@@ -64,6 +66,10 @@ public:
 
 	void MoveX(const float Scale);
 	void MoveY(const float Scale);
+
+	void RotateX(const float Scale);
+	void RotateY(const float Scale);
+	
 	void Interact();
 
 	UFUNCTION(BlueprintCallable)
@@ -206,6 +212,9 @@ public:
 	
 	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category="Components")
 	USkeletalMeshComponent* SkeletalMeshComponent;
+
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category="Components")
+	UTopDownCameraComponent* CameraComponent;
 
 private:
 	UPROPERTY(VisibleAnywhere, Category="Components")

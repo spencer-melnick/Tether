@@ -3,6 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
+#include "Camera/CameraComponent.h"
 #include "GameFramework/PawnMovementComponent.h"
 #include "PupMovementComponent.generated.h"
 
@@ -130,6 +132,7 @@ public:
 	
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement")
 	float MovementSpeedAlpha = 0.0f;
+
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Transient, Category = "Movement | Rotation")
 	FRotator DesiredRotation = FRotator(0.f,0.f,0.f);
@@ -143,7 +146,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Rotation")
 	float SlipFactor = 0.8;
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Rotation")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement | Rotation")
 	float CameraYaw = 0.f;
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement | Rotation")
@@ -180,6 +183,7 @@ public:
 
 	bool bJumping = false;
 
+
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Transient, Category = "Movement | Anchored")
 	FVector AnchorLocation;
@@ -190,6 +194,8 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Anchored")
 	float SnapRotationVelocity = 360.f;
 
+
+	
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement | Planar")
 	FVector FloorNormal;
 
@@ -198,6 +204,7 @@ public:
 	
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement | Planar")
 	float MaxInclineZComponent = 0.5f;
+
 
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Deflections")
