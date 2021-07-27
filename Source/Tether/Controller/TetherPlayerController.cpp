@@ -49,7 +49,7 @@ void ATetherPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (GetPawn()->HasActiveCameraComponent())
+	if (GetPawn() && GetPawn()->HasActiveCameraComponent())
 	{
 		return;
 	}

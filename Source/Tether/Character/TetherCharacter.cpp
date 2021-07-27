@@ -151,7 +151,7 @@ void ATetherCharacter::RotateX(const float Scale)
 
 void ATetherCharacter::RotateY(const float Scale)
 {
-	CameraComponent->AddCameraRotation(FRotator(-Scale, 0.0f, 0.0f));
+	CameraComponent->AddCameraRotation(FRotator(Scale, 0.0f, 0.0f));
 }
 
 

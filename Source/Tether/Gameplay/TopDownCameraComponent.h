@@ -32,6 +32,8 @@ private:
 
 	FVector CalcDeltaLocation(const float DeltaTime);
 
+	float CalcDeltaZoom(const float DeltaTime);
+	
 	FRotator CalcDeltaRotation(const float DeltaTime);
 	
 	FVector2D ConvertVectorToViewSpace(const FVector& WorldLocation) const;
@@ -69,6 +71,12 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking | Rotation")
 	float RotationSensitivity = 5.0f;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking | Rotation")
+	float MinPitch = -85.0f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking | Rotation")
+	float MaxPitch = 0.0f;
+	
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Tracking | Rotation")
 	FRotator RotationalVelocity;
 
@@ -92,7 +100,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking | Subjects")
 	float TrackAnticipationTime = 1.0f;
 
-	
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking | Zoom")
+	bool bLockZoom = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Transient, Category = "Tracking | Zoom")
 	float SubjectDistance;
@@ -103,6 +113,9 @@ public:
 	/// The closest we can get to the subjects. This value will prevent the camera from zooming in too close.
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking | Zoom")
 	float MinimumSubjectDistance;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking | Zoom")
+	float MaximumSubjectDistance;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking | Zoom")
 	float ZoomSpeed;

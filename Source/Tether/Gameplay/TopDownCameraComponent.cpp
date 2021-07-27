@@ -23,14 +23,7 @@ void UTopDownCameraComponent::BeginPlay()
 	SetUsingAbsoluteRotation(true);
 	
 	Subjects = GetPlayerControlledActors();
-	
-	DesiredFocalPoint = AverageLocationOfTargets(Subjects);
-	DesiredSubjectDistance = GetMinimumDistance();
-	
-	FocalPoint = DesiredFocalPoint;
-	SubjectDistance =  FMath::Max(DesiredSubjectDistance, MinimumSubjectDistance);
-	SubjectDistance = MinimumSubjectDistance;
-
+		
 	if (UWorld* World = GetWorld())
 	{
 		if (APlayerController* PlayerController = World->GetFirstPlayerController())
@@ -40,6 +33,11 @@ void UTopDownCameraComponent::BeginPlay()
 			ScreenSize = FVector2D(ScreenSizeX, ScreenSizeY);
 		}
 	}
+
+	SubjectDistance = CalcDeltaZoom(0.0f);
+	RotationalVelocity = CalcDeltaRotation(0.0f);
+	
+	SetWorldLocation(CalcDeltaLocation(0.0f));
 }
 
 
@@ -51,6 +49,10 @@ void UTopDownCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType
 	if (!bLockRotation)
 	{
 		SetWorldRotation(CalcDeltaRotation(DeltaTime));
+	}
+	if (!bLockZoom)
+	{
+		SubjectDistance = CalcDeltaZoom(DeltaTime);
 	}
 	SetWorldLocation(CalcDeltaLocation(DeltaTime));
 }
@@ -65,13 +67,15 @@ void UTopDownCameraComponent::AddCameraRotation(const FRotator Rotator)
 FVector UTopDownCameraComponent::CalcDeltaLocation(const float DeltaTime)
 {
 	DesiredFocalPoint = AverageLocationOfTargets(Subjects);
-	DesiredSubjectDistance = GetMinimumDistance();
-
 	FocalPoint = FMath::VInterpTo(FocalPoint, DesiredFocalPoint, DeltaTime, TrackingSpeed);
-	SubjectDistance = FMath::Max(FMath::FInterpTo(SubjectDistance, DesiredSubjectDistance, DeltaTime, ZoomSpeed), MinimumSubjectDistance);
-	SubjectDistance = MinimumSubjectDistance;
-
 	return FocalPoint + GetWorldOffset();
+}
+
+
+float UTopDownCameraComponent::CalcDeltaZoom(const float DeltaTime)
+{
+	DesiredSubjectDistance = GetMinimumDistance();
+	return FMath::Clamp(FMath::FInterpTo(SubjectDistance, DesiredSubjectDistance, DeltaTime, ZoomSpeed), MinimumSubjectDistance, MaximumSubjectDistance);
 }
 
 
@@ -81,7 +85,7 @@ FRotator UTopDownCameraComponent::CalcDeltaRotation(const float DeltaTime)
 	RotationalVelocity = ConsumeRotations() * RotationSensitivity;
 
 	NewRotation += RotationalVelocity;
-	NewRotation.Pitch = FMath::ClampAngle(NewRotation.Pitch, -85.0f, 85.0f);
+	NewRotation.Pitch = FMath::ClampAngle(NewRotation.Pitch, MinPitch, MaxPitch);
 	return NewRotation;
 }
 
