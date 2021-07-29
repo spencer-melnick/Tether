@@ -106,7 +106,7 @@ bool UPupMovementComponent::SweepCapsule(const FVector Offset, FHitResult& OutHi
 void UPupMovementComponent::SetDefaultMovementMode()
 {
 	FHitResult FloorResult;
-	if (FindFloor(10.f, FloorResult) && Velocity.Z <= 0.0f)
+	if ((FindFloor(10.f, FloorResult) && Velocity.Z <= 0.0f) || bGrounded)
 	{
 		MovementMode = EPupMovementMode::M_Walking;
 		SnapToFloor(FloorResult);

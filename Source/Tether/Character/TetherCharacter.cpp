@@ -259,11 +259,16 @@ bool ATetherCharacter::CanMove() const
 void ATetherCharacter::Deflect(
 	FVector DeflectionNormal, float DeflectionScale,
 	FVector InstigatorVelocity, float InstigatorFactor,
-	float Elasticity, float DeflectTime, bool bLaunchVertically)
-{	
+	float Elasticity, float DeflectTime, bool bLaunchVertically, bool bForceBreak)
+{
+	if (bAnchored && bForceBreak)
+	{
+		ReleaseAnchor();
+	}
+
+	
 	if (const UWorld* World = GetWorld())
 	{
-		SetGroundFriction(BounceFriction);
 		bIsBouncing = true;
 		MovementComponent->MovementMode = EPupMovementMode::M_Deflected;
 		
@@ -273,16 +278,10 @@ void ATetherCharacter::Deflect(
 		{
 			World->GetTimerManager().SetTimer(DeflectTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
 			{
-				SetGroundFriction(NormalFriction);
 				bIsBouncing = false;
 				MovementComponent->SetDefaultMovementMode();
 			}), DeflectTime, false);
 		}
-	}
-
-	if (bAnchored)
-	{
-		ReleaseAnchor();
 	}
 	
 	if (!bLaunchVertically)
@@ -292,7 +291,7 @@ void ATetherCharacter::Deflect(
 	}
 
 	// Calculate the character's velocity relative to the instigator
-	const FVector RelativeVelocity = GetVelocity() - (InstigatorVelocity * InstigatorFactor);
+	const FVector RelativeVelocity = (GetVelocity() - InstigatorVelocity) * -InstigatorFactor;
 
 	// Limit the player's velocity along the deflection normal
 	const float NormalVelocity = FMath::Min(0.f, FVector::DotProduct(DeflectionNormal, RelativeVelocity));
@@ -305,7 +304,12 @@ void ATetherCharacter::Deflect(
 
 	// Limit velocity by the max launch speed and then launch
 	const FVector FinalVelocity = BounceVelocity.GetClampedToSize(0.f, MaxLaunchSpeed);
-	// LaunchCharacter(FinalVelocity, true, true);
+
+	#if WITH_EDITOR
+	DrawDebugDirectionalArrow(GetWorld(), GetActorLocation(), GetActorLocation() + FinalVelocity / 10.0f, 25.0f, FColor::Blue, false, 3.0f, 0, 5.0f);
+	#endif
+				
+	
 	MovementComponent->AddImpulse(FinalVelocity);
 }
 

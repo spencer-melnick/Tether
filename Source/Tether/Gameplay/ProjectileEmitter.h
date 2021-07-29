@@ -21,14 +21,15 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void FireProjectile();
 
-	virtual void OnConstruction(const FTransform& Transform) override;
+	virtual void OnConstruction(const FTransform& Transform) override;	
 
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Components")
 	UProjectileEmitterComponent* ProjectileEmitterComponent;
 
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph")
-	UDecalComponent* TelegraphComponent;
-
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Components")
+	UDecalComponent* FloorMarkerComponent;
+	
+	
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Emitter")
 	const TSubclassOf<ASimpleProjectile> ProjectileClass;
 
@@ -47,29 +48,32 @@ public:
 
 	float ProjectileLifetime;
 
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph")
+	
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Floor Marker |")
 	bool bTelegraph;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Telegraph")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Floor Marker |")
 	float WarningTime;
 	
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph")
-	UMaterialInterface* TelegraphDecal;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Floor Marker |")
+	UMaterialInterface* FloorMarkerDecalMaterial;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Floor Marker |")
+	UCurveFloat* AlphaCurve;
 	
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph | Arrows")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Floor Marker | Arrows")
 	UMaterialInterface* ArrowMaterial;
 
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph | Arrows")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Floor Marker | Arrows")
 	USkeletalMesh* ArrowMesh;
 	
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph | Arrows")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Floor Marker | Arrows | Animation")
 	UAnimationAsset* FrontAnimation;
 
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph | Arrows")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Floor Marker | Arrows | Animation")
 	UAnimationAsset* MiddleAnimation;
 	
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph | Arrows")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph | Arrows | Animation")
 	UAnimationAsset* BackAnimation;
 	
 protected:
@@ -77,23 +81,34 @@ protected:
 	virtual void BeginPlay() override;
 
 private:
-	void DisplayTelegraph();
+	void DisplayFloorMarker();
 	
-	void HideTelegraph();
+	void HideFloorMarker();
 
-	void SetTelegraphSize();
+	void RecalculateFloorMarkerSize();
+
+	void SetArrowMaterial(UMaterialInstanceDynamic* Material);
+
+	void SetFloorMarkerMaterial(UMaterialInstanceDynamic* Material);
 	
 	FTimerHandle WarningHandle;
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY()
 	TArray<USkeletalMeshComponent*> ArrowComponents;
 
+	UPROPERTY(Transient)
+	UMaterialInstanceDynamic* FloorMarkerMaterialDynamic;
+	
+	UPROPERTY(Transient)
+	UMaterialInstanceDynamic* ArrowMaterialDynamic;
+
+	float AlphaFallback = 0.0f;
 
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Emitter Events")
-	void DisplayWarning();
+	void DisplayWarning(const float Alpha);
 
 };

@@ -82,15 +82,16 @@ public:
 	* @param DeflectionScale		How fast the character should be moving in the direction after deflection (disregarding elasticity)
 	* @param InstigatorVelocity	Velocity of the object the caused the deflection
 	* @param InstigatorFactor		How much the instigator's velocity affects deflection speed (e.g. fast moving objects deflecting more)
-	* @param Elasticity			How much should the character's velocity impact the deflection speed
+	* @param Elasticity				How much should the character's velocity impact the deflection speed
 	* @param DeflectTime			How long (in seconds) until the character regains normal control
 	* @param bLaunchVertically		Should the player be launched upwards or downwards at all?
+	* @param bForceBreak			If true, force the character to let go of any anchor points. Defaults to false
 	*/
 	UFUNCTION(BlueprintCallable)
 	void Deflect(
 		FVector DeflectionNormal, float DeflectionScale,
 		FVector InstigatorVelocity, float InstigatorFactor,
-		float Elasticity, float DeflectTime, bool bLaunchVertically);
+		float Elasticity, float DeflectTime, bool bLaunchVertically, bool bForceBreak = true);
 
 
 	// Accessors
@@ -145,14 +146,6 @@ public:
 	bool bCarryingObject = false;
 
 	bool bAnchored = false;
-
-	/** Ground friction when this character isn't being bounced around */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Deflection")
-	float NormalFriction = 8.f;
-
-	/** Ground friction when this character is bounced by an obstacle */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Deflection")
-	float BounceFriction = 4.f;
 
 	/** Maximum speed that this character can be launched at when hitting an obstacle */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Deflection")

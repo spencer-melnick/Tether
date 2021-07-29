@@ -49,10 +49,15 @@ void UProjectileEmitterComponent::PostEditChangeProperty(FPropertyChangedEvent& 
 	const FName PropertyName = PropertyChangedEvent.Property ? PropertyChangedEvent.GetPropertyName() : NAME_None;
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UProjectileEmitterComponent, ProjectileType))
 	{
-		FVector ProjectileOrigin;
-		FVector ProjectileExtent;
-		ProjectileType.GetDefaultObject()->GetActorBounds(true, ProjectileOrigin, ProjectileExtent);
-		ProjectileRadius = FMath::Abs(ProjectileOrigin.X - ProjectileExtent.X) / 2;
+		if (ASimpleProjectile* Prototype = ProjectileType.GetDefaultObject())
+		{
+			/* FVector ProjectileOrigin;
+			FVector ProjectileExtent;
+			Prototype->GetActorBounds(true, ProjectileOrigin, ProjectileExtent);
+			ProjectileRadius = FMath::Abs(ProjectileOrigin.X - ProjectileExtent.X) / 2; */
+
+			ProjectileRadius = Prototype->CollisionComponent->CalcLocalBounds().SphereRadius;
+		}
 	}
 }
 

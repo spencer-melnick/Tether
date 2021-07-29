@@ -15,15 +15,16 @@ AProjectileEmitter::AProjectileEmitter()
 	ProjectileEmitterComponent->ProjectileLifetime = ProjectileLifetime;
 	ProjectileEmitterComponent->ProjectileVelocity = Velocity;
 	
-	TelegraphComponent = CreateDefaultSubobject<UDecalComponent>(TEXT("Telegraph Decal"));
-	TelegraphComponent->SetupAttachment(RootComponent);
-	TelegraphComponent->SetWorldScale3D(FVector(0.5));
+	FloorMarkerComponent = CreateDefaultSubobject<UDecalComponent>(TEXT("Telegraph Decal"));
+	FloorMarkerComponent->SetupAttachment(RootComponent);
+	FloorMarkerComponent->SetWorldScale3D(FVector(0.5));
 
-	TelegraphComponent->SetDecalMaterial(TelegraphDecal);
-	TelegraphComponent->SetRelativeRotation(FRotator(90, 90, 0));
-	TelegraphComponent->SetVisibility(false);
-	SetTelegraphSize();
+	FloorMarkerComponent->SetDecalMaterial(FloorMarkerDecalMaterial);
+	FloorMarkerComponent->SetRelativeRotation(FRotator(90, 90, 0));
+	FloorMarkerComponent->SetVisibility(false);
+	RecalculateFloorMarkerSize();
 }
+
 
 void AProjectileEmitter::FireProjectile()
 {
@@ -33,12 +34,12 @@ void AProjectileEmitter::FireProjectile()
 		{
 			if(UWorld* World = GetWorld())
 			{
-				DisplayTelegraph();
+				DisplayFloorMarker();
 				
 				World->GetTimerManager().SetTimer(WarningHandle, FTimerDelegate::CreateWeakLambda(this, [this]
 					{
-						HideTelegraph();
-					}), WarningTime, false);
+						HideFloorMarker();
+					}), WarningTime * 1.2f, false);
 
 				FTimerHandle FireHandle;
 				QueuedProjectiles++;
@@ -56,6 +57,7 @@ void AProjectileEmitter::FireProjectile()
 	}
 }
 
+
 void AProjectileEmitter::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
@@ -64,11 +66,11 @@ void AProjectileEmitter::OnConstruction(const FTransform& Transform)
 	ProjectileEmitterComponent->ProjectileVelocity = Velocity;
 	ProjectileLifetime = Velocity <= 0 || Distance <= 0 ? 0.0f : Distance / Velocity;
 	ProjectileEmitterComponent->ProjectileLifetime = ProjectileLifetime;
-	if (TelegraphComponent && TelegraphDecal)
+	if (FloorMarkerComponent && FloorMarkerDecalMaterial)
 	{
-		TelegraphComponent->SetMaterial(0, TelegraphDecal);
+		FloorMarkerComponent->SetMaterial(0, FloorMarkerDecalMaterial);
 	}
-	SetTelegraphSize();
+	RecalculateFloorMarkerSize();
 }
 
 
@@ -92,27 +94,33 @@ void AProjectileEmitter::BeginPlay()
 			ArrowComponents[i]->PlayAnimation(MiddleAnimation, true);
 		}
 	}
+
+	ArrowMaterialDynamic = UMaterialInstanceDynamic::Create(ArrowMaterial, this);
+	FloorMarkerMaterialDynamic = UMaterialInstanceDynamic::Create(FloorMarkerDecalMaterial, this);
+
+	SetArrowMaterial(ArrowMaterialDynamic);
+	SetFloorMarkerMaterial(FloorMarkerMaterialDynamic);
 }
 
-void AProjectileEmitter::DisplayTelegraph()
+
+void AProjectileEmitter::DisplayFloorMarker()
 {
-	if(bTelegraph && TelegraphComponent)
+	if(bTelegraph && FloorMarkerComponent)
 	{
-		TelegraphComponent->SetVisibility(true);
+		FloorMarkerComponent->SetVisibility(true);
 	}
 	for (USkeletalMeshComponent* Component: ArrowComponents)
 	{
 		Component->SetVisibility(true);
 	}
-
-	DisplayWarning();
 }
 
-void AProjectileEmitter::HideTelegraph()
+
+void AProjectileEmitter::HideFloorMarker()
 {
-	if(TelegraphComponent)
+	if(FloorMarkerComponent)
 	{
-		TelegraphComponent->SetVisibility(false);
+		FloorMarkerComponent->SetVisibility(false);
 	}
 	for (USkeletalMeshComponent* Component: ArrowComponents)
 	{
@@ -120,14 +128,15 @@ void AProjectileEmitter::HideTelegraph()
 	}
 }
 
-void AProjectileEmitter::SetTelegraphSize()
+
+void AProjectileEmitter::RecalculateFloorMarkerSize()
 {
 	const ASimpleProjectile* ActorCDO = ProjectileClass ? ProjectileClass->GetDefaultObject<ASimpleProjectile>() : nullptr;
-	if (ActorCDO && TelegraphComponent && ArrowMaterial && ArrowMesh)
+	if (ActorCDO && FloorMarkerComponent && ArrowMesh)
 	{
-		const float Size = ActorCDO->ProjectileRadius * 2;
-		TelegraphComponent->DecalSize = FVector(Size, Distance + Size, Size);
-		TelegraphComponent->SetRelativeLocation(FVector((Distance / 2.f), 0, 0));
+		const float Size = ProjectileEmitterComponent->ProjectileRadius * 2;
+		FloorMarkerComponent->DecalSize = FVector(Size, Distance + Size, Size);
+		FloorMarkerComponent->SetRelativeLocation(FVector((Distance / 2.f), 0, 0));
 
 		for (USkeletalMeshComponent* Component: ArrowComponents)
 		{
@@ -138,7 +147,7 @@ void AProjectileEmitter::SetTelegraphSize()
 		}
 		ArrowComponents.Empty();
 
-		const FVector ArrowScale = FVector(Size / 100, Size / 100, Size / 10000);
+		const FVector ArrowScale = FVector(Size / 100, Size / 100, Size / 1000);
 		const int ArrowCount = FMath::Floor(Distance / Size / 2) + 2;
 
 		for (int i = 0; i < ArrowCount; i++)
@@ -148,18 +157,60 @@ void AProjectileEmitter::SetTelegraphSize()
 			ArrowComponents.Add(Arrow);
 			
 			Arrow->SetSkeletalMesh(ArrowMesh);
-			Arrow->SetMaterial(0, ArrowMaterial);
 			Arrow->AttachToComponent(RootComponent, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
 			Arrow->AddLocalOffset(FVector((Size * 2 * i) - Size, 0.f, 0.f));
 			Arrow->SetWorldScale3D(ArrowScale);
 			Arrow->SetRelativeRotation(FRotator(0,180,0));
 			Arrow->SetVisibility(false);
+
+			// Arrow->SetMaterial(0, ArrowMaterialDynamic);
 		}
 	}
 }
+
+
+void AProjectileEmitter::SetArrowMaterial(UMaterialInstanceDynamic* Material)
+{
+	if (Material)
+	{
+		for (USkeletalMeshComponent* Arrow : ArrowComponents)
+		{
+			Arrow->SetMaterial(0, Material);
+		}
+	}
+}
+
+
+void AProjectileEmitter::SetFloorMarkerMaterial(UMaterialInstanceDynamic* Material)
+{
+	FloorMarkerComponent->SetMaterial(0, Material);
+}
+
 
 // Called every frame
 void AProjectileEmitter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	float AlphaTime = 0.5f;
+	if (UWorld* World = GetWorld())
+	{
+		AlphaTime = World->GetTimerManager().GetTimerRemaining(WarningHandle) / WarningTime;
+	}
+
+	// Prevent the value from going down when the timer resets
+	if (AlphaCurve)
+	{
+		if (AlphaTime < 0.5f)
+		{
+			AlphaFallback = AlphaCurve->GetFloatValue(AlphaTime);
+		}
+		else
+		{
+			AlphaFallback = FMath::Max(AlphaFallback, AlphaCurve->GetFloatValue(AlphaTime));
+		}
+		ArrowMaterialDynamic->SetScalarParameterValue(TEXT("Opacity"), AlphaFallback);
+		FloorMarkerMaterialDynamic->SetScalarParameterValue(TEXT("Opacity"), AlphaFallback);
+	}
+	// DisplayWarning(AlphaTime);
 }
