@@ -3,8 +3,37 @@
 #include "BeamController.h"
 #include "BeamComponent.h"
 #include "DrawDebugHelpers.h"
+#include "Tether/FX/BeamFXActor.h"
 #include "Util/IndexPriorityQueue.h"
 
+
+namespace BeamControllerCVars
+{
+	float BeamFXTimeout = 10.f;
+	FAutoConsoleVariableRef CVarBeamFXTimeout(
+		TEXT("BeamController.BeamFXTimeout"), BeamFXTimeout,
+		TEXT("How long (in seconds) after deactivation a beam FX actor will be despawned"),
+		ECVF_Default);
+
+	bool bDrawDebugConnections = false;
+	FAutoConsoleVariableRef CVarDrawDebugConnections(
+		TEXT("BeamController.DrawDebugConnections"), bDrawDebugConnections,
+		TEXT("If true the beam controller will draw simple debug lines showing all active connectons"),
+		ECVF_Default);
+}
+
+
+bool operator==(const FBeamFXEdge& EdgeA, const FBeamFXEdge& EdgeB)
+{
+	return
+		(EdgeA.Target1 == EdgeB.Target1 && EdgeA.Target2 == EdgeB.Target2) ||
+		(EdgeA.Target1 == EdgeB.Target2 && EdgeA.Target2 == EdgeB.Target1);
+}
+
+uint32 GetTypeHash(const FBeamFXEdge& Edge)
+{
+	return GetTypeHash(Edge.Target1) ^ GetTypeHash(Edge.Target2);
+}
 
 ABeamController::ABeamController()
 {
@@ -15,8 +44,6 @@ ABeamController::ABeamController()
 void ABeamController::BeginPlay()
 {
 	Super::BeginPlay();
-
-	PrimaryActorTick.TickInterval = TraversalTickInterval;
 }
 
 void ABeamController::Tick(float DeltaSeconds)
@@ -29,11 +56,11 @@ void ABeamController::Tick(float DeltaSeconds)
 
 bool ABeamController::AddBeamTarget(AActor* Target)
 {
-	UBeamComponent* BeamComponent = Target->Implements<UBeamTarget>() ? IBeamTarget::Execute_GetBeamComponent(Target) : nullptr;
+	UBeamComponent* BeamComponent = UBeamComponent::GetComponentFromActor(Target);
 
 	if (BeamComponent && BeamTargets.AddUnique(Target) != INDEX_NONE)
 	{
-		BeamComponent->SetStatus(BeamComponent->GetStatus() | EBeamComponentStatus::Connected);
+		BeamComponent->SetStatus(BeamComponent->GetStatus() | EBeamComponentStatus::Tracked);
 		return true;
 	}
 
@@ -51,11 +78,6 @@ bool ABeamController::RemoveBeamTarget(AActor* Target)
 	}
 
 	return false;
-}
-
-void ABeamController::UpdateBeamEffects()
-{
-	// Do something?
 }
 
 float ABeamController::CalculateWeightedDistanceCustom_Implementation(FVector StartLocation, FVector EndLocation) const
@@ -117,18 +139,29 @@ void ABeamController::TraverseBeams(float DeltaTime)
 		}
 	}
 
-	// Draw debug lines
+	// Gather beam edges
+	TArray<FBeamFXEdge> BeamEdges;
+	BeamEdges.Reserve(PathIndices.Num());
+
 	if (const UWorld* World = GetWorld())
 	{
 		for (TPair<int32, int32> PathEdge : PathIndices)
 		{
 			const FBeamNode& BeamNodeA = BeamNodes[PathEdge.Key];
 			const FBeamNode& BeamNodeB = BeamNodes[PathEdge.Value];
-			DrawDebugLine(World,
-				BeamNodeA.BeamComponent->GetComponentLocation(), BeamNodeB.BeamComponent->GetComponentLocation(),
-				FColor::Cyan, false, DeltaTime + 0.05f, 0, 2.f);
+
+			BeamEdges.Emplace(BeamNodeA.BeamTarget, BeamNodeB.BeamTarget);
+			
+			if (BeamControllerCVars::bDrawDebugConnections)
+			{
+				DrawDebugLine(World,
+					BeamNodeA.BeamComponent->GetComponentLocation(), BeamNodeB.BeamComponent->GetComponentLocation(),
+					FColor::Cyan, false, DeltaTime + 0.05f, 0, 2.f);
+			}
 		}
 	}
+
+	UpdateBeamFX(BeamEdges);
 }
 
 TArray<ABeamController::FBeamNode> ABeamController::BuildInitialNodes()
@@ -291,5 +324,114 @@ float ABeamController::CalculateWeightedDistance(FVector StartLocation, FVector 
 
 		default:
 			return CalculateWeightedDistanceCustom(StartLocation, EndLocation);
+	}
+}
+
+void ABeamController::UpdateBeamFX(const TArray<FBeamFXEdge>& BeamEdges)
+{
+	TArray<FBeamFXEdge> EdgesPendingRemoval;
+	TArray<FBeamFXEdge> EdgesPendingCreation;
+	
+	for (const TPair<FBeamFXEdge, ABeamFXActor*> ActiveFXActor : ActiveFXActors)
+	{
+		// Clear out any edges we don't have anymore
+		if (!BeamEdges.Contains(ActiveFXActor.Key))
+		{
+			EdgesPendingRemoval.AddUnique(ActiveFXActor.Key);
+		}
+	}
+
+	for (const FBeamFXEdge& PendingEdge : BeamEdges)
+	{
+		if (!ActiveFXActors.Contains(PendingEdge))
+		{
+			EdgesPendingCreation.AddUnique(PendingEdge);
+		}
+	}
+
+	for (const FBeamFXEdge& RemovedEdge : EdgesPendingRemoval)
+	{
+		if (ABeamFXActor* RemovedFXActor = ActiveFXActors.FindAndRemoveChecked(RemovedEdge))
+		{
+			DeactivateBeamFXActor(RemovedFXActor);
+		}
+	}
+
+	for (const FBeamFXEdge& AddedEdge : EdgesPendingCreation)
+	{
+		ABeamFXActor* NewFXActor = AcquireBeamFXActor();
+		if (ensure(NewFXActor))
+		{
+			NewFXActor->SetTargets(AddedEdge.Target1, AddedEdge.Target2);
+			NewFXActor->SetEffectActive(true);
+			NewFXActor->UpdateFX();
+			ActiveFXActors.Add(AddedEdge, NewFXActor);
+		}
+	}
+}
+
+ABeamFXActor* ABeamController::AcquireBeamFXActor()
+{
+	UWorld* World = GetWorld();
+	if (ensure(World))
+	{
+		ABeamFXActor* NewFXActor = nullptr;
+
+		if (InactiveFXActors.Num() > 0)
+		{
+			FBeamControllerFXPoolData PoolData = InactiveFXActors.Pop();
+			World->GetTimerManager().ClearTimer(PoolData.DespawnTimer);
+			NewFXActor = PoolData.FXActor;
+		}
+		else
+		{
+			FActorSpawnParameters SpawnParameters;
+			SpawnParameters.Owner = this;
+			NewFXActor = World->SpawnActor<ABeamFXActor>(BeamFXActorClass, SpawnParameters);
+		}
+
+		if (ensure(NewFXActor))
+		{
+			NewFXActor->ClearTargets();
+		}
+
+		return NewFXActor;
+	}
+
+	return nullptr;
+}
+
+void ABeamController::DeactivateBeamFXActor(ABeamFXActor* FXActor)
+{
+	const UWorld* World = GetWorld();
+	if (ensure(FXActor && World))
+	{
+		FXActor->ClearTargets();
+		FXActor->SetEffectActive(false);
+
+		FBeamControllerFXPoolData& PoolData = InactiveFXActors.AddDefaulted_GetRef();
+		PoolData.FXActor = FXActor;
+		World->GetTimerManager().SetTimer(PoolData.DespawnTimer,
+			FTimerDelegate::CreateUObject(this, &ABeamController::HandleBeamFXActorTimeout, FXActor),
+			BeamFXActorTimeout, false);
+	}
+}
+
+void ABeamController::HandleBeamFXActorTimeout(ABeamFXActor* FXActor)
+{
+	const UWorld* World = GetWorld();
+	if (FXActor && ensure(World))
+	{
+		InactiveFXActors.RemoveAllSwap([World, FXActor](FBeamControllerFXPoolData& PoolData)
+		{
+			if (PoolData.FXActor == FXActor)
+			{
+				World->GetTimerManager().ClearTimer(PoolData.DespawnTimer);
+				PoolData.FXActor->Destroy();
+				return true;
+			}
+
+			return false;
+		});
 	}
 }

@@ -53,7 +53,7 @@ ENUM_CLASS_FLAGS(EBeamComponentStatus);
 
 
 /**
- * Component that indicates a visual location where a beam can be targeted
+ * Component that indicates where a beam can be targeted as well as the active state of the beam
  */
 UCLASS(meta=(BlueprintSpawnableComponent))
 class UBeamComponent : public USceneComponent
@@ -71,6 +71,12 @@ public:
 
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+
+	// Utility functions
+
+	UFUNCTION(BlueprintCallable)
+	static UBeamComponent* GetComponentFromActor(const AActor* Actor);
 	
 
 	// Accessors
@@ -83,6 +89,9 @@ public:
 
 	UFUNCTION(BlueprintPure)
 	EBeamComponentStatus GetStatus() const { return Status; }
+
+	UFUNCTION(BlueprintPure)
+	FVector GetEffectLocation() const;
 
 	UFUNCTION(BlueprintCallable)
 	void SetMode(EBeamComponentMode NewMode);
@@ -101,10 +110,15 @@ public:
 	UPROPERTY(EditAnywhere, meta=(Bitmask, BitmaskEnum="EBeamComponentMode"))
 	int32 DefaultMode = 0;
 
+	UPROPERTY(EditAnywhere, meta=(GetOptions="GetAttachmentSockets"))
+	FName EffectLocationSocket;
 
 private:
 
 	void SetStatus(EBeamComponentStatus NewStatus);
+
+	UFUNCTION()
+	TArray<FName> GetAttachmentSockets() const;
 	
 
 	UPROPERTY()
