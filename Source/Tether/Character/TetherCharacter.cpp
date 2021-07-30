@@ -9,7 +9,6 @@
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Tether/GameMode/TetherPrimaryGameMode.h"
-#include "Tether/Gameplay/TopDownCameraComponent.h"
 
 
 // Component name constants
@@ -269,9 +268,7 @@ void ATetherCharacter::Deflect(
 	
 	if (const UWorld* World = GetWorld())
 	{
-		bIsBouncing = true;
-		MovementComponent->MovementMode = EPupMovementMode::M_Deflected;
-		
+		bIsBouncing = true;		
 		// Only restart the timer if the remaining time would increase
 		const float DeflectTimeRemaining = DeflectTimerHandle.IsValid() ? World->GetTimerManager().GetTimerRemaining(DeflectTimerHandle) : 0.f;
 		if (DeflectTimeRemaining < DeflectTime)
@@ -310,7 +307,8 @@ void ATetherCharacter::Deflect(
 	#endif
 				
 	
-	MovementComponent->AddImpulse(FinalVelocity);
+	// MovementComponent->AddImpulse(FinalVelocity);
+	MovementComponent->Deflect(FinalVelocity);
 }
 
 
@@ -384,7 +382,7 @@ void ATetherCharacter::AnchorToObject(AActor* Object)
 		}
 	}
 	
-	MovementComponent->MovementMode = EPupMovementMode::M_Anchored;
+	MovementComponent->SetMovementMode(EPupMovementMode::M_Anchored);
 	const FVector Distance = ClosestPoint - GetActorLocation();
 	const FRotator Rotation = Distance.ToOrientationRotator();
 	ClosestPoint -= GrabHandle->GetRelativeLocation().RotateAngleAxis(Rotation.Yaw, FVector::UpVector);

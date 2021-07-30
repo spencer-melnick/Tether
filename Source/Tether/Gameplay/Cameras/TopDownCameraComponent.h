@@ -68,43 +68,47 @@ public:
 
 
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking | Rotation")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Rotation")
 	float RotationSensitivity = 5.0f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking | Rotation")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Rotation")
 	float MinPitch = -85.0f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking | Rotation")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Rotation")
 	float MaxPitch = 0.0f;
 	
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Tracking | Rotation")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Tracking|Rotation")
 	FRotator RotationalVelocity;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking | Rotation")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Rotation")
 	bool bLockRotation = false;
+
+	/// How much the camera rotates towards the direction the primary actor is going.
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Rotation", meta = (ClampMin = 0.0f, ClampMax = 1.0f))
+	float CopyRotationFactor = 0.0f;
 	
 	
-	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking | Subjects")
+	/// The actors we are tracking. If we track more than one actor, the first actor in the list will be our 'primary' actor.
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Subjects")
 	TArray<AActor*> Subjects;
 
 	/// Subject locations in screen space, ranging  [-1.0 : 1.0]
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Tracking | Subjects")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Tracking|Subjects")
 	TArray<FVector2D> SubjectLocations;
 
 	/// Whether or not we try to get ahead of the subjects, based on their velocity.
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking | Subjects")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Subjects")
 	bool bTrackAheadOfMotion = true;
 
 	/// How far ahead of the subject we track, in seconds
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking | Subjects")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Subjects")
 	float TrackAnticipationTime = 1.0f;
 
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking | Zoom")
+	/** If true the camera zoom will not be changed once the minimum and maximum distances are applied */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Zoom")
 	bool bLockZoom = false;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Transient, Category = "Tracking | Zoom")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Transient, Category = "Tracking|Zoom")
 	float SubjectDistance;
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Tracking | Zoom")

@@ -108,13 +108,13 @@ void UPupMovementComponent::SetDefaultMovementMode()
 	FHitResult FloorResult;
 	if ((FindFloor(10.f, FloorResult) && Velocity.Z <= 0.0f) || bGrounded)
 	{
-		MovementMode = EPupMovementMode::M_Walking;
+		SetMovementMode(EPupMovementMode::M_Walking);
 		SnapToFloor(FloorResult);
 		bCanJump = true;
 	}
 	else
 	{
-		MovementMode = EPupMovementMode::M_Falling;
+		SetMovementMode(EPupMovementMode::M_Falling);
 	}
 }
 
@@ -222,6 +222,37 @@ void UPupMovementComponent::AnchorToLocation(const FVector& AnchorLocationIn)
 }
 
 
+bool UPupMovementComponent::SetMovementMode(const EPupMovementMode& NewMovementMode)
+{
+	// ReSharper disable once CppIncompleteSwitchStatement
+	switch(NewMovementMode)
+	{
+		case EPupMovementMode::M_Anchored:
+			{
+				bCanJump = false;
+				break;
+			}
+		case EPupMovementMode::M_Deflected:
+			{
+				bCanJump = false;
+				break;
+			}
+		default:
+			break;
+	}
+	MovementMode = NewMovementMode;
+	return true;
+}
+
+
+void UPupMovementComponent::Deflect(const FVector& DeflectionVelocity)
+{
+	SetMovementMode(EPupMovementMode::M_Deflected);
+	AddImpulse(DeflectionVelocity);
+	DeflectDirection = DeflectionVelocity.GetSafeNormal();
+}
+
+
 void UPupMovementComponent::BreakAnchor(const bool bForceBreak)
 {
 	AnchorLocation = FVector::ZeroVector;
@@ -276,6 +307,13 @@ void UPupMovementComponent::StepMovement(float DeltaTime)
 			
 			// To avoid potential stuttering, only apply gravity if we're not on the ground
 			Velocity.Z += GetGravityZ() * DeltaTime;
+		}
+		if (MovementMode == EPupMovementMode::M_Deflected)
+		{
+			if (FVector::DotProduct(DeflectDirection, Velocity) <= KINDA_SMALL_NUMBER)
+			{
+				RegainControl();
+			}
 		}
 	}
 
@@ -472,6 +510,7 @@ FVector UPupMovementComponent::GetNewVelocity(const float DeltaTime)
 	}
 }
 
+
 FVector UPupMovementComponent::HoldJump(const float DeltaTime)
 {
 	
@@ -511,6 +550,14 @@ void UPupMovementComponent::RenderHitResult(const FHitResult& HitResult, const F
 		DrawDebugString(GetWorld(), HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f, HitResult.GetComponent()->GetName(), nullptr, Color, 0.02f, false, 1.0f);
 	}
 }
+
+
+void UPupMovementComponent::RegainControl()
+{
+	DeflectDirection = FVector::ZeroVector;
+	SetDefaultMovementMode();
+}
+
 
 FVector UPupMovementComponent::ConsumeImpulse()
 {

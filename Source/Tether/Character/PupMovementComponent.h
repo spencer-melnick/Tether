@@ -72,6 +72,12 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void AnchorToLocation(const FVector& AnchorLocationIn);
 
+	UFUNCTION(BlueprintCallable)
+	bool SetMovementMode(const EPupMovementMode& NewMovementMode);
+
+	UFUNCTION(BlueprintCallable)
+	void Deflect(const FVector& DeflectionVelocity);
+	
 	void BreakAnchor(const bool bForceBreak = false);
 	
 private:
@@ -104,12 +110,14 @@ private:
 	
 	void RenderHitResult(const FHitResult& HitResult, const FColor Color = FColor::White) const;
 
+	void RegainControl();
+	
 	FVector ConsumeImpulse();
 	
 public:	
 	// Properties
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement")
 	EPupMovementMode MovementMode = EPupMovementMode::M_Falling;
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement")
@@ -143,7 +151,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Rotation")
 	bool bSlip = true;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Rotation")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Rotation", meta = (ClampMin = 0.0f, ClampMax = 1.0f))
 	float SlipFactor = 0.8;
 	
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement | Rotation")
@@ -166,13 +174,13 @@ public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement | Jumping")
 	float HoldJumpAcceleration = 400.0f;
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Jumping")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Jumping", meta = (ClampMin = 0.0f))
 	float MaxJumpTime = 0.5f;
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Jumping")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Jumping", meta = (ClampMin = 0.0f))
 	float CoyoteTime = 0.5f;
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Jumping")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Jumping", meta = (ClampMin = 0.0f, ClampMax = 1.0f))
 	float AirControlFactor = 0.2f;
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Jumping")
@@ -210,8 +218,12 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Deflections")
 	float DeflectionFriction = 800.0f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Deflections")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Deflections", meta = (ClampMin = 0.0f, ClampMax = 1.0f))
 	float DeflectionControlInfluence = 0.2f;
+
+	/// If the player can regain control of the character early, by cancelling the velocity in the direction
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Deflections")
+	bool bCanRegainControl = true;
 	
 private:
 
@@ -221,6 +233,8 @@ private:
 	UPROPERTY(Transient)
 	FVector PendingImpulses;
 
+	FVector DeflectDirection;
+	
 	float JumpAppliedVelocity;
 
 	FTimerHandle CoyoteTimer;

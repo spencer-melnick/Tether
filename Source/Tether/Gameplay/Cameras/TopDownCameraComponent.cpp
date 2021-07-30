@@ -84,7 +84,17 @@ FRotator UTopDownCameraComponent::CalcDeltaRotation(const float DeltaTime)
 	FRotator NewRotation = GetComponentRotation();
 	RotationalVelocity = ConsumeRotations() * RotationSensitivity;
 
-	NewRotation += RotationalVelocity;
+	NewRotation += RotationalVelocity * DeltaTime;
+
+	if (ATetherCharacter* Player = Cast<ATetherCharacter>(Subjects[0]))
+	{
+		const float DeltaRotation = FMath::FindDeltaAngleDegrees(GetComponentRotation().Yaw, Player->GetActorRotation().Yaw);
+		if (CopyRotationFactor > 0.0f && Player->MovementComponent->bIsWalking && FMath::Abs(DeltaRotation) <= 160.0f)
+		{
+			NewRotation.Yaw += DeltaRotation * CopyRotationFactor * DeltaTime;
+		}
+	}
+	
 	NewRotation.Pitch = FMath::ClampAngle(NewRotation.Pitch, MinPitch, MaxPitch);
 	return NewRotation;
 }
