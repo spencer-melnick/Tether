@@ -6,10 +6,16 @@
 #include "BeamController.generated.h"
 
 class UBeamComponent;
+class ABeamFXActor;
 enum class EBeamComponentMode : uint8;
 enum class EBeamComponentStatus : uint8;
 
 
+/**
+ * Defines how distances are computed when calculating the shortest path between targets.
+ * (E.g. using the quadratic weighting mode will bias the path solver towards connecting
+ * via chains of nearby nodes instead of long singular connections)
+ */
 UENUM(BlueprintType)
 enum class EBeamControllerWeightingMode : uint8
 {
@@ -19,11 +25,50 @@ enum class EBeamControllerWeightingMode : uint8
 };
 
 
+/** Internal struct used for tracking FX actor spawning/despawning */
+USTRUCT()
+struct FBeamControllerFXPoolData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(Transient)
+	ABeamFXActor* FXActor;
+
+	FTimerHandle DespawnTimer;
+};
+
+
+/** Internal struct used for tracking FX edges */
+USTRUCT()
+struct FBeamFXEdge
+{
+	GENERATED_BODY()
+
+	FBeamFXEdge()
+		: Target1(nullptr), Target2(nullptr)
+	{};
+
+	FBeamFXEdge(AActor* Target1, AActor* Target2)
+		: Target1(Target1), Target2(Target2)
+	{};
+
+	UPROPERTY(Transient)
+	AActor* Target1;
+
+	UPROPERTY(Transient)
+	AActor* Target2;
+};
+
+bool operator==(const FBeamFXEdge& EdgeA, const FBeamFXEdge& EdgeB);
+
+uint32 GetTypeHash(const FBeamFXEdge& Edge);
+
+
 /**
  * Actor that creates and manages the lifecycle of beams connecting the player pawns.
  * Intended to be spawned by the game mode
  */
-UCLASS(Blueprintable)
+UCLASS(Blueprintable, Transient)
 class ABeamController : public AInfo
 {
 	GENERATED_BODY()
@@ -52,10 +97,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Beam")
 	bool RemoveBeamTarget(AActor* Target);
 
-	/** Updates the state of any spawned beam effects */
-	UFUNCTION(BlueprintCallable, Category="Beam")
-	void UpdateBeamEffects();
-
 	/** Function used to calculate weighted distance if mode is set to custom */
 	UFUNCTION(BlueprintNativeEvent)
 	float CalculateWeightedDistanceCustom(FVector StartLocation, FVector EndLocation) const;
@@ -74,8 +115,8 @@ public:
 	const TArray<AActor*>& GetBeamTargets() const { return BeamTargets; }
 
 	/** Returns true if all the beam targets are connected currently */
-	UFUNCTION(BlueprintCallable, Category="Beam")
-	bool AllBeamsConnected() const { return bBeamsConnected; }
+	UFUNCTION(BlueprintPure, Category="Beam")
+	bool AreBeamsConnected() const { return bBeamsConnected; }
 
 
 	// Editor properties
@@ -88,15 +129,20 @@ public:
 	UPROPERTY(EditDefaultsOnly)
 	TEnumAsByte<ECollisionChannel> BeamTraceChannel;
 
-	/** Amount of time (in seconds) between checking all beam connections */
-	UPROPERTY(EditDefaultsOnly)
-	float TraversalTickInterval = 0.05f;
-
 	UPROPERTY(EditDefaultsOnly)
 	EBeamControllerWeightingMode WeightingMode;
+
+	UPROPERTY(EditDefaultsOnly)
+	TSubclassOf<ABeamFXActor> BeamFXActorClass;
+
+	/** How long in seconds after deactivation beam FX actors are despawned */
+	UPROPERTY(EditDefaultsOnly)
+	float BeamFXActorTimeout;
 	
 
 private:
+
+	// Path solving
 
 	struct FBeamNode
 	{
@@ -119,9 +165,29 @@ private:
 
 	/** Calculate the weighted distance between targets based on the selected weighting mode */
 	float CalculateWeightedDistance(FVector StartLocation, FVector EndLocation) const;
+	
+
+	// FX control
+
+	void UpdateBeamFX(const TArray<FBeamFXEdge>& BeamEdges);
+	
+	/** Use this to be able to recycle FX actors instead of constantly deleting and respawning them */
+	ABeamFXActor* AcquireBeamFXActor();
+
+	/** Deactivates the visible FX and queues the actor for despawning */
+	void DeactivateBeamFXActor(ABeamFXActor* FXActor);
+
+	/** Called when an inactive FX actor's despawn timer expires */
+	void HandleBeamFXActorTimeout(ABeamFXActor* FXActor);
 
 	UPROPERTY()
 	TArray<AActor*> BeamTargets;
+
+	UPROPERTY()
+	TMap<FBeamFXEdge, ABeamFXActor*> ActiveFXActors;
+
+	UPROPERTY()
+	TArray<FBeamControllerFXPoolData> InactiveFXActors;
 
 	bool bBeamsConnected = false;
 };

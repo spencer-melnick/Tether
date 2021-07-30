@@ -44,7 +44,7 @@ ATetherCharacter::ATetherCharacter(const FObjectInitializer& ObjectInitializer)
 	GrabHandle->SetupAttachment(SkeletalMeshComponent, TEXT("HandleSocket"));
 
 	BeamComponent = CreateDefaultSubobject<UBeamComponent>(BeamComponentName);
-	BeamComponent->SetupAttachment(RootComponent);
+	BeamComponent->SetupAttachment(SkeletalMeshComponent);
 
 	CameraComponent = CreateDefaultSubobject<UTopDownCameraComponent>(CameraComponentName);
 	CameraComponent->SetupAttachment(RootComponent);
