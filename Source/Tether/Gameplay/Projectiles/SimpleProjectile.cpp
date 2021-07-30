@@ -42,7 +42,7 @@ void ASimpleProjectile::BouncePlayer(const FHitResult& HitResult)
 	{
 		if (!bDebounce)
 		{
-			HitCharacter->Deflect(-HitResult.ImpactNormal, LaunchVelocity, Velocity, 1.0, Elasticity, 0.5f, true);
+			HitCharacter->Deflect(-HitResult.ImpactNormal, LaunchVelocity, Velocity, 1.0, Elasticity, DeflectTime, true);
 
 			if (UWorld* World = GetWorld())
 			{

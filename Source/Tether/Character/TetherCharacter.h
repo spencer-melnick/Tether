@@ -8,7 +8,7 @@
 #include "Components/SphereComponent.h"
 #include "GameFramework/Character.h"
 #include "Tether/Gameplay/BeamComponent.h"
-#include "Tether/Gameplay/TopDownCameraComponent.h"
+#include "Tether/Gameplay/Cameras/TopDownCameraComponent.h"
 
 #include "TetherCharacter.generated.h"
 

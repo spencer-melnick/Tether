@@ -7,7 +7,7 @@
 #include "Components/SphereComponent.h"
 
 #include "GameFramework/ProjectileMovementComponent.h"
-#include "Tether/Gameplay/SimpleProjectile.h"
+#include "Tether/Gameplay/Projectiles/SimpleProjectile.h"
 
 // Sets default values for this component's properties
 UProjectileEmitterComponent::UProjectileEmitterComponent()
