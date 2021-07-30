@@ -276,7 +276,7 @@ void ATetherCharacter::Deflect(
 			World->GetTimerManager().SetTimer(DeflectTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
 			{
 				bIsBouncing = false;
-				MovementComponent->SetDefaultMovementMode();
+				MovementComponent->RegainControl();
 			}), DeflectTime, false);
 		}
 	}
