@@ -46,28 +46,27 @@ public:
 	// Movement mode transitions
 	UFUNCTION(BlueprintCallable)
 	bool SetMovementMode(const EPupMovementMode& NewMovementMode);
-	
-	UFUNCTION(BlueprintCallable)
+
 	/**
-	 * Set the player's movement mode to whatever mode is appropriate, given their position and velocity.
-	 * For instance, a player in the air will be set to 'Falling'.
-	 * This should be called when an object does not have access to the
-	 * necessary context to determine the correct movement mode.
-	 */
+	* Set the player's movement mode to whatever mode is appropriate, given their position and velocity.
+	* For instance, a player in the air will be set to 'Falling'.
+	* This should be called when an object does not have access to the
+	* necessary context to determine the correct movement mode.
+	*/
+	UFUNCTION(BlueprintCallable)
 	void SetDefaultMovementMode();
 
 
-	UFUNCTION(BlueprintCallable)
 	/** Grab onto a specific location, preventing the player from falling or moving */
-	void AnchorToLocation(const FVector& AnchorLocationIn);
-	
 	UFUNCTION(BlueprintCallable)
+	void AnchorToLocation(const FVector& AnchorLocationIn);
+
 	/** Have the player let go of an anchor point, optionally forcing them */
+	UFUNCTION(BlueprintCallable)
 	void BreakAnchor(const bool bForceBreak = false);
 
-	
-	UFUNCTION(BlueprintCallable)
 	/** Launch the player in a direction, causing them to lose control temporarily */
+	UFUNCTION(BlueprintCallable)
 	void Deflect(const FVector& DeflectionVelocity);
 	
 	/** Try to give the player back control if they have been deflected by some object */
@@ -80,12 +79,11 @@ public:
 	/** Force jump to end, automatically called after MaxJumpTime seconds have elapsed **/
 	void StopJumping();
 
-
-	UFUNCTION(BlueprintCallable)
 	/**
-	 * Add velocity directly to the player.
-	 * The impulse will be consumed on the next tick.
-	 */
+	* Add velocity directly to the player.
+	* The impulse will be consumed on the next tick.
+	*/
+	UFUNCTION(BlueprintCallable)
 	void AddImpulse(const FVector Impulse);
 
 	
