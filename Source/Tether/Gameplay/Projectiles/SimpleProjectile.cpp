@@ -47,7 +47,10 @@ void ASimpleProjectile::BouncePlayer(const FHitResult& HitResult)
 			if (UWorld* World = GetWorld())
 			{
 				#if WITH_EDITOR
-				DrawDebugDirectionalArrow(World, HitResult.ImpactPoint, HitResult.ImpactPoint + HitResult.ImpactNormal * -100.0f, 25.0f, FColor::Red, false, 3.0f, 0, 5.0f);
+				if (GEngine->GameViewport && GEngine->GameViewport->EngineShowFlags.GameplayDebug)
+				{
+					DrawDebugDirectionalArrow(World, HitResult.ImpactPoint, HitResult.ImpactPoint + HitResult.ImpactNormal * -100.0f, 25.0f, FColor::Red, false, 3.0f, 0, 5.0f);
+				}
 				#endif
 				
 				bDebounce = true;

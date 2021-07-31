@@ -153,6 +153,7 @@ private:
 
 	void RenderHitResult(const FHitResult& HitResult, const FColor Color = FColor::White) const;
 
+	bool CheckFloorWithinRange(const float Range, const FHitResult& HitResult) const;
 	
 public:	
 	// Properties
@@ -281,6 +282,10 @@ public:
 	
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement|Recovery")
 	FVector LastValidLocation;
+
+	/** How far away from the edge we should be to consider a location 'safe' **/
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Recovery")
+	float MinimumSafeRadius = 100.0f;
 
 	
 private:

@@ -286,7 +286,10 @@ void ATetherCharacter::Deflect(
 	const FVector FinalVelocity = BounceVelocity.GetClampedToSize(0.f, MaxLaunchSpeed);
 
 	#if WITH_EDITOR
-	DrawDebugDirectionalArrow(GetWorld(), GetActorLocation(), GetActorLocation() + FinalVelocity / 10.0f, 25.0f, FColor::Blue, false, 3.0f, 0, 5.0f);
+	if (GEngine->GameViewport && GEngine->GameViewport->EngineShowFlags.GameplayDebug)
+	{
+		DrawDebugDirectionalArrow(GetWorld(), GetActorLocation(), GetActorLocation() + FinalVelocity / 10.0f, 25.0f, FColor::Blue, false, 3.0f, 0, 5.0f);
+	}
 	#endif
 				
 	

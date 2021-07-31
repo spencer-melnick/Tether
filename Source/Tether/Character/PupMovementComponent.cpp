@@ -158,6 +158,7 @@ bool UPupMovementComponent::FindFloor(float SweepDistance, FHitResult& OutHitRes
 	const FVector SweepOffset = FVector::DownVector * SweepDistance;
 	if (SweepCapsule(SweepOffset, OutHitResult))
 	{
+		RenderHitResult(OutHitResult);
 		if (IsValidFloorHit(OutHitResult))
 		{
 			CurrentFloorComponent = OutHitResult.GetComponent();
@@ -176,8 +177,7 @@ bool UPupMovementComponent::IsValidFloorHit(const FHitResult& FloorHit) const
 {
 	// Check if we actually hit a floor component
 	const UPrimitiveComponent* FloorComponent = FloorHit.GetComponent();
-	if (FloorComponent && FloorComponent->CanCharacterStepUp(GetPawnOwner()) && FloorHit.ImpactNormal.Z >=
-		MaxInclineZComponent)
+	if (FloorComponent && FloorComponent->CanCharacterStepUp(GetPawnOwner()) && FloorHit.Normal.Z >= MaxInclineZComponent)
 	{
 		return true;
 	}
@@ -189,7 +189,11 @@ bool UPupMovementComponent::IsValidFloorHit(const FHitResult& FloorHit) const
 void UPupMovementComponent::SnapToFloor(const FHitResult& FloorHit)
 {
 	FHitResult DiscardHit;
-	LastValidLocation = FloorHit.Location;
+	
+	if (CheckFloorWithinRange(MinimumSafeRadius, FloorHit))
+	{
+		LastValidLocation = FloorHit.Location;
+	}
 	SafeMoveUpdatedComponent(FloorHit.Location - UpdatedComponent->GetComponentLocation(),
 	                         UpdatedComponent->GetComponentQuat(), true, DiscardHit);
 }
@@ -253,6 +257,11 @@ void UPupMovementComponent::AnchorToLocation(const FVector& AnchorLocationIn)
 
 void UPupMovementComponent::Deflect(const FVector& DeflectionVelocity, const float DeflectTime)
 {
+	// Don't deflect the character if they are recovering or aren't set to a movement mode
+	if (MovementMode == EPupMovementMode::M_Recover || MovementMode == EPupMovementMode::M_None)
+	{
+		return;
+	}
 	if (UWorld* World = GetWorld())
 	{
 		SetMovementMode(EPupMovementMode::M_Deflected);
@@ -670,11 +679,34 @@ bool UPupMovementComponent::SweepCapsule(const FVector Offset, FHitResult& OutHi
 
 void UPupMovementComponent::RenderHitResult(const FHitResult& HitResult, const FColor Color) const
 {
+	if (GEngine->GameViewport && GEngine->GameViewport->EngineShowFlags.GameplayDebug)
+	{
+		if (HitResult.GetComponent())
+		{
+			DrawDebugLine(GetWorld(), HitResult.ImpactPoint, HitResult.ImpactPoint + HitResult.Normal * 100.0f, Color,
+	false, 1.0f, 1.0f, 2.0f);
+			DrawDebugLine(GetWorld(), HitResult.ImpactPoint, HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f, Color,
+	false, 1.0f, 1.0f, 2.0f);
+			DrawDebugString(GetWorld(), HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f,
+			HitResult.GetComponent()->GetName(), nullptr, Color, 0.02f, false, 1.0f);
+		}
+	}
+}
+
+
+bool UPupMovementComponent::CheckFloorWithinRange(const float Range, const FHitResult& HitResult) const
+{
+	bool bResult = false;
+	
 	if (HitResult.GetComponent())
 	{
-		DrawDebugLine(GetWorld(), HitResult.ImpactPoint, HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f, Color,
-					false, 1.0f, 1.0f, 2.0f);
-		DrawDebugString(GetWorld(), HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f,
-						HitResult.GetComponent()->GetName(), nullptr, Color, 0.02f, false, 1.0f);
+		const FVector DirectionFromCenter = (HitResult.ImpactPoint - HitResult.Component->GetComponentLocation()).GetSafeNormal();
+		const FVector NewSweepLocation = HitResult.ImpactPoint + DirectionFromCenter * Range;
+		
+		FHitResult NewHitResult;
+		FCollisionQueryParams QueryParams = FCollisionQueryParams::DefaultQueryParam;
+		bResult = HitResult.GetComponent()->LineTraceComponent(NewHitResult, NewSweepLocation, NewSweepLocation + FVector::UpVector * -10.0f, QueryParams);
+		RenderHitResult(NewHitResult);
 	}
+	return bResult;
 }
