@@ -47,6 +47,8 @@ public:
 	UFUNCTION(BlueprintCallable)
 	bool SetMovementMode(const EPupMovementMode& NewMovementMode);
 
+	EPupMovementMode GetMovementMode() const;
+	
 	/**
 	* Set the player's movement mode to whatever mode is appropriate, given their position and velocity.
 	* For instance, a player in the air will be set to 'Falling'.
@@ -67,7 +69,7 @@ public:
 
 	/** Launch the player in a direction, causing them to lose control temporarily */
 	UFUNCTION(BlueprintCallable)
-	void Deflect(const FVector& DeflectionVelocity);
+	void Deflect(const FVector& DeflectionVelocity, const float DeflectTime);
 	
 	/** Try to give the player back control if they have been deflected by some object */
 	void RegainControl();
@@ -154,9 +156,6 @@ private:
 	
 public:	
 	// Properties
-
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement")
-	EPupMovementMode MovementMode = EPupMovementMode::M_Falling;
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement")
 	float MaxSpeed;
@@ -286,6 +285,10 @@ public:
 	
 private:
 
+	UPROPERTY(EditInstanceOnly, Category = "Movement")
+	EPupMovementMode MovementMode = EPupMovementMode::M_Falling;
+
+	
 	UPROPERTY(Transient)
 	UPrimitiveComponent* CurrentFloorComponent;
 	
@@ -298,9 +301,11 @@ private:
 
 
 	// Timer Handles
-	FTimerHandle CoyoteTimer;
+	FTimerHandle CoyoteTimerHandle;
 
-	FTimerHandle JumpTimer;
+	FTimerHandle JumpTimerHandle;
 
+	FTimerHandle DeflectTimerHandle;
+	
 	FTimerHandle RecoveryTimerHandle;
 };

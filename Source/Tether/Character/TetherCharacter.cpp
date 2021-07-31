@@ -9,6 +9,7 @@
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Tether/GameMode/TetherPrimaryGameMode.h"
+#include "Tether/GameMode/TetherPrimaryGameState.h"
 
 
 // Component name constants
@@ -72,15 +73,32 @@ void ATetherCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 	PlayerInputComponent->BindAxis(TEXT("RotateY"), this, &ATetherCharacter::RotateY);
 }
 
+
 void ATetherCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 }
 
+
 void ATetherCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 }
+
+
+float ATetherCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator,
+	AActor* DamageCauser)
+{
+	if (UWorld* World = GetWorld())
+	{
+		if (ATetherPrimaryGameState* GameState = Cast<ATetherPrimaryGameState>(World->GetGameState()))
+		{
+			return GameState->SubtractGlobalHealth(DamageAmount);
+		}
+	}
+	return 0.0f;
+}
+
 
 void ATetherCharacter::Jump()
 {
@@ -90,42 +108,13 @@ void ATetherCharacter::Jump()
 	}
 }
 
+
+// All input functions must be non-const in order to be bound to the 'InputComponent'
+
+// ReSharper disable CppMemberFunctionMayBeConst
 void ATetherCharacter::StopJumping()
 {
 	MovementComponent->StopJumping();
-}
-
-void ATetherCharacter::Falling()
-{
-	if (FMath::IsNearlyZero(CoyoteTime))
-	{
-		bCoyoteJumpAvailable = false;
-	}
-	else
-	{
-		if (const UWorld* World = GetWorld())
-		{
-			bCoyoteJumpAvailable = true;
-			
-			World->GetTimerManager().SetTimer(CoyoteJumpTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
-			{
-				bCoyoteJumpAvailable = false;
-			}), CoyoteTime, false);
-		}
-	}
-}
-
-void ATetherCharacter::OnJumped_Implementation()
-{
-	if (bCoyoteJumpAvailable)
-	{
-		bCoyoteJumpAvailable = false;
-
-		if (const UWorld* World = GetWorld())
-		{
-			World->GetTimerManager().ClearTimer(CoyoteJumpTimerHandle);
-		}
-	}
 }
 
 
@@ -139,7 +128,6 @@ void ATetherCharacter::MoveY(const float Scale)
 {
 	MovementComponent->AddInputVector(FVector::ForwardVector * Scale);
 }
-
 
 
 void ATetherCharacter::RotateX(const float Scale)
@@ -208,10 +196,16 @@ void ATetherCharacter::Interact()
 	}
 }
 
-void ATetherCharacter::SetGroundFriction(float GroundFriction)
-{
 
+void ATetherCharacter::ReleaseAnchor()
+{
+	if (MovementComponent->GetMovementMode() == EPupMovementMode::M_Anchored)
+	{
+		MovementComponent->BreakAnchor();
+	}
 }
+// ReSharper restore CppMemberFunctionMayBeConst
+
 
 
 // Accessors
@@ -220,6 +214,7 @@ FVector ATetherCharacter::GetTetherTargetLocation() const
 {
 	return GetActorTransform().TransformPosition(TetherOffset);
 }
+
 
 FVector ATetherCharacter::GetTetherEffectLocation() const
 {
@@ -231,6 +226,7 @@ FVector ATetherCharacter::GetTetherEffectLocation() const
 	return GetTetherTargetLocation();
 }
 
+
 bool ATetherCharacter::GetIsJumping() const
 {
 	if (MovementComponent)
@@ -240,15 +236,18 @@ bool ATetherCharacter::GetIsJumping() const
 	return false;
 }
 
+
 USkeletalMeshComponent* ATetherCharacter::GetMeshComponent() const
 {
 	return SkeletalMeshComponent;
 }
 
+
 UCapsuleComponent* ATetherCharacter::GetCapsuleComponent() const
 {
 	return CapsuleComponent;
 }
+
 
 bool ATetherCharacter::CanMove() const
 {
@@ -263,22 +262,6 @@ void ATetherCharacter::Deflect(
 	if (bAnchored && bForceBreak)
 	{
 		ReleaseAnchor();
-	}
-
-	
-	if (const UWorld* World = GetWorld())
-	{
-		bIsBouncing = true;		
-		// Only restart the timer if the remaining time would increase
-		const float DeflectTimeRemaining = DeflectTimerHandle.IsValid() ? World->GetTimerManager().GetTimerRemaining(DeflectTimerHandle) : 0.f;
-		if (DeflectTimeRemaining < DeflectTime)
-		{
-			World->GetTimerManager().SetTimer(DeflectTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
-			{
-				bIsBouncing = false;
-				MovementComponent->RegainControl();
-			}), DeflectTime, false);
-		}
 	}
 	
 	if (!bLaunchVertically)
@@ -308,7 +291,7 @@ void ATetherCharacter::Deflect(
 				
 	
 	// MovementComponent->AddImpulse(FinalVelocity);
-	MovementComponent->Deflect(FinalVelocity);
+	MovementComponent->Deflect(FinalVelocity, DeflectTime);
 }
 
 
@@ -390,15 +373,5 @@ void ATetherCharacter::AnchorToObject(AActor* Object)
 	MovementComponent->AnchorToLocation(ClosestPoint);
 	
 	bAnchored = true;
-}
-
-
-void ATetherCharacter::ReleaseAnchor()
-{
-	if (bAnchored)
-	{
-		MovementComponent->BreakAnchor(bIsBouncing);
-		bAnchored = false;
-	}
 }
 

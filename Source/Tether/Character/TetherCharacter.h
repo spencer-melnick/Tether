@@ -38,7 +38,7 @@ public:
 	static const FName AnchorTag;
 
 
-	ATetherCharacter(const FObjectInitializer& ObjectInitializer);
+	explicit ATetherCharacter(const FObjectInitializer& ObjectInitializer);
 
 	
 	// Actor overrides
@@ -46,15 +46,7 @@ public:
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
-	
-	void Jump();
-	void StopJumping();
-
-
-	// Character overrides
-	
-	void Falling();
-	void OnJumped_Implementation();
+	virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 
 
 	// Beam target interface
@@ -63,7 +55,9 @@ public:
 
 	
 	// Movement functions
-
+	void Jump();
+	void StopJumping();
+	
 	void MoveX(const float Scale);
 	void MoveY(const float Scale);
 
@@ -71,9 +65,6 @@ public:
 	void RotateY(const float Scale);
 	
 	void Interact();
-
-	UFUNCTION(BlueprintCallable)
-	void SetGroundFriction(float GroundFriction);
 
 	/**
 	* Bounce the character off a obstacle.
@@ -123,17 +114,11 @@ public:
 	
 	// Events
 
-	virtual void HandlePenetration(const FHitResult& SweepResult);
+	virtual void HandlePenetration(const FHitResult& HitResult);
 
 
 	// Editor properties
 	
-	// Jump controls
-
-	/** How long after falling a character can jump */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Jump")
-	float CoyoteTime = 0.1f;
-
 	// Tether settings
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tether")
@@ -163,19 +148,6 @@ private:
 
 	UFUNCTION()
 	void OnTetherExpired();
-
-	
-	// Jump tracking
-
-	FTimerHandle CoyoteJumpTimerHandle;
-	bool bCoyoteJumpAvailable = false;
-
-	
-	// Obstacle Deflection
-	
-	FTimerHandle DeflectTimerHandle;
-
-	bool bIsBouncing = false;
 	
 
 	// Animation tracking

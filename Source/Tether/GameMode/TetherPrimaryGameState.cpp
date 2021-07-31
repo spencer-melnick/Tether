@@ -36,7 +36,25 @@ void ATetherPrimaryGameState::SetGlobalHealth(float NewGlobalHealth)
 	{
 		OnRep_GlobalHealth();
 	}
+	if (GlobalHealth <= 0.0f)
+	{
+		SetGamePhase(ETetherGamePhase::Ending);	
+	}
 }
+
+
+float ATetherPrimaryGameState::SubtractGlobalHealth(const float DamageAmount)
+{
+	if (DamageAmount >= GlobalHealth)
+	{
+		const float LastHealth = GlobalHealth;
+		SetGlobalHealth(0.0f);
+		return LastHealth;
+	}
+	SetGlobalHealth(GlobalHealth - DamageAmount);
+	return DamageAmount;
+}
+
 
 float ATetherPrimaryGameState::GetTimeInCurrentPhase() const
 {

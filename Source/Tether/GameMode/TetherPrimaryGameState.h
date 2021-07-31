@@ -46,6 +46,8 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void SetGlobalHealth(float NewGlobalHealth);
 
+	UFUNCTION(BlueprintCallable)
+	float SubtractGlobalHealth(const float DamageAmount);
 
 	// Accessors
 
@@ -95,7 +97,7 @@ private:
 	float PhaseStartTime = 0.f;
 
 	/** Overall health pool of all players in the current game*/
-	UPROPERTY(ReplicatedUsing = OnRep_GlobalHealth)
+	UPROPERTY(VisibleAnywhere, ReplicatedUsing = OnRep_GlobalHealth)
 	float GlobalHealth = 100.f;
 	
 };

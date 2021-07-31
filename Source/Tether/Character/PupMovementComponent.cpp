@@ -99,6 +99,37 @@ float UPupMovementComponent::GetGravityZ() const
 
 
 
+bool UPupMovementComponent::SetMovementMode(const EPupMovementMode& NewMovementMode)
+{
+	switch (NewMovementMode)
+	{
+	case EPupMovementMode::M_Anchored:
+		{
+			bCanJump = false;
+			break;
+		}
+	case EPupMovementMode::M_Deflected:
+		{
+			if (!bCanJumpWhileDeflected)
+			{
+				bCanJump = false;
+			}
+			break;
+		}
+	default:
+		break;
+	}
+	MovementMode = NewMovementMode;
+	return true;
+}
+
+
+EPupMovementMode UPupMovementComponent::GetMovementMode() const
+{
+	return MovementMode;
+}
+
+
 void UPupMovementComponent::SetDefaultMovementMode()
 {
 	FHitResult FloorResult;
@@ -113,6 +144,7 @@ void UPupMovementComponent::SetDefaultMovementMode()
 		SetMovementMode(EPupMovementMode::M_Falling);
 	}
 }
+
 
 
 void UPupMovementComponent::AddImpulse(const FVector Impulse)
@@ -176,7 +208,7 @@ bool UPupMovementComponent::Jump()
 		{
 			if (MaxJumpTime > 0.0f)
 			{
-				World->GetTimerManager().SetTimer(JumpTimer, FTimerDelegate::CreateWeakLambda(this, [this]
+				World->GetTimerManager().SetTimer(JumpTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
 				{
 					StopJumping();
 				}), MaxJumpTime, false);
@@ -211,6 +243,7 @@ void UPupMovementComponent::RegainControl()
 
 void UPupMovementComponent::AnchorToLocation(const FVector& AnchorLocationIn)
 {
+	bIsWalking = false;
 	AnchorLocation = AnchorLocationIn;
 	MovementMode = EPupMovementMode::M_Anchored;
 	const FVector Offset = AnchorLocationIn - UpdatedComponent->GetComponentLocation();
@@ -218,36 +251,22 @@ void UPupMovementComponent::AnchorToLocation(const FVector& AnchorLocationIn)
 }
 
 
-bool UPupMovementComponent::SetMovementMode(const EPupMovementMode& NewMovementMode)
+void UPupMovementComponent::Deflect(const FVector& DeflectionVelocity, const float DeflectTime)
 {
-	switch (NewMovementMode)
+	if (UWorld* World = GetWorld())
 	{
-	case EPupMovementMode::M_Anchored:
+		SetMovementMode(EPupMovementMode::M_Deflected);
+		DeflectDirection = DeflectionVelocity.GetSafeNormal();
+		const float DeflectTimeRemaining = DeflectTimerHandle.IsValid() ? World->GetTimerManager().GetTimerRemaining(DeflectTimerHandle) : 0.f;
+		if (DeflectTimeRemaining < DeflectTime)
 		{
-			bCanJump = false;
-			break;
-		}
-	case EPupMovementMode::M_Deflected:
-		{
-			if (!bCanJumpWhileDeflected)
+			World->GetTimerManager().SetTimer(DeflectTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
 			{
-				bCanJump = false;
-			}
-			break;
+				RegainControl();
+			}), DeflectTime, false);
 		}
-	default:
-		break;
 	}
-	MovementMode = NewMovementMode;
-	return true;
-}
-
-
-void UPupMovementComponent::Deflect(const FVector& DeflectionVelocity)
-{
-	SetMovementMode(EPupMovementMode::M_Deflected);
 	AddImpulse(DeflectionVelocity);
-	DeflectDirection = DeflectionVelocity.GetSafeNormal();
 }
 
 
@@ -378,7 +397,7 @@ void UPupMovementComponent::Fall()
 	SetMovementMode(EPupMovementMode::M_Falling);
 	if (UWorld* World = GetWorld())
 	{
-		World->GetTimerManager().SetTimer(CoyoteTimer, FTimerDelegate::CreateWeakLambda(this, [this]
+		World->GetTimerManager().SetTimer(CoyoteTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
 		{
 			if (!bGrounded)
 			{
@@ -393,6 +412,14 @@ void UPupMovementComponent::Recover()
 {
 	SetMovementMode(EPupMovementMode::M_Recover);
 	ClearImpulse();
+
+	if (AActor* Actor = UpdatedComponent->GetOwner())
+	{
+		const float FallDamage = 20.0f;
+		const FDamageEvent DamageEvent;
+		Actor->TakeDamage(FallDamage, DamageEvent, Actor->GetInstigatorController(), Actor);
+	}
+	
 	const FVector RecoveryLocation = LastValidLocation + (RecoveryLevitationHeight * UpdatedComponent->GetUpVector());
 	const float GravityDelta = GetGravityZ() * RecoveryTime;
 	FVector RecoveryVelocity = (RecoveryLocation - UpdatedComponent->GetComponentLocation()) / RecoveryTime;
