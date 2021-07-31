@@ -31,27 +31,64 @@ class TETHER_API UPupMovementComponent : public UPawnMovementComponent
 public:
 	UPupMovementComponent();
 
+	
+	// Overrides
 	virtual  void BeginPlay() override;
 	
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* TickFunction) override;
 
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-	
-	bool SweepCapsule(const FVector Offset, FHitResult& OutHit) const;
 
-	UFUNCTION(BlueprintCallable)
-	void SetDefaultMovementMode();
-
-	UFUNCTION(BlueprintCallable)
-	void AddImpulse(const FVector Impulse);
-	
-	// Accessor Overrides
-	
 	virtual float GetMaxSpeed() const override;
 
+	virtual float GetGravityZ() const override;
+	
+	// Movement mode transitions
+	UFUNCTION(BlueprintCallable)
+	bool SetMovementMode(const EPupMovementMode& NewMovementMode);
+	
+	UFUNCTION(BlueprintCallable)
+	/**
+	 * Set the player's movement mode to whatever mode is appropriate, given their position and velocity.
+	 * For instance, a player in the air will be set to 'Falling'.
+	 * This should be called when an object does not have access to the
+	 * necessary context to determine the correct movement mode.
+	 */
+	void SetDefaultMovementMode();
 
-	// Movement Logic
 
+	UFUNCTION(BlueprintCallable)
+	/** Grab onto a specific location, preventing the player from falling or moving */
+	void AnchorToLocation(const FVector& AnchorLocationIn);
+	
+	UFUNCTION(BlueprintCallable)
+	/** Have the player let go of an anchor point, optionally forcing them */
+	void BreakAnchor(const bool bForceBreak = false);
+
+	
+	UFUNCTION(BlueprintCallable)
+	/** Launch the player in a direction, causing them to lose control temporarily */
+	void Deflect(const FVector& DeflectionVelocity);
+	
+	/** Try to give the player back control if they have been deflected by some object */
+	void RegainControl();
+	
+	UFUNCTION(BlueprintCallable)
+	/** Attempt to jump, returns false if the jump can't be executed */
+	bool Jump();
+
+	/** Force jump to end, automatically called after MaxJumpTime seconds have elapsed **/
+	void StopJumping();
+
+
+	UFUNCTION(BlueprintCallable)
+	/**
+	 * Add velocity directly to the player.
+	 * The impulse will be consumed on the next tick.
+	 */
+	void AddImpulse(const FVector Impulse);
+
+	
 	/** Sweeps for a valid floor beneath the character. If true, OutHitResult contains the sweep result */
 	bool FindFloor(float SweepDistance, FHitResult& OutHitResult);
 
@@ -60,29 +97,7 @@ public:
 
 	/** Moves the character to the floor, but does not update velocity */
 	void SnapToFloor(const FHitResult& FloorHit);
-
-	/** Attempts to jump, returns false if the jump can't be executed */
-	UFUNCTION(BlueprintCallable)
-	bool Jump();
-
-	void StopJumping();
-
-	/** Try to give the player back control if they have been deflected by some object **/
-	void RegainControl();
-
-	// MovementComponent interface
-	virtual float GetGravityZ() const override;
-
-	UFUNCTION(BlueprintCallable)
-	void AnchorToLocation(const FVector& AnchorLocationIn);
-
-	UFUNCTION(BlueprintCallable)
-	bool SetMovementMode(const EPupMovementMode& NewMovementMode);
-
-	UFUNCTION(BlueprintCallable)
-	void Deflect(const FVector& DeflectionVelocity);
 	
-	void BreakAnchor(const bool bForceBreak = false);
 	
 private:
 
@@ -90,12 +105,18 @@ private:
 	void StepMovement(float DeltaTime);
 
 	/** Perform a single movement substep, returning the amount of time actually simulated in the substep */
-	float SubstepMovement(float DeltaTime);
-	
+	float SubstepMovement(const float DeltaTime);
+
+	/** Explicit transition when landing on a floor while in the 'Falling' state */
 	void Land();
 
+	/** Explicit transition when a floor becomes invalid while in the 'Walking' state */
 	void Fall();
 
+	/**
+	 * Function to be called when the player falls off the stage.
+	 * By default, this sets the player's velocity so they will move back to the 'LastValidLocation'
+	 */
 	void Recover();
 
 	void EndRecovery();
@@ -104,23 +125,34 @@ private:
 	
 	void HandleInputAxis();
 
-	static FVector ClampToPlaneMaxSize(const FVector& VectorIn, const FVector& Normal, const float MaxSize);
-	
+
+	// Update method wrapppers
 	FRotator GetNewRotation(const float DeltaTime) const;
 	
 	FVector GetNewVelocity(const float DeltaTime);
 
+
+	
+	// Update utilities
 	FVector HoldJump(const float DeltaTime);
 
 	FVector ApplyFriction(const FVector& VelocityIn, const float DeltaTime) const;
 
 	FVector ApplySlidingFriction(const FVector& VelocityIn, const float DeltaTime, const float Friction) const;
-	
-	void RenderHitResult(const FHitResult& HitResult, const FColor Color = FColor::White) const;
-	
+
+	// Private impulse methods
 	FVector ConsumeImpulse();
 
 	void ClearImpulse();
+
+	
+	// Utilities
+	static FVector ClampToPlaneMaxSize(const FVector& VectorIn, const FVector& Normal, const float MaxSize);
+
+	bool SweepCapsule(const FVector Offset, FHitResult& OutHit) const;
+
+	void RenderHitResult(const FHitResult& HitResult, const FColor Color = FColor::White) const;
+
 	
 public:	
 	// Properties
@@ -148,6 +180,7 @@ public:
 	
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement")
 	float MovementSpeedAlpha = 0.0f;
+
 
 	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Transient, Category = "Movement|Rotation")
@@ -230,7 +263,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Deflections", meta = (ClampMin = 0.0f, ClampMax = 1.0f))
 	float DeflectionControlInfluence = 0.2f;
 
-	/// If the player can regain control of the character early, by cancelling the velocity in the direction
+	/** If the player can regain control of the character early, by cancelling the velocity in the direction **/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Deflections")
 	bool bCanRegainControl = true;
 
@@ -245,7 +278,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Recovery")
 	bool bIgnoreObstaclesWhenRecovering = true;
 	
-	/* The height offset added to our LastValidLocation when recovering. */
+	/** The height offset added to our LastValidLocation when recovering. **/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Recovery")
 	float RecoveryLevitationHeight = 100.0f;
 	
