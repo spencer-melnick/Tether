@@ -84,6 +84,7 @@ void ATetherPrimaryGameMode::BeginPlay()
 	}
 }
 
+
 float ATetherPrimaryGameMode::GetBaseObstacleSpeed(float GamePhaseTime) const
 {
 	if (ObstacleSpeedCurve)

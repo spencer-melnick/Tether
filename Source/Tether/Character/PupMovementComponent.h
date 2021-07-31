@@ -19,7 +19,8 @@ enum class EPupMovementMode : uint8
 	M_Walking	UMETA(DisplayName = "Walking"),
 	M_Falling	UMETA(DisplayName = "Falling"),
 	M_Anchored	UMETA(DisplayName = "Anchored"),
-	M_Deflected UMETA(DisplayName = "Deflected")
+	M_Deflected UMETA(DisplayName = "Deflected"),
+	M_Recover	UMETA(DisplayName = "Recover")
 };
 
 UCLASS()
@@ -65,7 +66,10 @@ public:
 	bool Jump();
 
 	void StopJumping();
-	
+
+	/** Try to give the player back control if they have been deflected by some object **/
+	void RegainControl();
+
 	// MovementComponent interface
 	virtual float GetGravityZ() const override;
 
@@ -91,12 +95,16 @@ private:
 	void Land();
 
 	void Fall();
+
+	void Recover();
+
+	void EndRecovery();
 	
 	void TickGravity(const float DeltaTime);
 	
 	void HandleInputAxis();
 
-	FVector ClampToPlaneMaxSize(const FVector& VectorIn, const FVector& Normal, const float MaxSize) const;
+	static FVector ClampToPlaneMaxSize(const FVector& VectorIn, const FVector& Normal, const float MaxSize);
 	
 	FRotator GetNewRotation(const float DeltaTime) const;
 	
@@ -109,10 +117,10 @@ private:
 	FVector ApplySlidingFriction(const FVector& VelocityIn, const float DeltaTime, const float Friction) const;
 	
 	void RenderHitResult(const FHitResult& HitResult, const FColor Color = FColor::White) const;
-
-	void RegainControl();
 	
 	FVector ConsumeImpulse();
+
+	void ClearImpulse();
 	
 public:	
 	// Properties
@@ -142,88 +150,108 @@ public:
 	float MovementSpeedAlpha = 0.0f;
 
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Transient, Category = "Movement | Rotation")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Transient, Category = "Movement|Rotation")
 	FRotator DesiredRotation = FRotator(0.f,0.f,0.f);
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Rotation")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Rotation")
 	float RotationSpeed = 360.f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Rotation")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Rotation")
 	bool bSlip = true;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Rotation", meta = (ClampMin = 0.0f, ClampMax = 1.0f))
-	float SlipFactor = 0.8;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Rotation", meta = (ClampMin = 0.0f, ClampMax = 1.0f))
+	float SlipFactor = 0.8f;
 	
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement | Rotation")
-	float CameraYaw = 0.f;
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement|Rotation")
+	float CameraYaw = 0.0f;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement | Rotation")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement|Rotation")
 	float TurningDirection = 0.0f;
 
 	
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement | Jumping")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement|Jumping")
 	bool bCanJump = false;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Jumping")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Jumping")
 	float JumpInitialVelocity = 300.0f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Jumping")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Jumping")
 	float ApexVelocity = 500.0f;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement | Jumping")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement|Jumping")
 	float HoldJumpAcceleration = 400.0f;
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Jumping", meta = (ClampMin = 0.0f))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Jumping", meta = (ClampMin = 0.0f))
 	float MaxJumpTime = 0.5f;
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Jumping", meta = (ClampMin = 0.0f))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Jumping", meta = (ClampMin = 0.0f))
 	float CoyoteTime = 0.5f;
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Jumping", meta = (ClampMin = 0.0f, ClampMax = 1.0f))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Jumping", meta = (ClampMin = 0.0f, ClampMax = 1.0f))
 	float AirControlFactor = 0.2f;
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Jumping")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Jumping")
 	float TerminalVelocity = -4000.f;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement | Jumping")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement|Jumping")
 	bool bGrounded = false;
 
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement|Jumping")
 	bool bJumping = false;
 
 
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Transient, Category = "Movement | Anchored")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Transient, Category = "Movement|Anchored")
 	FVector AnchorLocation;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Anchored")
-	float SnapVelocity = 1000.f;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Anchored")
+	float SnapVelocity = 1000.0f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Anchored")
-	float SnapRotationVelocity = 360.f;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Anchored")
+	float SnapRotationVelocity = 360.0f;
 
 
 	
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement | Planar")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement|Planar")
 	FVector FloorNormal;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Planar")
-	float MaxIncline = 60.f;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Planar")
+	float MaxIncline = 60.0f;
 	
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement | Planar")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement|Planar")
 	float MaxInclineZComponent = 0.5f;
 
 
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Deflections")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Deflections")
 	float DeflectionFriction = 800.0f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Deflections", meta = (ClampMin = 0.0f, ClampMax = 1.0f))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Deflections", meta = (ClampMin = 0.0f, ClampMax = 1.0f))
 	float DeflectionControlInfluence = 0.2f;
 
 	/// If the player can regain control of the character early, by cancelling the velocity in the direction
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement | Deflections")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Deflections")
 	bool bCanRegainControl = true;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Deflections")
+	bool bCanJumpWhileDeflected = true;
+
+
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Recovery")
+	float RecoveryTime = 1.0f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Recovery")
+	bool bIgnoreObstaclesWhenRecovering = true;
+	
+	/* The height offset added to our LastValidLocation when recovering. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Recovery")
+	float RecoveryLevitationHeight = 100.0f;
+	
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement|Recovery")
+	FVector LastValidLocation;
+
 	
 private:
 
@@ -237,7 +265,11 @@ private:
 	
 	float JumpAppliedVelocity;
 
+
+	// Timer Handles
 	FTimerHandle CoyoteTimer;
 
 	FTimerHandle JumpTimer;
+
+	FTimerHandle RecoveryTimerHandle;
 };

@@ -54,6 +54,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Beam")
 	TSubclassOf<ABeamController> BeamControllerClass;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Bounds")
+	float KillHeight = -100.0f;
+
 
 protected:
 

@@ -166,6 +166,7 @@ bool UPupMovementComponent::IsValidFloorHit(const FHitResult& FloorHit) const
 void UPupMovementComponent::SnapToFloor(const FHitResult& FloorHit)
 {
 	FHitResult DiscardHit;
+	LastValidLocation = FloorHit.Location;
 	SafeMoveUpdatedComponent(FloorHit.Location - UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentQuat(), true, DiscardHit);
 }
 
@@ -224,7 +225,6 @@ void UPupMovementComponent::AnchorToLocation(const FVector& AnchorLocationIn)
 
 bool UPupMovementComponent::SetMovementMode(const EPupMovementMode& NewMovementMode)
 {
-	// ReSharper disable once CppIncompleteSwitchStatement
 	switch(NewMovementMode)
 	{
 		case EPupMovementMode::M_Anchored:
@@ -234,7 +234,10 @@ bool UPupMovementComponent::SetMovementMode(const EPupMovementMode& NewMovementM
 			}
 		case EPupMovementMode::M_Deflected:
 			{
-				bCanJump = false;
+				if (!bCanJumpWhileDeflected)
+				{
+					bCanJump = false;
+				}
 				break;
 			}
 		default:
@@ -317,15 +320,28 @@ void UPupMovementComponent::StepMovement(float DeltaTime)
 		}
 	}
 
-	// Break up physics into substeps based on collisions
-	int32 NumSubsteps = 0;
-	while (NumSubsteps < PupMovementCVars::MaxSubsteps && DeltaTime > SMALL_NUMBER)
+	if (MovementMode == EPupMovementMode::M_Recover && bIgnoreObstaclesWhenRecovering)
 	{
-		NumSubsteps++;
-		DeltaTime -= SubstepMovement(DeltaTime);
-		// GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Substeps: %d"), NumSubsteps).Append(Velocity.ToString()));
+		UpdatedComponent->SetWorldLocation(UpdatedComponent->GetComponentLocation() + Velocity * DeltaTime, false);
 	}
-
+	else
+	{
+		// Break up physics into substeps based on collisions
+		int32 NumSubsteps = 0;
+		while (NumSubsteps < PupMovementCVars::MaxSubsteps && DeltaTime > SMALL_NUMBER)
+		{
+			NumSubsteps++;
+			DeltaTime -= SubstepMovement(DeltaTime);
+			// GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Substeps: %d"), NumSubsteps).Append(Velocity.ToString()));
+		}
+	}
+	
+	const float KillHeight = -100.0f;
+	if (UpdatedComponent->GetComponentLocation().Z  <= KillHeight && MovementMode != EPupMovementMode::M_Recover)
+	{
+		Recover();
+	}
+	
 	// Update the alpha value to be used for turning friction
 	MovementSpeedAlpha = Velocity.IsNearlyZero() ? 0.0f : Velocity.Size2D() / MaxSpeed;
 	
@@ -376,6 +392,35 @@ void UPupMovementComponent::Fall()
 }
 
 
+void UPupMovementComponent::Recover()
+{
+	SetMovementMode(EPupMovementMode::M_Recover);
+	ClearImpulse();
+	const FVector RecoveryLocation = LastValidLocation + (RecoveryLevitationHeight * UpdatedComponent->GetUpVector());
+	const float GravityDelta = GetGravityZ() * RecoveryTime;
+	FVector RecoveryVelocity = (RecoveryLocation - UpdatedComponent->GetComponentLocation()) / RecoveryTime;
+	RecoveryVelocity -=  (GravityDelta / 2) * UpdatedComponent->GetUpVector();
+	Velocity = RecoveryVelocity;
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimer(RecoveryTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
+		{
+			EndRecovery();
+		}), RecoveryTime, false);
+	}
+}
+
+
+void UPupMovementComponent::EndRecovery()
+{
+	Velocity.X = 0.0f;
+	Velocity.Y = 0.0f;
+	UpdatedComponent->SetWorldLocation(LastValidLocation + RecoveryLevitationHeight * UpdatedComponent->GetUpVector());
+	ClearImpulse();
+	SetDefaultMovementMode();
+}
+
+
 void UPupMovementComponent::TickGravity(const float DeltaTime)
 {
 	if (UWorld* World = GetWorld())
@@ -417,7 +462,7 @@ void UPupMovementComponent::HandleInputAxis()
 }
 
 
-FVector UPupMovementComponent::ClampToPlaneMaxSize(const FVector& VectorIn, const FVector& Normal, const float MaxSize) const
+FVector UPupMovementComponent::ClampToPlaneMaxSize(const FVector& VectorIn, const FVector& Normal, const float MaxSize)
 {
 	FVector Planar = VectorIn;
 	const FVector VectorAlongNormal = FVector::DotProduct(Planar, Normal) * Normal;
@@ -503,6 +548,10 @@ FVector UPupMovementComponent::GetNewVelocity(const float DeltaTime)
 				NewVelocity += DirectionVector.IsNearlyZero() ? FVector::ZeroVector : DeltaTime * MaxAcceleration * DirectionVector * DeflectionControlInfluence;
 				return NewVelocity + ConsumeImpulse();
 			}
+		case EPupMovementMode::M_Recover:
+			{
+				return Velocity + (GetGravityZ() * DeltaTime * UpdatedComponent->GetUpVector());
+			}
 		default:
 			{
 				return FVector::ZeroVector;
@@ -555,7 +604,10 @@ void UPupMovementComponent::RenderHitResult(const FHitResult& HitResult, const F
 void UPupMovementComponent::RegainControl()
 {
 	DeflectDirection = FVector::ZeroVector;
-	SetDefaultMovementMode();
+	if (MovementMode == EPupMovementMode::M_Deflected)
+	{
+		SetDefaultMovementMode();
+	}
 }
 
 
@@ -564,4 +616,10 @@ FVector UPupMovementComponent::ConsumeImpulse()
 	const FVector ConsumedVector = PendingImpulses;
 	PendingImpulses = FVector::ZeroVector;
 	return ConsumedVector;
+}
+
+
+void UPupMovementComponent::ClearImpulse()
+{
+	PendingImpulses = FVector::ZeroVector;
 }
