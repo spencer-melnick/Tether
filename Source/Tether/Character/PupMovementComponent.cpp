@@ -679,7 +679,7 @@ bool UPupMovementComponent::SweepCapsule(const FVector Offset, FHitResult& OutHi
 
 void UPupMovementComponent::RenderHitResult(const FHitResult& HitResult, const FColor Color) const
 {
-	if (GEngine->GameViewport && GEngine->GameViewport->EngineShowFlags.GameplayDebug)
+	if (GEngine->GameViewport && GEngine->GameViewport->EngineShowFlags.Collision)
 	{
 		if (HitResult.GetComponent())
 		{
