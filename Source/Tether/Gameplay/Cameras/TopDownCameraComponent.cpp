@@ -21,8 +21,8 @@ void UTopDownCameraComponent::BeginPlay()
 
 	SetUsingAbsoluteLocation(true);
 	SetUsingAbsoluteRotation(true);
-	
-	Subjects = GetPlayerControlledActors();
+
+	Subjects = GetSubjectActors();
 		
 	if (UWorld* World = GetWorld())
 	{
@@ -153,29 +153,41 @@ FVector2D UTopDownCameraComponent::CalcSubjectScreenLocations()
 }
 
 
-TArray<AActor*> UTopDownCameraComponent::GetPlayerControlledActors() const
+TArray<AActor*> UTopDownCameraComponent::GetSubjectActors() const
 {
 	TArray<AActor*> OutputArray;
-	if (UWorld* World = GetWorld())
+
+	if (bTrackAllPlayers)
 	{
-		if (AGameStateBase* GameState = World->GetGameState())
+		if (UWorld* World = GetWorld())
 		{
-			TArray<APlayerState*> PlayerStates = GameState->PlayerArray;
-			for (APlayerState* PlayerState : PlayerStates)
+			if (AGameStateBase* GameState = World->GetGameState())
 			{
-				AActor* PlayerControlledActor = PlayerState->GetPawn();
-				if (PlayerControlledActor)
+				TArray<APlayerState*> PlayerStates = GameState->PlayerArray;
+				for (APlayerState* PlayerState : PlayerStates)
 				{
-					OutputArray.Add(PlayerControlledActor);
+					AActor* PlayerControlledActor = PlayerState->GetPawn();
+					if (PlayerControlledActor)
+					{
+						OutputArray.Add(PlayerControlledActor);
+					}
 				}
 			}
+		}
+	}
+	if (bTrackParent)
+	{
+		AActor* Parent = GetOwner();
+		if (!OutputArray.Contains(Parent))
+		{
+			OutputArray.Add(Parent);
 		}
 	}
 	return OutputArray;
 }
 
 
-FVector UTopDownCameraComponent::AverageLocationOfTargets(TArray<AActor*> Targets)
+FVector UTopDownCameraComponent::AverageLocationOfTargets(TArray<AActor*> Targets) const
 {
 	FVector Average = FVector::ZeroVector;
 	int Count = Targets.Num();

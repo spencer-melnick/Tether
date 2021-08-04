@@ -140,10 +140,30 @@ private:
 
 	FVector ApplySlidingFriction(const FVector& VelocityIn, const float DeltaTime, const float Friction) const;
 
+
+	// Basis/Floor Movement
+	void MoveToBasisTransform(const float VelocityFactor, const float DeltaTime);
+
+	void StoreBasisTransformPostUpdate();
+	
+	FVector GetRelativeBasisPosition() const;
+
+	
 	// Private impulse methods
 	FVector ConsumeImpulse();
 
 	void ClearImpulse();
+
+	// Private hit resolution
+	UFUNCTION()
+	void OnHit(UPrimitiveComponent* Self, AActor* OtherActor, UPrimitiveComponent* OtherComponent, FVector HitLocation, const FHitResult& HitResult);
+	
+	UFUNCTION()
+	void OnBeginOverlap(UPrimitiveComponent* Self, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int NumOverlaps, bool bBlockingHit, const FHitResult& HitResult);
+	
+	void AddHit(const FHitResult& HitResult);
+
+	void ResolvePendingHits(const float DeltaTime);
 
 	
 	// Utilities
@@ -287,15 +307,34 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Recovery")
 	float MinimumSafeRadius = 100.0f;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Other")
+	bool bHandleHitEvents = true;
+
 	
 private:
 
 	UPROPERTY(EditInstanceOnly, Category = "Movement")
 	EPupMovementMode MovementMode = EPupMovementMode::M_Falling;
 
+
+	TArray<FHitResult> PendingHits;
+	
 	
 	UPROPERTY(Transient)
 	UPrimitiveComponent* CurrentFloorComponent;
+
+	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Movement|Planar|Basis");
+	FVector LastBasisPosition;
+	
+	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Movement|Planar|Basis");
+	FVector LocalBasisPosition;
+	
+	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Movement|Planar|Basis");
+	FRotator LastBasisRotation;
+	
+	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Movement|Planar|Basis");
+	FVector BasisRelativeVelocity;
+
 	
 	UPROPERTY(Transient)
 	FVector PendingImpulses;

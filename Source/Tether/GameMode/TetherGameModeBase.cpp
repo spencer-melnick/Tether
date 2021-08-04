@@ -19,7 +19,7 @@ void ATetherGameModeBase::BeginPlay()
 	// Disable splitscreen if this mode should not have splitscreen enabled
 	if (ensure(GEngine && GEngine->GameViewport))
 	{
-		GEngine->GameViewport->SetForceDisableSplitscreen(!bUseSplitscreen);
+		// GEngine->GameViewport->SetForceDisableSplitscreen(!bUseSplitscreen);
 	}
 
 #if WITH_EDITOR

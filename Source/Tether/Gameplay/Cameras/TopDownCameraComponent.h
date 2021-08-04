@@ -40,9 +40,9 @@ private:
 	
 	FVector2D CalcSubjectScreenLocations();
 	
-	TArray<AActor*> GetPlayerControlledActors() const;
+	TArray<AActor*> GetSubjectActors() const;
 
-	FVector AverageLocationOfTargets(TArray<AActor*> Targets);
+	FVector AverageLocationOfTargets(TArray<AActor*> Targets) const;
 
 	float GetMinimumDistance();
 	
@@ -50,12 +50,18 @@ private:
 
 	FRotator ConsumeRotations();
 
-	// MEMBER VARIABLES
 	
+	// MEMBER VARIABLES
 public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking")
 	bool bKeepAllTargetsInFrame;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking")
+	bool bTrackAllPlayers = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking")
+	bool bTrackParent = true;
 	
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Tracking")
 	FVector DesiredFocalPoint;

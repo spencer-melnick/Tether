@@ -47,6 +47,13 @@ void UPupMovementComponent::BeginPlay()
 	Super::BeginPlay();
 
 	SetDefaultMovementMode();
+
+	// GetOwner()->OnActorHit.AddDynamic(this, &UPupMovementComponent::OnHit);
+	if (UPrimitiveComponent* Primitive = Cast<UPrimitiveComponent>(UpdatedComponent))
+	{
+		Primitive->OnComponentBeginOverlap.AddDynamic(this, &UPupMovementComponent::OnBeginOverlap);
+		Primitive->OnComponentHit.AddDynamic(this, &UPupMovementComponent::OnHit);
+	}
 }
 
 
@@ -55,7 +62,8 @@ void UPupMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 {
 	// Gather all of the input we've accumulated since the last frame
 	HandleInputAxis();
-
+	ResolvePendingHits(DeltaTime);
+	
 	while (DeltaTime > SMALL_NUMBER)
 	{
 		// Break frame time into actual movement steps
@@ -177,7 +185,7 @@ bool UPupMovementComponent::IsValidFloorHit(const FHitResult& FloorHit) const
 {
 	// Check if we actually hit a floor component
 	const UPrimitiveComponent* FloorComponent = FloorHit.GetComponent();
-	if (FloorComponent && FloorComponent->CanCharacterStepUp(GetPawnOwner()) && FloorHit.Normal.Z >= MaxInclineZComponent)
+	if (FloorComponent && FloorComponent->CanCharacterStepUp(GetPawnOwner()) && FloorHit.ImpactNormal.Z >= MaxInclineZComponent)
 	{
 		return true;
 	}
@@ -189,7 +197,7 @@ bool UPupMovementComponent::IsValidFloorHit(const FHitResult& FloorHit) const
 void UPupMovementComponent::SnapToFloor(const FHitResult& FloorHit)
 {
 	FHitResult DiscardHit;
-	
+
 	if (CheckFloorWithinRange(MinimumSafeRadius, FloorHit))
 	{
 		LastValidLocation = FloorHit.Location;
@@ -204,6 +212,10 @@ bool UPupMovementComponent::Jump()
 	if (bCanJump)
 	{
 		AddImpulse(UpdatedComponent->GetUpVector() * JumpInitialVelocity);
+
+		// If we detached from a floor platform, add the basis velocity to the player, because our reference frame has changed.
+		AddImpulse(BasisRelativeVelocity);
+		
 		JumpAppliedVelocity += JumpInitialVelocity;
 		bCanJump = false;
 		bJumping = true;
@@ -295,6 +307,8 @@ void UPupMovementComponent::BreakAnchor(const bool bForceBreak)
 
 void UPupMovementComponent::StepMovement(float DeltaTime)
 {
+	MoveToBasisTransform(1.0f, DeltaTime);
+	
 	// Update rotation
 	const FRotator NewRotation = GetNewRotation(DeltaTime);
 	if (UpdatedComponent)
@@ -372,6 +386,8 @@ void UPupMovementComponent::StepMovement(float DeltaTime)
 
 	// Let our primitive component know what its new velocity should be
 	UpdateComponentVelocity();
+
+	StoreBasisTransformPostUpdate();
 }
 
 
@@ -547,7 +563,6 @@ FVector UPupMovementComponent::GetNewVelocity(const float DeltaTime)
 			NewVelocity = ClampToPlaneMaxSize(NewVelocity, FloorNormal, MaxSpeed);
 			NewVelocity += ConsumeImpulse();
 			NewVelocity = ApplyFriction(NewVelocity, DeltaTime);
-
 			return NewVelocity;
 		}
 	case EPupMovementMode::M_Falling:
@@ -622,6 +637,58 @@ FVector UPupMovementComponent::ApplySlidingFriction(const FVector& VelocityIn, c
 }
 
 
+void UPupMovementComponent::MoveToBasisTransform(const float VelocityFactor, const float DeltaTime)
+{
+	if (bGrounded && CurrentFloorComponent && CurrentFloorComponent->Mobility == EComponentMobility::Movable)
+	{
+		// Where is this local space vector in world space now? How has it moved in world space?
+		const FVector FloorPositionAfterUpdate = LocalBasisPosition.X * CurrentFloorComponent->GetForwardVector() +
+			LocalBasisPosition.Y * CurrentFloorComponent->GetRightVector() +
+			LocalBasisPosition.Z * CurrentFloorComponent->GetUpVector() +
+			CurrentFloorComponent->GetComponentLocation();
+
+		const float DeltaYaw = CurrentFloorComponent->GetComponentRotation().Yaw - LastBasisRotation.Yaw;
+		const FRotator DeltaRotation = FRotator(0.0f, DeltaYaw, 0.0f);
+
+		BasisRelativeVelocity = FloorPositionAfterUpdate - UpdatedComponent->GetComponentLocation();
+		UpdatedComponent->AddWorldOffset(BasisRelativeVelocity * VelocityFactor);
+		BasisRelativeVelocity /= DeltaTime;
+		DesiredRotation += DeltaRotation;
+		UpdatedComponent->AddWorldRotation(DeltaRotation * VelocityFactor);
+	}
+	else
+	{
+		BasisRelativeVelocity = FVector::ZeroVector;
+	}
+}
+
+
+void UPupMovementComponent::StoreBasisTransformPostUpdate()
+{
+	LastBasisPosition = UpdatedComponent->GetComponentLocation();
+	// Don't bother storing this information if the object can't move
+	if (bGrounded && CurrentFloorComponent && CurrentFloorComponent->Mobility == EComponentMobility::Movable)
+	{
+		LocalBasisPosition = GetRelativeBasisPosition();
+		LastBasisRotation = CurrentFloorComponent->GetComponentRotation();
+	}
+}
+
+
+FVector UPupMovementComponent::GetRelativeBasisPosition() const
+{
+	if (CurrentFloorComponent)
+	{
+		const FVector Distance = UpdatedComponent->GetComponentLocation() - CurrentFloorComponent->GetComponentLocation();
+		
+		return FVector(FVector::DotProduct(Distance, CurrentFloorComponent->GetForwardVector()),
+			FVector::DotProduct(Distance, CurrentFloorComponent->GetRightVector()),
+			FVector::DotProduct(Distance, CurrentFloorComponent->GetUpVector()));
+	}
+	return FVector::ZeroVector;
+}
+
+
 // Private impulse methods
 FVector UPupMovementComponent::ConsumeImpulse()
 {
@@ -636,6 +703,73 @@ void UPupMovementComponent::ClearImpulse()
 	PendingImpulses = FVector::ZeroVector;
 }
 
+
+void UPupMovementComponent::OnHit(UPrimitiveComponent* Self, AActor* OtherActor, UPrimitiveComponent* OtherComponent, FVector HitLocation, const FHitResult& HitResult)
+{
+	if (bHandleHitEvents)
+	{
+		if (HitResult.Component != CurrentFloorComponent)
+		{
+			AddHit(HitResult);
+			if (GEngine->GameViewport && GEngine->GameViewport->EngineShowFlags.Collision)
+			{
+				GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Blue, TEXT("Hit Registered."));
+			}
+		}
+		else if (GEngine->GameViewport && GEngine->GameViewport->EngineShowFlags.Collision)
+		{
+			// GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Blue, TEXT("Ignoring hit from the floor."));
+		}
+	}
+}
+
+
+void UPupMovementComponent::OnBeginOverlap(UPrimitiveComponent* Self, AActor* OtherActor,
+                                           UPrimitiveComponent* OtherComponent, int NumOverlaps, bool bBlockingHit, const FHitResult& HitResult)
+{
+	if (bHandleHitEvents)
+	{
+		if (HitResult.Component != CurrentFloorComponent)
+		{
+			AddHit(HitResult);
+			if (GEngine->GameViewport && GEngine->GameViewport->EngineShowFlags.Collision)
+			{
+				GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Blue, TEXT("Overlap Registered."));
+			}
+		}
+		else if (GEngine->GameViewport && GEngine->GameViewport->EngineShowFlags.Collision)
+		{
+			// GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Blue, TEXT("Ignoring overlap from the floor."));
+		}
+	}
+}
+
+
+void UPupMovementComponent::AddHit(const FHitResult& HitResult)
+{
+	RenderHitResult(HitResult, FColor::Red);
+	PendingHits.Add(HitResult);
+}
+
+
+void UPupMovementComponent::ResolvePendingHits(const float DeltaTime)
+{
+	if (PendingHits.Num() > 0)
+	{
+		FVector Delta = FVector::ZeroVector;
+		for (FHitResult HitResult : PendingHits)
+		{
+			// Delta += HitResult.GetComponent()->GetComponentVelocity();
+			Delta += (HitResult.Location - UpdatedComponent->GetComponentLocation()).Size() * HitResult.ImpactNormal;
+		}
+		if (GEngine->GameViewport && GEngine->GameViewport->EngineShowFlags.Collision)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Blue, FString::Printf(TEXT("Resolving %d Hits... Delta: %f"), PendingHits.Num(), Delta.Size()));
+		}
+		Velocity += Delta / DeltaTime;
+		PendingHits.Empty();
+	}
+}
 
 
 // Utilities
@@ -697,8 +831,8 @@ void UPupMovementComponent::RenderHitResult(const FHitResult& HitResult, const F
 bool UPupMovementComponent::CheckFloorWithinRange(const float Range, const FHitResult& HitResult) const
 {
 	bool bResult = false;
-	
-	if (HitResult.GetComponent())
+
+	if (HitResult.GetComponent() && HitResult.GetComponent()->Mobility != EComponentMobility::Movable)
 	{
 		const FVector DirectionFromCenter = (HitResult.ImpactPoint - HitResult.Component->GetComponentLocation()).GetSafeNormal();
 		const FVector NewSweepLocation = HitResult.ImpactPoint + DirectionFromCenter * Range;
