@@ -42,6 +42,8 @@ public:
 	virtual float GetMaxSpeed() const override;
 
 	virtual float GetGravityZ() const override;
+
+	virtual bool ResolvePenetrationImpl(const FVector& Adjustment, const FHitResult& Hit, const FQuat& NewRotation) override;
 	
 	// Movement mode transitions
 	UFUNCTION(BlueprintCallable)
@@ -142,7 +144,7 @@ private:
 
 
 	// Basis/Floor Movement
-	void MoveToBasisTransform(const float VelocityFactor, const float DeltaTime);
+	void MagnetToBasis(const float VelocityFactor, const float DeltaTime);
 
 	void StoreBasisTransformPostUpdate();
 	
@@ -153,18 +155,7 @@ private:
 	FVector ConsumeImpulse();
 
 	void ClearImpulse();
-
-	// Private hit resolution
-	UFUNCTION()
-	void OnHit(UPrimitiveComponent* Self, AActor* OtherActor, UPrimitiveComponent* OtherComponent, FVector HitLocation, const FHitResult& HitResult);
 	
-	UFUNCTION()
-	void OnBeginOverlap(UPrimitiveComponent* Self, AActor* OtherActor, UPrimitiveComponent* OtherComponent, int NumOverlaps, bool bBlockingHit, const FHitResult& HitResult);
-	
-	void AddHit(const FHitResult& HitResult);
-
-	void ResolvePendingHits(const float DeltaTime);
-
 	
 	// Utilities
 	static FVector ClampToPlaneMaxSize(const FVector& VectorIn, const FVector& Normal, const float MaxSize);
@@ -173,7 +164,9 @@ private:
 
 	void RenderHitResult(const FHitResult& HitResult, const FColor Color = FColor::White) const;
 
-	bool CheckFloorWithinRange(const float Range, const FHitResult& HitResult) const;
+	bool CheckFloorValidWithinRange(const float Range, const FHitResult& HitResult) const;
+
+	void HandleExternalOverlaps(const float DeltaTime);
 	
 public:	
 	// Properties
@@ -307,18 +300,11 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Recovery")
 	float MinimumSafeRadius = 100.0f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Other")
-	bool bHandleHitEvents = true;
-
 	
 private:
 
 	UPROPERTY(EditInstanceOnly, Category = "Movement")
-	EPupMovementMode MovementMode = EPupMovementMode::M_Falling;
-
-
-	TArray<FHitResult> PendingHits;
-	
+	EPupMovementMode MovementMode = EPupMovementMode::M_Falling;	
 	
 	UPROPERTY(Transient)
 	UPrimitiveComponent* CurrentFloorComponent;
@@ -343,7 +329,7 @@ private:
 	
 	float JumpAppliedVelocity;
 
-
+	
 	// Timer Handles
 	FTimerHandle CoyoteTimerHandle;
 
