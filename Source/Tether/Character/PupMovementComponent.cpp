@@ -102,10 +102,16 @@ float UPupMovementComponent::GetGravityZ() const
 bool UPupMovementComponent::ResolvePenetrationImpl(const FVector& Adjustment, const FHitResult& Hit,
 	const FQuat& NewRotation)
 {
-	AddAdjustment(Adjustment);
-	RenderHitResult(Hit, FColor::Green);
 	if (Hit.GetComponent())
 	{
+		// We shouldn't copy the velocity from slight floor glitches -- this could lead to the player
+		// being counted as being in the air.
+		const FVector AdjustmentWithoutBasis = Adjustment - FVector::DotProduct(Adjustment, FloorNormal) * FloorNormal;
+
+		// The further in the sweep the move had to occur, the faster we had to move out of the way
+		AddAdjustment(AdjustmentWithoutBasis / (1 - Hit.Time));
+		
+		RenderHitResult(Hit, FColor::Green);
 		IgnoredComponentsForSweep.Add(Hit.GetComponent());
 	}
 	
@@ -136,8 +142,7 @@ void UPupMovementComponent::StepMovement(const float DeltaTime)
 	{
 		// First check if we're on the floor
 		FHitResult FloorHit;
-		if (FindFloor(10.0f, FloorHit) &&
-			IsValidFloorHit(FloorHit) && FVector::DotProduct(Velocity, FloorNormal) <= KINDA_SMALL_NUMBER) // Avoid floating point errors..
+		if (FindFloor(10.0f, FloorHit, 2) && FVector::DotProduct(Velocity, FloorNormal) <= 1.0f) // Avoid floating point errors..
 		{
 			if (!bGrounded && MovementMode == EPupMovementMode::M_Falling)
 			{
@@ -167,7 +172,6 @@ void UPupMovementComponent::StepMovement(const float DeltaTime)
 			}
 		}
 	}
-	
 	if (MovementMode == EPupMovementMode::M_Recover && bIgnoreObstaclesWhenRecovering)
 	{
 		UpdatedComponent->SetWorldLocation(UpdatedComponent->GetComponentLocation() + Velocity * DeltaTime, false);
@@ -194,9 +198,6 @@ void UPupMovementComponent::StepMovement(const float DeltaTime)
 	// Update the alpha value to be used for turning friction
 	MovementSpeedAlpha = Velocity.IsNearlyZero() ? 0.0f : Velocity.Size2D() / MaxSpeed;
 
-	// Remember any penetration adjustments we had to do, and push the player next frame
-	Velocity += ConsumeAdjustments() / DeltaTime;
-
 	IgnoredComponentsForSweep.Empty();
 	
 	// Let our primitive component know what its new velocity should be
@@ -210,6 +211,16 @@ float UPupMovementComponent::SubstepMovement(const float DeltaTime)
 	FHitResult HitResult;
 	const FVector Movement = Velocity * DeltaTime;
 	SafeMoveUpdatedComponent(Movement, UpdatedComponent->GetComponentQuat(), true, HitResult);
+
+	// Remember any penetration adjustments we had to do, and push the player next frame
+	// Convert our adjustment into a new impulse, based on the DeltaTime that we had when it occurred
+	const FVector AdjustmentVelocity = ConsumeAdjustments() / DeltaTime;
+
+	if (!AdjustmentVelocity.IsNearlyZero())
+	{
+		AddImpulse(AdjustmentVelocity / 2);
+	}
+	
 	
 	if (HitResult.bBlockingHit)
 	{
@@ -246,6 +257,12 @@ bool UPupMovementComponent::SetMovementMode(const EPupMovementMode& NewMovementM
 			}
 			break;
 		}
+	case EPupMovementMode::M_Falling:
+		{
+			// If we detached from a floor platform, add the basis velocity to the player, because our reference frame has changed.
+			AddImpulse(BasisRelativeVelocity);
+			break;
+		}
 	default:
 		break;
 	}
@@ -263,7 +280,7 @@ EPupMovementMode UPupMovementComponent::GetMovementMode() const
 void UPupMovementComponent::SetDefaultMovementMode()
 {
 	FHitResult FloorResult;
-	if ((FindFloor(10.f, FloorResult) && Velocity.Z <= 0.0f) || bGrounded)
+	if ((FindFloor(10.f, FloorResult, 1) && Velocity.Z <= 0.0f) || bGrounded)
 	{
 		SetMovementMode(EPupMovementMode::M_Walking);
 		SnapToFloor(FloorResult);
@@ -283,22 +300,29 @@ void UPupMovementComponent::AddImpulse(const FVector Impulse)
 }
 
 
-bool UPupMovementComponent::FindFloor(float SweepDistance, FHitResult& OutHitResult)
+bool UPupMovementComponent::FindFloor(const float SweepDistance, FHitResult& OutHitResult, const int NumTries)
 {
 	const FVector SweepOffset = FVector::DownVector * SweepDistance;
-	if (SweepCapsule(SweepOffset, OutHitResult))
-	{		
-		RenderHitResult(OutHitResult);
-		if (IsValidFloorHit(OutHitResult))
+	for (int i = 0; i < NumTries; i++)
+	{
+		if (SweepCapsule(SweepOffset, OutHitResult, false))
 		{
-			CurrentFloorComponent = OutHitResult.GetComponent();
-			FloorNormal = OutHitResult.ImpactNormal;
-			return true;
+			RenderHitResult(OutHitResult);
+			if (IsValidFloorHit(OutHitResult))
+			{
+				CurrentFloorComponent = OutHitResult.GetComponent();
+				FloorNormal = OutHitResult.ImpactNormal;
+				return true;
+			}
+			if (OutHitResult.bStartPenetrating)
+			{
+				IgnoredComponentsForSweep.Add(OutHitResult.GetComponent());
+			}
 		}
-
-		// If this wasn't a valid floor hit, clear the hit result but keep the trace data
-		OutHitResult.Reset(1.f, true);
 	}
+	IgnoredComponentsForSweep.Empty();
+	// If this wasn't a valid floor hit, clear the hit result but keep the trace data
+	OutHitResult.Reset(1.f, true);
 	
 	return false;
 }
@@ -333,14 +357,13 @@ bool UPupMovementComponent::Jump()
 	if (bCanJump)
 	{
 		AddImpulse(UpdatedComponent->GetUpVector() * JumpInitialVelocity);
-
-		// If we detached from a floor platform, add the basis velocity to the player, because our reference frame has changed.
-		AddImpulse(BasisRelativeVelocity);
 		
 		JumpAppliedVelocity += JumpInitialVelocity;
 		bCanJump = false;
 		bJumping = true;
 
+		SetMovementMode(EPupMovementMode::M_Falling);
+		
 		if (UWorld* World = GetWorld())
 		{
 			if (MaxJumpTime > 0.0f)
@@ -577,8 +600,8 @@ FVector UPupMovementComponent::GetNewVelocity(const float DeltaTime)
 			FVector NewVelocity = Velocity + Acceleration * DeltaTime;
 
 			NewVelocity = ClampToPlaneMaxSize(NewVelocity, FloorNormal, MaxSpeed);
-			NewVelocity += ConsumeImpulse();
 			NewVelocity = ApplyFriction(NewVelocity, DeltaTime);
+			NewVelocity += ConsumeImpulse();
 			return NewVelocity;
 		}
 	case EPupMovementMode::M_Falling:
@@ -719,10 +742,12 @@ void UPupMovementComponent::ClearImpulse()
 	PendingImpulses = FVector::ZeroVector;
 }
 
+
 void UPupMovementComponent::AddAdjustment(const FVector& Adjustment)
 {
 	PendingAdjustments += Adjustment;
 }
+
 
 FVector UPupMovementComponent::ConsumeAdjustments()
 {
@@ -747,7 +772,7 @@ FVector UPupMovementComponent::ClampToPlaneMaxSize(const FVector& VectorIn, cons
 }
 
 
-bool UPupMovementComponent::SweepCapsule(const FVector Offset, FHitResult& OutHit) const
+bool UPupMovementComponent::SweepCapsule(const FVector Offset, FHitResult& OutHit, const bool bIgnoreInitialOverlap) const
 {
 	ATetherCharacter* Character = Cast<ATetherCharacter>(GetPawnOwner());
 	UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
@@ -761,6 +786,7 @@ bool UPupMovementComponent::SweepCapsule(const FVector Offset, FHitResult& OutHi
 		FCollisionQueryParams QueryParams = FCollisionQueryParams::DefaultQueryParam;
 		QueryParams.AddIgnoredActor(Character);
 		QueryParams.bIgnoreTouches = true;
+		QueryParams.bFindInitialOverlaps = !bIgnoreInitialOverlap;
 
 		for (UPrimitiveComponent* Component : IgnoredComponentsForSweep)
 		{

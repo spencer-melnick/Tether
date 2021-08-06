@@ -92,7 +92,7 @@ public:
 
 	
 	/** Sweeps for a valid floor beneath the character. If true, OutHitResult contains the sweep result */
-	bool FindFloor(float SweepDistance, FHitResult& OutHitResult);
+	bool FindFloor(float SweepDistance, FHitResult& OutHitResult, const int NumTries);
 
 	/** Checks if the hit result was for a valid floor based on component settings and floor slope */
 	bool IsValidFloorHit(const FHitResult& FloorHit) const;
@@ -166,7 +166,7 @@ private:
 	// Utilities
 	static FVector ClampToPlaneMaxSize(const FVector& VectorIn, const FVector& Normal, const float MaxSize);
 
-	bool SweepCapsule(const FVector Offset, FHitResult& OutHit) const;
+	bool SweepCapsule(const FVector Offset, FHitResult& OutHit, const bool bIgnoreInitialOverlap = false) const;
 
 	void RenderHitResult(const FHitResult& HitResult, const FColor Color = FColor::White) const;
 
