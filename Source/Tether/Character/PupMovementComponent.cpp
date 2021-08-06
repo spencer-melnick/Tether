@@ -47,8 +47,7 @@ void UPupMovementComponent::BeginPlay()
 	Super::BeginPlay();
 
 	SetDefaultMovementMode();
-	Velocity.Z = -1.0f;
-
+	LastBasisPosition = UpdatedComponent->GetComponentLocation();
 }
 
 
@@ -103,12 +102,24 @@ float UPupMovementComponent::GetGravityZ() const
 bool UPupMovementComponent::ResolvePenetrationImpl(const FVector& Adjustment, const FHitResult& Hit,
 	const FQuat& NewRotation)
 {
+	AddAdjustment(Adjustment);
+	RenderHitResult(Hit, FColor::Green);
+	if (Hit.GetComponent())
+	{
+		IgnoredComponentsForSweep.Add(Hit.GetComponent());
+	}
+	
 	return Super::ResolvePenetrationImpl(Adjustment, Hit, NewRotation);
 }
 
 
-void UPupMovementComponent::StepMovement(float DeltaTime)
-{	
+void UPupMovementComponent::StepMovement(const float DeltaTime)
+{
+	if (Velocity == FVector::ZeroVector)
+	{
+		HandleExternalOverlaps(DeltaTime);
+	}
+	
 	MagnetToBasis(1.0f, DeltaTime);
 	
 	// Update rotation
@@ -156,11 +167,6 @@ void UPupMovementComponent::StepMovement(float DeltaTime)
 			}
 		}
 	}
-
-	if (Velocity == FVector::ZeroVector)
-	{
-		HandleExternalOverlaps(DeltaTime);
-	}
 	
 	if (MovementMode == EPupMovementMode::M_Recover && bIgnoreObstaclesWhenRecovering)
 	{
@@ -168,12 +174,14 @@ void UPupMovementComponent::StepMovement(float DeltaTime)
 	}
 	else
 	{
+		Velocity = Velocity.GetClampedToMaxSize(TerminalVelocity);
+		float NewDeltaTime = DeltaTime;
 		// Break up physics into substeps based on collisions
 		int32 NumSubsteps = 0;
 		while (NumSubsteps < PupMovementCVars::MaxSubsteps && DeltaTime > SMALL_NUMBER)
 		{
 			NumSubsteps++;
-			DeltaTime -= SubstepMovement(DeltaTime);
+			NewDeltaTime -= SubstepMovement(NewDeltaTime);
 		}
 	}
 
@@ -186,6 +194,11 @@ void UPupMovementComponent::StepMovement(float DeltaTime)
 	// Update the alpha value to be used for turning friction
 	MovementSpeedAlpha = Velocity.IsNearlyZero() ? 0.0f : Velocity.Size2D() / MaxSpeed;
 
+	// Remember any penetration adjustments we had to do, and push the player next frame
+	Velocity += ConsumeAdjustments() / DeltaTime;
+
+	IgnoredComponentsForSweep.Empty();
+	
 	// Let our primitive component know what its new velocity should be
 	UpdateComponentVelocity();
 	StoreBasisTransformPostUpdate();
@@ -199,8 +212,13 @@ float UPupMovementComponent::SubstepMovement(const float DeltaTime)
 	SafeMoveUpdatedComponent(Movement, UpdatedComponent->GetComponentQuat(), true, HitResult);
 	
 	if (HitResult.bBlockingHit)
-	{		
-		const float ImpactVelocityMagnitude = FMath::Max(FVector::DotProduct(-HitResult.Normal, Velocity), 0.f);
+	{
+		FVector RelativeVelocity = Velocity;
+		if (HitResult.GetComponent())
+		{
+			RelativeVelocity -= HitResult.GetComponent()->GetComponentVelocity();
+		}
+		const float ImpactVelocityMagnitude = FMath::Max(FVector::DotProduct(-HitResult.Normal, RelativeVelocity), 0.f);
 		Velocity += HitResult.Normal * ImpactVelocityMagnitude;
 
 		return HitResult.Time * DeltaTime;
@@ -290,7 +308,7 @@ bool UPupMovementComponent::IsValidFloorHit(const FHitResult& FloorHit) const
 {
 	// Check if we actually hit a floor component
 	const UPrimitiveComponent* FloorComponent = FloorHit.GetComponent();
-	if (FloorComponent && FloorComponent->CanCharacterStepUp(GetPawnOwner()) && FloorHit.ImpactNormal.Z >= MaxInclineZComponent)
+	if (FloorComponent && FloorComponent->CanCharacterStepUp(GetPawnOwner()) && FloorHit.ImpactNormal.Z >= MaxInclineZComponent && FloorHit.Normal.Z >= MaxInclineZComponent)
 	{
 		return true;
 	}
@@ -462,6 +480,7 @@ void UPupMovementComponent::EndRecovery()
 	Velocity.X = 0.0f;
 	Velocity.Y = 0.0f;
 	UpdatedComponent->SetWorldLocation(LastValidLocation + RecoveryLevitationHeight * UpdatedComponent->GetUpVector());
+	LastBasisPosition = UpdatedComponent->GetComponentLocation();
 	ClearImpulse();
 	SetDefaultMovementMode();
 }
@@ -700,6 +719,17 @@ void UPupMovementComponent::ClearImpulse()
 	PendingImpulses = FVector::ZeroVector;
 }
 
+void UPupMovementComponent::AddAdjustment(const FVector& Adjustment)
+{
+	PendingAdjustments += Adjustment;
+}
+
+FVector UPupMovementComponent::ConsumeAdjustments()
+{
+	const FVector AdjustmentTotal = PendingAdjustments;
+	PendingAdjustments = FVector::ZeroVector;
+	return AdjustmentTotal;
+}
 
 
 // Utilities
@@ -731,6 +761,11 @@ bool UPupMovementComponent::SweepCapsule(const FVector Offset, FHitResult& OutHi
 		FCollisionQueryParams QueryParams = FCollisionQueryParams::DefaultQueryParam;
 		QueryParams.AddIgnoredActor(Character);
 		QueryParams.bIgnoreTouches = true;
+
+		for (UPrimitiveComponent* Component : IgnoredComponentsForSweep)
+		{
+			QueryParams.AddIgnoredComponent(Component);
+		}
 
 		const FCollisionResponseParams ResponseParams = FCollisionResponseParams::DefaultResponseParam;
 
@@ -797,7 +832,8 @@ void UPupMovementComponent::HandleExternalOverlaps(const float DeltaTime)
 			GetWorld()->SweepSingleByChannel(EscapeHit, StartLocation, EndLocation, Rotator, ECollisionChannel::ECC_WorldDynamic, PrimitiveComponent->GetCollisionShape(), CollisionQueryParams);
 			if (EscapeHit.GetComponent())
 			{
-				UpdatedComponent->AddWorldOffset(EscapeHit.ImpactNormal * EscapeHit.PenetrationDepth);
+				FVector Adjustment = GetPenetrationAdjustment(EscapeHit);
+				ResolvePenetration(Adjustment, EscapeHit, UpdatedComponent->GetComponentQuat());
 			}
 		}
 	}

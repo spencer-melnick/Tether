@@ -155,7 +155,13 @@ private:
 	FVector ConsumeImpulse();
 
 	void ClearImpulse();
+
+
+	void AddAdjustment(const FVector& Adjustment);
 	
+	FVector ConsumeAdjustments();
+	
+
 	
 	// Utilities
 	static FVector ClampToPlaneMaxSize(const FVector& VectorIn, const FVector& Normal, const float MaxSize);
@@ -235,8 +241,8 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Jumping", meta = (ClampMin = 0.0f, ClampMax = 1.0f))
 	float AirControlFactor = 0.2f;
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Jumping")
-	float TerminalVelocity = -4000.f;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Jumping", meta = (ClampMin = 0.0f))
+	float TerminalVelocity = 4000.f;
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement|Jumping")
 	bool bGrounded = false;
@@ -321,6 +327,8 @@ private:
 	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Movement|Planar|Basis");
 	FVector BasisRelativeVelocity;
 
+	UPROPERTY(Transient)
+	TArray<UPrimitiveComponent*> IgnoredComponentsForSweep;
 	
 	UPROPERTY(Transient)
 	FVector PendingImpulses;
@@ -329,6 +337,10 @@ private:
 	
 	float JumpAppliedVelocity;
 
+
+
+	FVector PendingAdjustments = FVector::ZeroVector;
+	
 	
 	// Timer Handles
 	FTimerHandle CoyoteTimerHandle;
