@@ -255,9 +255,9 @@ bool ATetherCharacter::CanMove() const
 }
 
 void ATetherCharacter::Deflect(
-	FVector DeflectionNormal, float DeflectionScale,
-	FVector InstigatorVelocity, float InstigatorFactor,
-	float Elasticity, float DeflectTime, bool bLaunchVertically, bool bForceBreak)
+	FVector DeflectionNormal, const float DeflectionScale,
+	const FVector InstigatorVelocity, const float InstigatorFactor,
+	const float Elasticity, const float DeflectTime, const bool bLaunchVertically, const bool bForceBreak)
 {
 	if (bAnchored && bForceBreak)
 	{
@@ -356,25 +356,9 @@ void ATetherCharacter::DropObject()
 
 void ATetherCharacter::AnchorToObject(AActor* Object)
 {
-	FVector ClosestPoint = GrabHandle->GetComponentLocation();
-
-	// Search only along XY in world space
-	if(UPrimitiveComponent* Target = Cast<UPrimitiveComponent>(Object->GetRootComponent()))
+	if (UPrimitiveComponent* Component = Cast<UPrimitiveComponent>(Object->GetComponentByClass(UPrimitiveComponent::StaticClass())))
 	{
-		if(Target->GetDistanceToCollision(FVector(ClosestPoint.X, ClosestPoint.Y, Target->GetComponentLocation().Z), ClosestPoint) < 0.0f)
-		{
-			// If for some reason the search failed, anchor the character to their current location
-			ClosestPoint = GetActorLocation();
-		}
+		MovementComponent->AnchorToComponent(Component);
 	}
-	
-	MovementComponent->SetMovementMode(EPupMovementMode::M_Anchored);
-	const FVector Distance = ClosestPoint - GetActorLocation();
-	const FRotator Rotation = Distance.ToOrientationRotator();
-	ClosestPoint -= GrabHandle->GetRelativeLocation().RotateAngleAxis(Rotation.Yaw, FVector::UpVector);
-
-	MovementComponent->AnchorToLocation(ClosestPoint);
-	
-	bAnchored = true;
 }
 

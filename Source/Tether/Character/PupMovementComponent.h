@@ -63,7 +63,7 @@ public:
 
 	/** Grab onto a specific location, preventing the player from falling or moving */
 	UFUNCTION(BlueprintCallable)
-	void AnchorToLocation(const FVector& AnchorLocationIn);
+	void AnchorToComponent(UPrimitiveComponent* AnchorTargetComponent);
 
 	/** Have the player let go of an anchor point, optionally forcing them */
 	UFUNCTION(BlueprintCallable)
@@ -252,8 +252,11 @@ public:
 
 
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Transient, Category = "Movement|Anchored")
-	FVector AnchorLocation;
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement|Anchored")
+	FVector AnchorRelativeLocation;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement|Anchored")
+	FVector AnchorWorldLocation;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Anchored")
 	float SnapVelocity = 1000.0f;
@@ -315,6 +318,9 @@ private:
 	UPROPERTY(Transient)
 	UPrimitiveComponent* CurrentFloorComponent;
 
+	UPROPERTY(Transient)
+	UPrimitiveComponent* AnchorTarget;
+	
 	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Movement|Planar|Basis");
 	FVector LastBasisPosition;
 	
@@ -329,18 +335,16 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<UPrimitiveComponent*> IgnoredComponentsForSweep;
-	
-	UPROPERTY(Transient)
-	FVector PendingImpulses;
 
 	FVector DeflectDirection;
 	
 	float JumpAppliedVelocity;
 
-
-
+	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Movement|Other")
 	FVector PendingAdjustments = FVector::ZeroVector;
-	
+
+	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Movement|Other")
+	FVector PendingImpulses;
 	
 	// Timer Handles
 	FTimerHandle CoyoteTimerHandle;

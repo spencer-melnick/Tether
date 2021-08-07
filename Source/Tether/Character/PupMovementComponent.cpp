@@ -102,32 +102,37 @@ float UPupMovementComponent::GetGravityZ() const
 bool UPupMovementComponent::ResolvePenetrationImpl(const FVector& Adjustment, const FHitResult& Hit,
 	const FQuat& NewRotation)
 {
-	if (Hit.GetComponent())
+	if (MovementMode == EPupMovementMode::M_Walking || MovementMode == EPupMovementMode::M_Falling || MovementMode == EPupMovementMode::M_Deflected)
 	{
-		// We shouldn't copy the velocity from slight floor glitches -- this could lead to the player
-		// being counted as being in the air.
-		const FVector AdjustmentWithoutBasis = Adjustment - FVector::DotProduct(Adjustment, FloorNormal) * FloorNormal;
+		if (Hit.GetComponent())
+		{
+			// We shouldn't copy the velocity from slight floor glitches -- this could lead to the player
+			// being counted as being in the air.
+			const FVector AdjustmentWithoutBasis = Adjustment - FVector::DotProduct(Adjustment, FloorNormal) * FloorNormal;
 
-		// The further in the sweep the move had to occur, the faster we had to move out of the way
-		AddAdjustment(AdjustmentWithoutBasis / (1 - Hit.Time));
-		
-		RenderHitResult(Hit, FColor::Green);
-		IgnoredComponentsForSweep.Add(Hit.GetComponent());
+			if (AdjustmentWithoutBasis.Size() >= 1.0f)
+			{
+				// The further in the sweep the move had to occur, the faster we had to move out of the way
+				// AddAdjustment(AdjustmentWithoutBasis / (1 - Hit.Time));
+				DrawDebugDirectionalArrow(GetWorld(), UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentLocation() + AdjustmentWithoutBasis * 10.0f, 10.0f, FColor::Red, false, 20.0f, -1);
+			}
+			
+			RenderHitResult(Hit, FColor::Green);
+			IgnoredComponentsForSweep.Add(Hit.GetComponent());
+		}
 	}
-	
 	return Super::ResolvePenetrationImpl(Adjustment, Hit, NewRotation);
 }
 
 
 void UPupMovementComponent::StepMovement(const float DeltaTime)
 {
+	MagnetToBasis(1.0f, DeltaTime);
 	if (Velocity == FVector::ZeroVector)
 	{
 		HandleExternalOverlaps(DeltaTime);
 	}
-	
-	MagnetToBasis(1.0f, DeltaTime);
-	
+
 	// Update rotation
 	const FRotator NewRotation = GetNewRotation(DeltaTime);
 	if (UpdatedComponent)
@@ -142,15 +147,23 @@ void UPupMovementComponent::StepMovement(const float DeltaTime)
 	{
 		// First check if we're on the floor
 		FHitResult FloorHit;
-		if (FindFloor(10.0f, FloorHit, 2) && FVector::DotProduct(Velocity, FloorNormal) <= 1.0f) // Avoid floating point errors..
+		if (FindFloor(1000.0f, FloorHit, 2))
 		{
-			if (!bGrounded && MovementMode == EPupMovementMode::M_Falling)
-			{
-				Land();
-			}
-			bGrounded = true;
-			Velocity -= FVector::DotProduct(Velocity, FloorNormal) * FloorNormal;
 			SnapToFloor(FloorHit);
+			if ( FVector::DotProduct(Velocity, FloorNormal) <= 100.0f ) // Avoid floating point errors..
+			{
+				if (!bGrounded && MovementMode == EPupMovementMode::M_Falling)
+				{
+					Land();
+				}
+				bGrounded = true;
+				Velocity -= FVector::DotProduct(Velocity, FloorNormal) * FloorNormal;
+				// SnapToFloor(FloorHit);
+			}
+			else
+			{
+				RenderHitResult(FloorHit, FColor::Purple);
+			}
 		}
 		else
 		{
@@ -221,7 +234,6 @@ float UPupMovementComponent::SubstepMovement(const float DeltaTime)
 		AddImpulse(AdjustmentVelocity / 2);
 	}
 	
-	
 	if (HitResult.bBlockingHit)
 	{
 		FVector RelativeVelocity = Velocity;
@@ -259,8 +271,11 @@ bool UPupMovementComponent::SetMovementMode(const EPupMovementMode& NewMovementM
 		}
 	case EPupMovementMode::M_Falling:
 		{
-			// If we detached from a floor platform, add the basis velocity to the player, because our reference frame has changed.
-			AddImpulse(BasisRelativeVelocity);
+			if (MovementMode != EPupMovementMode::M_Anchored)
+			{
+				// If we detached from a floor platform, add the basis velocity to the player, because our reference frame has changed.
+				AddImpulse(BasisRelativeVelocity);
+			}
 			break;
 		}
 	default:
@@ -292,11 +307,37 @@ void UPupMovementComponent::SetDefaultMovementMode()
 	}
 }
 
+void UPupMovementComponent::AnchorToComponent(UPrimitiveComponent* AnchorTargetComponent)
+{
+	if (!AnchorTargetComponent)
+	{
+		return;
+	}
+	
+	FHitResult AnchorTestHit;
+	const FVector Offset = AnchorTargetComponent->GetComponentLocation() - UpdatedComponent->GetComponentLocation();
+	SweepCapsule(Offset, AnchorTestHit);
+
+	if (AnchorTargetComponent == AnchorTestHit.GetComponent())
+	{
+		AnchorTarget = AnchorTargetComponent;
+		AnchorWorldLocation = AnchorTestHit.Location;
+		const FVector Distance = UpdatedComponent->GetComponentLocation() - AnchorTarget->GetComponentLocation();
+		
+		AnchorRelativeLocation =  FVector(FVector::DotProduct(Distance, AnchorTarget->GetForwardVector()),
+			FVector::DotProduct(Distance, AnchorTarget->GetRightVector()),
+			FVector::DotProduct(Distance, AnchorTarget->GetUpVector()));
+
+		SetMovementMode(EPupMovementMode::M_Anchored);
+	}
+}
 
 
 void UPupMovementComponent::AddImpulse(const FVector Impulse)
 {
 	PendingImpulses += Impulse;
+	DrawDebugDirectionalArrow(GetWorld(), UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentLocation() + Impulse, 10.0f, FColor::Green, false, 20.0f, -1);
+
 }
 
 
@@ -305,17 +346,20 @@ bool UPupMovementComponent::FindFloor(const float SweepDistance, FHitResult& Out
 	const FVector SweepOffset = FVector::DownVector * SweepDistance;
 	for (int i = 0; i < NumTries; i++)
 	{
-		if (SweepCapsule(SweepOffset, OutHitResult, false))
+		FHitResult IterativeHitResult;
+		if (SweepCapsule(SweepOffset, IterativeHitResult, false))
 		{
-			RenderHitResult(OutHitResult);
-			if (IsValidFloorHit(OutHitResult))
+			OutHitResult = IterativeHitResult;
+			RenderHitResult(IterativeHitResult);
+			if (IsValidFloorHit(IterativeHitResult))
 			{
-				CurrentFloorComponent = OutHitResult.GetComponent();
-				FloorNormal = OutHitResult.ImpactNormal;
+				CurrentFloorComponent = IterativeHitResult.GetComponent();
+				FloorNormal = IterativeHitResult.ImpactNormal;
 				return true;
 			}
 			if (OutHitResult.bStartPenetrating)
 			{
+				ResolvePenetration(GetPenetrationAdjustment(OutHitResult), OutHitResult, UpdatedComponent->GetComponentQuat());
 				IgnoredComponentsForSweep.Add(OutHitResult.GetComponent());
 			}
 		}
@@ -332,9 +376,12 @@ bool UPupMovementComponent::IsValidFloorHit(const FHitResult& FloorHit) const
 {
 	// Check if we actually hit a floor component
 	const UPrimitiveComponent* FloorComponent = FloorHit.GetComponent();
-	if (FloorComponent && FloorComponent->CanCharacterStepUp(GetPawnOwner()) && FloorHit.ImpactNormal.Z >= MaxInclineZComponent && FloorHit.Normal.Z >= MaxInclineZComponent)
+	if (FloorComponent && FloorComponent->CanCharacterStepUp(GetPawnOwner()))
 	{
-		return true;
+		if (FloorHit.ImpactNormal.Z >= MaxInclineZComponent)
+		{
+			return true;
+		}
 	}
 	return false;
 }
@@ -343,7 +390,7 @@ bool UPupMovementComponent::IsValidFloorHit(const FHitResult& FloorHit) const
 void UPupMovementComponent::SnapToFloor(const FHitResult& FloorHit)
 {
 	FHitResult DiscardHit;
-
+	DrawDebugPoint(GetWorld(), UpdatedComponent->GetComponentLocation(), 5.0f, FColor::Blue, false, 20.0f, -1);
 	if (CheckFloorValidWithinRange(MinimumSafeRadius, FloorHit))
 	{
 		LastValidLocation = FloorHit.Location;
@@ -401,16 +448,6 @@ void UPupMovementComponent::RegainControl()
 }
 
 
-void UPupMovementComponent::AnchorToLocation(const FVector& AnchorLocationIn)
-{
-	bIsWalking = false;
-	AnchorLocation = AnchorLocationIn;
-	MovementMode = EPupMovementMode::M_Anchored;
-	const FVector Offset = AnchorLocationIn - UpdatedComponent->GetComponentLocation();
-	DesiredRotation = FRotator(0.0f, FMath::RadiansToDegrees(FMath::Atan2(Offset.Y, Offset.X)), 0.0f);
-}
-
-
 void UPupMovementComponent::Deflect(const FVector& DeflectionVelocity, const float DeflectTime)
 {
 	// Don't deflect the character if they are recovering or aren't set to a movement mode
@@ -437,7 +474,8 @@ void UPupMovementComponent::Deflect(const FVector& DeflectionVelocity, const flo
 
 void UPupMovementComponent::BreakAnchor(const bool bForceBreak)
 {
-	AnchorLocation = FVector::ZeroVector;
+	// These should be thrown out, since any that occurred during the move are invalid
+	ConsumeAdjustments();
 	if (bForceBreak)
 	{
 		MovementMode = EPupMovementMode::M_Deflected;
@@ -446,6 +484,8 @@ void UPupMovementComponent::BreakAnchor(const bool bForceBreak)
 	{
 		SetDefaultMovementMode();
 	}
+	AnchorRelativeLocation = FVector::ZeroVector;
+	AnchorWorldLocation = FVector::ZeroVector;
 }
 
 
@@ -458,6 +498,7 @@ void UPupMovementComponent::Land()
 
 void UPupMovementComponent::Fall()
 {
+	GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Blue, TEXT("Player fell."));
 	SetMovementMode(EPupMovementMode::M_Falling);
 	if (UWorld* World = GetWorld())
 	{
@@ -615,10 +656,8 @@ FVector UPupMovementComponent::GetNewVelocity(const float DeltaTime)
 		}
 	case EPupMovementMode::M_Anchored:
 		{
-			const FVector Offset = AnchorLocation - UpdatedComponent->GetComponentLocation();
-			FVector NewVelocity = Offset.GetSafeNormal() * SnapVelocity;
-			NewVelocity.Z = 0.0f;
-			return NewVelocity;
+			UpdatedComponent->SetWorldLocation(FMath::VInterpConstantTo(UpdatedComponent->GetComponentLocation(), AnchorWorldLocation, DeltaTime, SnapVelocity));
+			return FVector::ZeroVector;
 		}
 	case EPupMovementMode::M_Deflected:
 		{
@@ -689,8 +728,9 @@ void UPupMovementComponent::MagnetToBasis(const float VelocityFactor, const floa
 		const float DeltaYaw = CurrentFloorComponent->GetComponentRotation().Yaw - LastBasisRotation.Yaw;
 		const FRotator DeltaRotation = FRotator(0.0f, DeltaYaw, 0.0f);
 
+		DrawDebugLine(GetWorld(), UpdatedComponent->GetComponentLocation(), FloorPositionAfterUpdate, FColor::Purple, false, 20.0f, -2);
 		BasisRelativeVelocity = FloorPositionAfterUpdate - UpdatedComponent->GetComponentLocation();
-		UpdatedComponent->AddWorldOffset(BasisRelativeVelocity * VelocityFactor);
+		UpdatedComponent->AddWorldOffset(BasisRelativeVelocity * VelocityFactor, true);
 		BasisRelativeVelocity /= DeltaTime;
 		DesiredRotation += DeltaRotation;
 		UpdatedComponent->AddWorldRotation(DeltaRotation * VelocityFactor);
@@ -698,6 +738,8 @@ void UPupMovementComponent::MagnetToBasis(const float VelocityFactor, const floa
 	else
 	{
 		BasisRelativeVelocity = FVector::ZeroVector;
+		LastBasisPosition = UpdatedComponent->GetComponentLocation();
+		LastBasisRotation = DesiredRotation;
 	}
 }
 
@@ -809,9 +851,9 @@ void UPupMovementComponent::RenderHitResult(const FHitResult& HitResult, const F
 		if (HitResult.GetComponent())
 		{
 			DrawDebugLine(GetWorld(), HitResult.ImpactPoint, HitResult.ImpactPoint + HitResult.Normal * 100.0f, Color,
-	false, 1.0f, 1.0f, 2.0f);
+	false, 0.02f, 1.0f, 2.0f);
 			DrawDebugLine(GetWorld(), HitResult.ImpactPoint, HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f, Color,
-	false, 1.0f, 1.0f, 2.0f);
+	false, 0.02f, 1.0f, 2.0f);
 			DrawDebugString(GetWorld(), HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f,
 			HitResult.GetComponent()->GetName(), nullptr, Color, 0.02f, false, 1.0f);
 		}
