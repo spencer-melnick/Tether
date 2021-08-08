@@ -31,11 +31,26 @@ namespace PupMovementCVars
 		MaxSubsteps,
 		TEXT("Maximum number of substeps to perform while resolving movement collision"),
 		ECVF_Default);
+
+	static float FloorPadding = 0.01f;
+	static FAutoConsoleVariableRef CVarFloorPadding(
+		TEXT("PupMovement.FloorPadding"),
+		FloorPadding,
+		TEXT("The minimum distance when snapping to the floor."),
+		ECVF_Default);
+	
 	static float KillZ = -100.0f;
 	static FAutoConsoleVariableRef CVarKillZ(
 		TEXT("PupMovement.KillZ"),
 		KillZ,
 		TEXT("Minimum Z value to kill the player"),
+		ECVF_Default);
+
+	static bool GBDrawMovementDebug = false;
+	static FAutoConsoleVariableRef CVarGBDrawMovementDebug(
+		TEXT("PupMovement.GBDrawMovementDebug"),
+		GBDrawMovementDebug,
+		TEXT("Draw lines for debugging the movement?"),
 		ECVF_Default);
 }
 
@@ -105,6 +120,11 @@ float UPupMovementComponent::GetGravityZ() const
 bool UPupMovementComponent::ResolvePenetrationImpl(const FVector& Adjustment, const FHitResult& Hit,
 	const FQuat& NewRotation)
 {
+	if (PupMovementCVars::GBDrawMovementDebug)
+	{
+		DrawDebugDirectionalArrow(GetWorld(), UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentLocation() + Adjustment * 1.0f, 5.0f, FColor::Blue, false, 10.0f);
+		DrawDebugString(GetWorld(), UpdatedComponent->GetComponentLocation() + FVector(0.0f, 0.0f, 20.0f), UpdatedComponent->ComponentVelocity.ToString(), nullptr, FColor::Blue, 5.0f);
+	}
 	if (MatchModes(MovementMode, {EPupMovementMode::M_Walking, EPupMovementMode::M_Falling, EPupMovementMode::M_Deflected}))
 	{
 		if (Hit.GetComponent())
@@ -116,7 +136,10 @@ bool UPupMovementComponent::ResolvePenetrationImpl(const FVector& Adjustment, co
 			{
 				// The further in the sweep the move had to occur, the faster we had to move out of the way
 				AddAdjustment(AdjustmentWithoutBasis / (1 - Hit.Time));
-				DrawDebugDirectionalArrow(GetWorld(), UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentLocation() + Adjustment * 10.0f, 5.0f, FColor::Green, false, 10.0f);
+				if (PupMovementCVars::GBDrawMovementDebug)
+				{
+					DrawDebugDirectionalArrow(GetWorld(), UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentLocation() + Adjustment * 10.0f, 5.0f, FColor::Green, false, 10.0f);
+				}
 			}
 			RenderHitResult(Hit, FColor::Green);
 			IgnoredComponentsForSweep.Add(Hit.GetComponent());
@@ -334,7 +357,7 @@ bool UPupMovementComponent::FindFloor(const float SweepDistance, FHitResult& Out
 	for (int i = 0; i < NumTries; i++)
 	{
 		FHitResult IterativeHitResult;
-		if (SweepCapsule(SweepOffset, IterativeHitResult, false))
+		if (SweepCapsule(FVector(0.0f, 0.0f, 10.0f),SweepOffset, IterativeHitResult, false))
 		{
 			OutHitResult = IterativeHitResult;
 			RenderHitResult(IterativeHitResult, FColor::White, true);
@@ -368,7 +391,8 @@ bool UPupMovementComponent::IsValidFloorHit(const FHitResult& FloorHit) const
 		// Capsule traces will give us ImpactNormals that are sometimes 'glancing' edges
 		// so, the most realiable way of getting the floor's normal is with a line trace
 		FHitResult NormalLineTrace;
-		FloorComponent->LineTraceComponent(NormalLineTrace,
+		FloorComponent->LineTraceComponent(
+			NormalLineTrace,
 			UpdatedComponent->GetComponentLocation(),
 			UpdatedComponent->GetComponentLocation() + FVector(0.0f, 0.0f, -250.0f),
 			FCollisionQueryParams::DefaultQueryParam);
@@ -378,6 +402,7 @@ bool UPupMovementComponent::IsValidFloorHit(const FHitResult& FloorHit) const
 			return true;
 		}
 	}
+	// GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Green, TEXT("Floor found, but invalid."));
 	return false;
 }
 
@@ -389,7 +414,9 @@ void UPupMovementComponent::SnapToFloor(const FHitResult& FloorHit)
 	{
 		LastValidLocation = FloorHit.Location;
 	}
-	SafeMoveUpdatedComponent(FloorHit.Location - UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentQuat(), true, DiscardHit, ETeleportType::None);
+	SafeMoveUpdatedComponent(
+		FloorHit.Location - UpdatedComponent->GetComponentLocation() + FloorHit.Normal * PupMovementCVars::FloorPadding,
+		UpdatedComponent->GetComponentQuat(), true, DiscardHit, ETeleportType::None);
 }
 
 

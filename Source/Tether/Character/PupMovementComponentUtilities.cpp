@@ -24,14 +24,20 @@ FVector UPupMovementComponent::ClampToPlaneMaxSize(const FVector& VectorIn, cons
 
 bool UPupMovementComponent::SweepCapsule(const FVector Offset, FHitResult& OutHit, const bool bIgnoreInitialOverlap) const
 {
+	return SweepCapsule(FVector::ZeroVector, Offset, OutHit, bIgnoreInitialOverlap);
+}
+
+bool UPupMovementComponent::SweepCapsule(const FVector InitialOffset, const FVector Offset, FHitResult& OutHit,
+	const bool bIgnoreInitialOverlap) const
+{
 	ATetherCharacter* Character = Cast<ATetherCharacter>(GetPawnOwner());
 	UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
 	UWorld* World = GetWorld();
 
 	if (IsValid(Character) && IsValid(Capsule) && World)
 	{
-		const FVector Start = Capsule->GetComponentLocation();
-		const FVector End = Start + Offset;
+		const FVector Start = Capsule->GetComponentLocation() + InitialOffset;
+		const FVector End = Capsule->GetComponentLocation() + Offset;
 
 		FCollisionQueryParams QueryParams = FCollisionQueryParams::DefaultQueryParam;
 		QueryParams.AddIgnoredActor(Character);
@@ -60,9 +66,14 @@ void UPupMovementComponent::RenderHitResult(const FHitResult& HitResult, const F
 		{
 			// DrawDebugLine(GetWorld(), HitResult.ImpactPoint, HitResult.ImpactPoint + HitResult.Normal * 100.0f, Color,	false, 2.0f, -1, 2.0f);
 			DrawDebugLine(GetWorld(), HitResult.ImpactPoint, HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f, Color, false,
-				bPersistent ? 0.017f : 2.0f, -1, 2.0f);
+				bPersistent ? 0.015f : 2.0f, -1, 2.0f);
 			DrawDebugString(GetWorld(), HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f,
-			HitResult.GetComponent()->GetName(), nullptr, Color, 0.02f, false, 1.0f);
+			HitResult.GetComponent()->GetName(), nullptr, Color, 0.015f, false, 1.0f);
+			if (HitResult.GetComponent()->GetOwner())
+			{
+				DrawDebugString(GetWorld(), HitResult.ImpactPoint + HitResult.ImpactNormal * 150.0f,
+				HitResult.GetComponent()->GetOwner()->GetName(), nullptr, Color, 5.0f, false, 1.0f);
+			}
 		}
 	}
 }
@@ -88,6 +99,8 @@ bool UPupMovementComponent::CheckFloorValidWithinRange(const float Range, const 
 
 // ReSharper disable once CppMemberFunctionMayBeConst
 // This function may be changed to modify the movementcomponent directly, and probably should not be const forever
+
+/* This function is designed to resolve edge cases where another object pushes into the player */
 void UPupMovementComponent::HandleExternalOverlaps(const float DeltaTime)
 {
 	if (MovementMode == EPupMovementMode::M_Recover)
@@ -98,9 +111,15 @@ void UPupMovementComponent::HandleExternalOverlaps(const float DeltaTime)
 	{
 		if (OverlapTest(PrimitiveComponent->GetComponentLocation(), PrimitiveComponent->GetComponentQuat(), ECollisionChannel::ECC_WorldDynamic, PrimitiveComponent->GetCollisionShape(), GetOwner()))
 		{
+			// DrawDebugString(GetWorld(), PrimitiveComponent->GetComponentLocation(),TEXT("X"), nullptr, FColor::Red, 5.0f);
 			FHitResult EscapeHit;
-			const FVector StartLocation = UpdatedComponent->GetComponentLocation();
-			const FVector EndLocation = StartLocation + FVector::UpVector * 50.0f;
+			FVector EndLocation = UpdatedComponent->GetComponentLocation() + FVector::UpVector * 100.0f;
+			FVector StartLocation =  UpdatedComponent->GetComponentLocation();
+			if (!Velocity.IsNearlyZero())
+			{
+				EndLocation = StartLocation;
+				StartLocation = EndLocation + Velocity.GetClampedToMaxSize(100.0f);
+			}
 			const FQuat Rotator = UpdatedComponent->GetComponentQuat();
 			FCollisionQueryParams CollisionQueryParams = FCollisionQueryParams::DefaultQueryParam;
 			CollisionQueryParams.AddIgnoredActor(GetOwner());

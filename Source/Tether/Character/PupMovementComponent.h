@@ -172,6 +172,7 @@ private:
 	static FVector ClampToPlaneMaxSize(const FVector& VectorIn, const FVector& Normal, const float MaxSize);
 
 	bool SweepCapsule(const FVector Offset, FHitResult& OutHit, const bool bIgnoreInitialOverlap = false) const;
+	bool SweepCapsule(const FVector InitialOffset, const FVector Offset, FHitResult& OutHit, const bool bIgnoreInitialOverlap = false) const;
 
 	void RenderHitResult(const FHitResult& HitResult, const FColor Color = FColor::White, const bool bPersistent = false) const;
 
