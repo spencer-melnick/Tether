@@ -113,7 +113,7 @@ bool UPupMovementComponent::ResolvePenetrationImpl(const FVector& Adjustment, co
 			// being counted as being in the air.
 			const FVector AdjustmentWithoutBasis = Adjustment - FVector::DotProduct(Adjustment, FloorNormal) * FloorNormal;
 
-			if (AdjustmentWithoutBasis.Size() >= 1.0f)
+			if (AdjustmentWithoutBasis.Size() >= KINDA_SMALL_NUMBER)
 			{
 				// The further in the sweep the move had to occur, the faster we had to move out of the way
 				AddAdjustment(AdjustmentWithoutBasis / (1 - Hit.Time));
@@ -218,6 +218,7 @@ void UPupMovementComponent::UpdateVerticalMovement(const float DeltaTime)
 		}
 		else
 		{
+			bGrounded = false;
 			RenderHitResult(FloorHit, FColor::Purple);
 		}
 	}
@@ -309,15 +310,15 @@ void UPupMovementComponent::AnchorToComponent(UPrimitiveComponent* AnchorTargetC
 	AnchorTarget = AnchorTargetComponent;
 	// Anchor slightly away from the exact hit location to prevent getting stuck inside the object.
 	AnchorWorldLocation = AnchorTestHit.Location + AnchorTestHit.ImpactNormal * 2.0f;
-
+	
 	if (AnchorTargetComponent->Mobility == EComponentMobility::Movable)
 	{
-		const FVector Distance = UpdatedComponent->GetComponentLocation() - AnchorTarget->GetComponentLocation();
+		const FVector Distance = AnchorWorldLocation - AnchorTarget->GetComponentLocation();
 		AnchorRelativeLocation =  FVector(FVector::DotProduct(Distance, AnchorTarget->GetForwardVector()),
 			FVector::DotProduct(Distance, AnchorTarget->GetRightVector()),
 			FVector::DotProduct(Distance, AnchorTarget->GetUpVector()));
 	}
-
+	bIsWalking = false;
 	SetMovementMode(EPupMovementMode::M_Anchored);
 }
 
@@ -540,7 +541,7 @@ FVector UPupMovementComponent::GetNewVelocity(const float DeltaTime)
 		}
 	case EPupMovementMode::M_Anchored:
 		{
-			UpdatedComponent->SetWorldLocation(FMath::VInterpConstantTo(UpdatedComponent->GetComponentLocation(), AnchorWorldLocation, DeltaTime, SnapVelocity));
+			UpdatedComponent->SetWorldLocation(FMath::VInterpConstantTo(UpdatedComponent->GetComponentLocation(), AnchorWorldLocation, DeltaTime, SnapVelocity), false);
 			return FVector::ZeroVector;
 		}
 	case EPupMovementMode::M_Deflected:
@@ -601,6 +602,15 @@ FVector UPupMovementComponent::ApplySlidingFriction(const FVector& VelocityIn, c
 
 void UPupMovementComponent::MagnetToBasis(const float VelocityFactor, const float DeltaTime)
 {
+	if (MovementMode == EPupMovementMode::M_Anchored && AnchorTarget && AnchorTarget->Mobility == EComponentMobility::Movable)
+	{
+		AnchorWorldLocation = AnchorTarget->GetComponentLocation() + FVector(
+			FVector::DotProduct(AnchorRelativeLocation, AnchorTarget->GetForwardVector()),
+			FVector::DotProduct(AnchorRelativeLocation, AnchorTarget->GetRightVector()),
+			FVector::DotProduct(AnchorRelativeLocation, AnchorTarget->GetUpVector()));
+		return;
+	}
+	
 	if (bGrounded && CurrentFloorComponent && CurrentFloorComponent->Mobility == EComponentMobility::Movable)
 	{
 		// Where is this local space vector in world space now? How has it moved in world space?
@@ -646,7 +656,8 @@ FVector UPupMovementComponent::GetRelativeBasisPosition() const
 	{
 		const FVector Distance = UpdatedComponent->GetComponentLocation() - CurrentFloorComponent->GetComponentLocation();
 		
-		return FVector(FVector::DotProduct(Distance, CurrentFloorComponent->GetForwardVector()),
+		return FVector(
+			FVector::DotProduct(Distance, CurrentFloorComponent->GetForwardVector()),
 			FVector::DotProduct(Distance, CurrentFloorComponent->GetRightVector()),
 			FVector::DotProduct(Distance, CurrentFloorComponent->GetUpVector()));
 	}
