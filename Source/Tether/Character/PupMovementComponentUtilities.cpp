@@ -52,14 +52,15 @@ bool UPupMovementComponent::SweepCapsule(const FVector Offset, FHitResult& OutHi
 }
 
 
-void UPupMovementComponent::RenderHitResult(const FHitResult& HitResult, const FColor Color) const
+void UPupMovementComponent::RenderHitResult(const FHitResult& HitResult, const FColor Color, const bool bPersistent) const
 {
 	if (GEngine->GameViewport && GEngine->GameViewport->EngineShowFlags.Collision)
 	{
 		if (HitResult.GetComponent())
 		{
 			// DrawDebugLine(GetWorld(), HitResult.ImpactPoint, HitResult.ImpactPoint + HitResult.Normal * 100.0f, Color,	false, 2.0f, -1, 2.0f);
-			DrawDebugLine(GetWorld(), HitResult.ImpactPoint, HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f, Color,	false, 2.0f, -1, 2.0f);
+			DrawDebugLine(GetWorld(), HitResult.ImpactPoint, HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f, Color, false,
+				bPersistent ? 0.017f : 2.0f, -1, 2.0f);
 			DrawDebugString(GetWorld(), HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f,
 			HitResult.GetComponent()->GetName(), nullptr, Color, 0.02f, false, 1.0f);
 		}

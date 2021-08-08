@@ -173,7 +173,7 @@ private:
 
 	bool SweepCapsule(const FVector Offset, FHitResult& OutHit, const bool bIgnoreInitialOverlap = false) const;
 
-	void RenderHitResult(const FHitResult& HitResult, const FColor Color = FColor::White) const;
+	void RenderHitResult(const FHitResult& HitResult, const FColor Color = FColor::White, const bool bPersistent = false) const;
 
 	bool CheckFloorValidWithinRange(const float Range, const FHitResult& HitResult) const;
 

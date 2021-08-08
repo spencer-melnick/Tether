@@ -112,13 +112,12 @@ bool UPupMovementComponent::ResolvePenetrationImpl(const FVector& Adjustment, co
 			// We shouldn't copy the velocity from slight floor glitches -- this could lead to the player
 			// being counted as being in the air.
 			const FVector AdjustmentWithoutBasis = Adjustment - FVector::DotProduct(Adjustment, FloorNormal) * FloorNormal;
-
 			if (AdjustmentWithoutBasis.Size() >= KINDA_SMALL_NUMBER)
 			{
 				// The further in the sweep the move had to occur, the faster we had to move out of the way
 				AddAdjustment(AdjustmentWithoutBasis / (1 - Hit.Time));
+				DrawDebugDirectionalArrow(GetWorld(), UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentLocation() + Adjustment * 10.0f, 5.0f, FColor::Green, false, 10.0f);
 			}
-			
 			RenderHitResult(Hit, FColor::Green);
 			IgnoredComponentsForSweep.Add(Hit.GetComponent());
 		}
@@ -206,7 +205,7 @@ void UPupMovementComponent::UpdateVerticalMovement(const float DeltaTime)
 	FHitResult FloorHit;
 	if (FindFloor(10.0f, FloorHit, 2))
 	{
-		if (FVector::DotProduct(Velocity, FloorNormal) <= 1.0f) // Avoid floating point errors..
+		if (FVector::DotProduct(Velocity, FloorNormal) <= KINDA_SMALL_NUMBER) // Avoid floating point errors..
 		{
 			if (!bGrounded && MovementMode == EPupMovementMode::M_Falling)
 			{
@@ -338,7 +337,7 @@ bool UPupMovementComponent::FindFloor(const float SweepDistance, FHitResult& Out
 		if (SweepCapsule(SweepOffset, IterativeHitResult, false))
 		{
 			OutHitResult = IterativeHitResult;
-			RenderHitResult(IterativeHitResult);
+			RenderHitResult(IterativeHitResult, FColor::White, true);
 			if (IsValidFloorHit(IterativeHitResult))
 			{
 				CurrentFloorComponent = IterativeHitResult.GetComponent();
@@ -363,10 +362,18 @@ bool UPupMovementComponent::FindFloor(const float SweepDistance, FHitResult& Out
 bool UPupMovementComponent::IsValidFloorHit(const FHitResult& FloorHit) const
 {
 	// Check if we actually hit a floor component
-	const UPrimitiveComponent* FloorComponent = FloorHit.GetComponent();
+	UPrimitiveComponent* FloorComponent = FloorHit.GetComponent();
 	if (FloorComponent && FloorComponent->CanCharacterStepUp(GetPawnOwner()))
 	{
-		if (FloorHit.ImpactNormal.Z >= MaxInclineZComponent)
+		// Capsule traces will give us ImpactNormals that are sometimes 'glancing' edges
+		// so, the most realiable way of getting the floor's normal is with a line trace
+		FHitResult NormalLineTrace;
+		FloorComponent->LineTraceComponent(NormalLineTrace,
+			UpdatedComponent->GetComponentLocation(),
+			UpdatedComponent->GetComponentLocation() + FVector(0.0f, 0.0f, -250.0f),
+			FCollisionQueryParams::DefaultQueryParam);
+		RenderHitResult(NormalLineTrace, FColor::Red);
+		if (NormalLineTrace.ImpactNormal.Z >= MaxInclineZComponent)
 		{
 			return true;
 		}
@@ -604,17 +611,18 @@ void UPupMovementComponent::MagnetToBasis(const float VelocityFactor, const floa
 {
 	if (MovementMode == EPupMovementMode::M_Anchored && AnchorTarget && AnchorTarget->Mobility == EComponentMobility::Movable)
 	{
-		AnchorWorldLocation = AnchorTarget->GetComponentLocation() + FVector(
-			FVector::DotProduct(AnchorRelativeLocation, AnchorTarget->GetForwardVector()),
-			FVector::DotProduct(AnchorRelativeLocation, AnchorTarget->GetRightVector()),
-			FVector::DotProduct(AnchorRelativeLocation, AnchorTarget->GetUpVector()));
+		AnchorWorldLocation = AnchorTarget->GetComponentLocation() + 
+			AnchorRelativeLocation.X * AnchorTarget->GetForwardVector(),
+			AnchorRelativeLocation.Y * AnchorTarget->GetRightVector(),
+			AnchorRelativeLocation.Z * AnchorTarget->GetUpVector();
 		return;
 	}
 	
 	if (bGrounded && CurrentFloorComponent && CurrentFloorComponent->Mobility == EComponentMobility::Movable)
 	{
 		// Where is this local space vector in world space now? How has it moved in world space?
-		const FVector FloorPositionAfterUpdate = LocalBasisPosition.X * CurrentFloorComponent->GetForwardVector() +
+		const FVector FloorPositionAfterUpdate =
+			LocalBasisPosition.X * CurrentFloorComponent->GetForwardVector() +
 			LocalBasisPosition.Y * CurrentFloorComponent->GetRightVector() +
 			LocalBasisPosition.Z * CurrentFloorComponent->GetUpVector() +
 			CurrentFloorComponent->GetComponentLocation();
