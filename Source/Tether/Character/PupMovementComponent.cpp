@@ -3,7 +3,6 @@
 
 #include "PupMovementComponent.h"
 
-#include "AITypes.h"
 #include "DrawDebugHelpers.h"
 #include "TetherCharacter.h"
 #include "Components/CapsuleComponent.h"
@@ -32,14 +31,18 @@ namespace PupMovementCVars
 		MaxSubsteps,
 		TEXT("Maximum number of substeps to perform while resolving movement collision"),
 		ECVF_Default);
+	static float KillZ = -100.0f;
+	static FAutoConsoleVariableRef CVarKillZ(
+		TEXT("PupMovement.KillZ"),
+		KillZ,
+		TEXT("Minimum Z value to kill the player"),
+		ECVF_Default);
 }
 
 
 UPupMovementComponent::UPupMovementComponent()
 {
 }
-
-
 
 
 void UPupMovementComponent::BeginPlay()
@@ -55,7 +58,7 @@ void UPupMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType,
                                           FActorComponentTickFunction* TickFunction)
 {
 	// Gather all of the input we've accumulated since the last frame
-	HandleInputAxis();
+	HandleInputVectors();
 	
 	while (DeltaTime > SMALL_NUMBER)
 	{
@@ -102,7 +105,7 @@ float UPupMovementComponent::GetGravityZ() const
 bool UPupMovementComponent::ResolvePenetrationImpl(const FVector& Adjustment, const FHitResult& Hit,
 	const FQuat& NewRotation)
 {
-	if (MovementMode == EPupMovementMode::M_Walking || MovementMode == EPupMovementMode::M_Falling || MovementMode == EPupMovementMode::M_Deflected)
+	if (MatchModes(MovementMode, {EPupMovementMode::M_Walking, EPupMovementMode::M_Falling, EPupMovementMode::M_Deflected}))
 	{
 		if (Hit.GetComponent())
 		{
@@ -113,8 +116,7 @@ bool UPupMovementComponent::ResolvePenetrationImpl(const FVector& Adjustment, co
 			if (AdjustmentWithoutBasis.Size() >= 1.0f)
 			{
 				// The further in the sweep the move had to occur, the faster we had to move out of the way
-				// AddAdjustment(AdjustmentWithoutBasis / (1 - Hit.Time));
-				DrawDebugDirectionalArrow(GetWorld(), UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentLocation() + AdjustmentWithoutBasis * 10.0f, 10.0f, FColor::Red, false, 20.0f, -1);
+				AddAdjustment(AdjustmentWithoutBasis / (1 - Hit.Time));
 			}
 			
 			RenderHitResult(Hit, FColor::Green);
@@ -128,70 +130,16 @@ bool UPupMovementComponent::ResolvePenetrationImpl(const FVector& Adjustment, co
 void UPupMovementComponent::StepMovement(const float DeltaTime)
 {
 	MagnetToBasis(1.0f, DeltaTime);
-	if (Velocity == FVector::ZeroVector)
-	{
-		HandleExternalOverlaps(DeltaTime);
-	}
-
-	// Update rotation
-	const FRotator NewRotation = GetNewRotation(DeltaTime);
-	if (UpdatedComponent)
-	{
-		const float DeltaYaw = FMath::FindDeltaAngleDegrees(NewRotation.Yaw, UpdatedComponent->GetComponentRotation().Yaw);
-		TurningDirection = DeltaYaw;
-		UpdatedComponent->SetWorldRotation(NewRotation);
-	}
+	HandleExternalOverlaps(DeltaTime);
+	UpdateRotation(DeltaTime);
 	Velocity = GetNewVelocity(DeltaTime);
 
-	if (MovementMode == EPupMovementMode::M_Walking || MovementMode == EPupMovementMode::M_Falling || MovementMode == EPupMovementMode::M_Deflected)
+	if (MatchModes(MovementMode, {EPupMovementMode::M_Walking, EPupMovementMode::M_Falling, EPupMovementMode::M_Deflected}))
 	{
-		// First check if we're on the floor
-		FHitResult FloorHit;
-		if (FindFloor(1000.0f, FloorHit, 2))
-		{
-			SnapToFloor(FloorHit);
-			if ( FVector::DotProduct(Velocity, FloorNormal) <= 100.0f ) // Avoid floating point errors..
-			{
-				if (!bGrounded && MovementMode == EPupMovementMode::M_Falling)
-				{
-					Land();
-				}
-				bGrounded = true;
-				Velocity -= FVector::DotProduct(Velocity, FloorNormal) * FloorNormal;
-				// SnapToFloor(FloorHit);
-			}
-			else
-			{
-				RenderHitResult(FloorHit, FColor::Purple);
-			}
-		}
-		else
-		{
-			if (bGrounded && MovementMode == EPupMovementMode::M_Walking)
-			{
-				Fall();
-			}
-			bGrounded = false;
+		UpdateVerticalMovement(DeltaTime);
+		TryRegainControl();
 
-			// To avoid potential stuttering, only apply gravity if we're not on the ground
-			Velocity.Z += GetGravityZ() * DeltaTime;
-		}
-		
-		if (MovementMode == EPupMovementMode::M_Deflected)
-		{
-			if (FVector::DotProduct(DeflectDirection, Velocity) <= KINDA_SMALL_NUMBER)
-			{
-				RegainControl();
-			}
-		}
-	}
-	if (MovementMode == EPupMovementMode::M_Recover && bIgnoreObstaclesWhenRecovering)
-	{
-		UpdatedComponent->SetWorldLocation(UpdatedComponent->GetComponentLocation() + Velocity * DeltaTime, false);
-	}
-	else
-	{
-		Velocity = Velocity.GetClampedToMaxSize(TerminalVelocity);
+		// Velocity = Velocity.GetClampedToMaxSize(TerminalVelocity);
 		float NewDeltaTime = DeltaTime;
 		// Break up physics into substeps based on collisions
 		int32 NumSubsteps = 0;
@@ -200,17 +148,17 @@ void UPupMovementComponent::StepMovement(const float DeltaTime)
 			NumSubsteps++;
 			NewDeltaTime -= SubstepMovement(NewDeltaTime);
 		}
+		if (UpdatedComponent->GetComponentLocation().Z <= PupMovementCVars::KillZ)
+		{
+			Recover();
+		}
 	}
-
-	const float KillHeight = -100.0f;
-	if (UpdatedComponent->GetComponentLocation().Z <= KillHeight && MovementMode != EPupMovementMode::M_Recover)
+	else if (MovementMode == EPupMovementMode::M_Recover && bIgnoreObstaclesWhenRecovering)
 	{
-		Recover();
+		UpdatedComponent->SetWorldLocation(UpdatedComponent->GetComponentLocation() + Velocity * DeltaTime, false);
 	}
-
 	// Update the alpha value to be used for turning friction
 	MovementSpeedAlpha = Velocity.IsNearlyZero() ? 0.0f : Velocity.Size2D() / MaxSpeed;
-
 	IgnoredComponentsForSweep.Empty();
 	
 	// Let our primitive component know what its new velocity should be
@@ -249,6 +197,43 @@ float UPupMovementComponent::SubstepMovement(const float DeltaTime)
 
 	// Completed the move with no collisions!
 	return DeltaTime;
+}
+
+
+void UPupMovementComponent::UpdateVerticalMovement(const float DeltaTime)
+{
+	// First check if we're on the floor
+	FHitResult FloorHit;
+	if (FindFloor(10.0f, FloorHit, 2))
+	{
+		if (FVector::DotProduct(Velocity, FloorNormal) <= 1.0f) // Avoid floating point errors..
+		{
+			if (!bGrounded && MovementMode == EPupMovementMode::M_Falling)
+			{
+				Land();
+			}
+			bGrounded = true;
+			Velocity -= FVector::DotProduct(Velocity, FloorNormal) * FloorNormal;
+			SnapToFloor(FloorHit);
+		}
+		else
+		{
+			RenderHitResult(FloorHit, FColor::Purple);
+		}
+	}
+	else
+	{
+		if (bGrounded && MovementMode == EPupMovementMode::M_Walking)
+		{
+			Fall();
+		}
+		bGrounded = false;
+	}
+	if (!bGrounded)
+	{
+		// To avoid potential stuttering, only apply gravity if we're not on the ground
+		Velocity.Z += GetGravityZ() * DeltaTime;
+	}
 }
 
 
@@ -336,8 +321,6 @@ void UPupMovementComponent::AnchorToComponent(UPrimitiveComponent* AnchorTargetC
 void UPupMovementComponent::AddImpulse(const FVector Impulse)
 {
 	PendingImpulses += Impulse;
-	DrawDebugDirectionalArrow(GetWorld(), UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentLocation() + Impulse, 10.0f, FColor::Green, false, 20.0f, -1);
-
 }
 
 
@@ -390,7 +373,6 @@ bool UPupMovementComponent::IsValidFloorHit(const FHitResult& FloorHit) const
 void UPupMovementComponent::SnapToFloor(const FHitResult& FloorHit)
 {
 	FHitResult DiscardHit;
-	DrawDebugPoint(GetWorld(), UpdatedComponent->GetComponentLocation(), 5.0f, FColor::Blue, false, 20.0f, -1);
 	if (CheckFloorValidWithinRange(MinimumSafeRadius, FloorHit))
 	{
 		LastValidLocation = FloorHit.Location;
@@ -408,7 +390,7 @@ bool UPupMovementComponent::Jump()
 		JumpAppliedVelocity += JumpInitialVelocity;
 		bCanJump = false;
 		bJumping = true;
-
+		
 		SetMovementMode(EPupMovementMode::M_Falling);
 		
 		if (UWorld* World = GetWorld())
@@ -438,118 +420,6 @@ void UPupMovementComponent::StopJumping()
 }
 
 
-void UPupMovementComponent::RegainControl()
-{
-	DeflectDirection = FVector::ZeroVector;
-	if (MovementMode == EPupMovementMode::M_Deflected)
-	{
-		SetDefaultMovementMode();
-	}
-}
-
-
-void UPupMovementComponent::Deflect(const FVector& DeflectionVelocity, const float DeflectTime)
-{
-	// Don't deflect the character if they are recovering or aren't set to a movement mode
-	if (MovementMode == EPupMovementMode::M_Recover || MovementMode == EPupMovementMode::M_None)
-	{
-		return;
-	}
-	if (UWorld* World = GetWorld())
-	{
-		SetMovementMode(EPupMovementMode::M_Deflected);
-		DeflectDirection = DeflectionVelocity.GetSafeNormal();
-		const float DeflectTimeRemaining = DeflectTimerHandle.IsValid() ? World->GetTimerManager().GetTimerRemaining(DeflectTimerHandle) : 0.f;
-		if (DeflectTimeRemaining < DeflectTime)
-		{
-			World->GetTimerManager().SetTimer(DeflectTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
-			{
-				RegainControl();
-			}), DeflectTime, false);
-		}
-	}
-	AddImpulse(DeflectionVelocity);
-}
-
-
-void UPupMovementComponent::BreakAnchor(const bool bForceBreak)
-{
-	// These should be thrown out, since any that occurred during the move are invalid
-	ConsumeAdjustments();
-	if (bForceBreak)
-	{
-		MovementMode = EPupMovementMode::M_Deflected;
-	}
-	else
-	{
-		SetDefaultMovementMode();
-	}
-	AnchorRelativeLocation = FVector::ZeroVector;
-	AnchorWorldLocation = FVector::ZeroVector;
-}
-
-
-void UPupMovementComponent::Land()
-{
-	SetMovementMode(EPupMovementMode::M_Walking);
-	bCanJump = true;
-}
-
-
-void UPupMovementComponent::Fall()
-{
-	GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Blue, TEXT("Player fell."));
-	SetMovementMode(EPupMovementMode::M_Falling);
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().SetTimer(CoyoteTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
-		{
-			if (!bGrounded)
-			{
-				bCanJump = false;
-			}
-		}), CoyoteTime, false);
-	}
-}
-
-
-void UPupMovementComponent::Recover()
-{
-	SetMovementMode(EPupMovementMode::M_Recover);
-	ClearImpulse();
-
-	if (AActor* Actor = UpdatedComponent->GetOwner())
-	{
-		const float FallDamage = 20.0f;
-		const FDamageEvent DamageEvent;
-		Actor->TakeDamage(FallDamage, DamageEvent, Actor->GetInstigatorController(), Actor);
-	}
-	const FVector RecoveryLocation = LastValidLocation + (RecoveryLevitationHeight * UpdatedComponent->GetUpVector());
-	const float GravityDelta = GetGravityZ() * RecoveryTime;
-	FVector RecoveryVelocity = (RecoveryLocation - UpdatedComponent->GetComponentLocation()) / RecoveryTime;
-	RecoveryVelocity -= (GravityDelta / 2) * UpdatedComponent->GetUpVector();
-	Velocity = RecoveryVelocity;
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().SetTimer(RecoveryTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
-		{
-			EndRecovery();
-		}), RecoveryTime, false);
-	}
-}
-
-
-void UPupMovementComponent::EndRecovery()
-{
-	Velocity.X = 0.0f;
-	Velocity.Y = 0.0f;
-	UpdatedComponent->SetWorldLocation(LastValidLocation + RecoveryLevitationHeight * UpdatedComponent->GetUpVector());
-	LastBasisPosition = UpdatedComponent->GetComponentLocation();
-	ClearImpulse();
-	SetDefaultMovementMode();
-}
-
-
 void UPupMovementComponent::TickGravity(const float DeltaTime)
 {
 	if (UWorld* World = GetWorld())
@@ -559,7 +429,7 @@ void UPupMovementComponent::TickGravity(const float DeltaTime)
 }
 
 
-void UPupMovementComponent::HandleInputAxis()
+void UPupMovementComponent::HandleInputVectors()
 {
 	if (APawn* Pawn = GetPawnOwner())
 	{
@@ -572,8 +442,7 @@ void UPupMovementComponent::HandleInputAxis()
 		}
 	}
 	const FVector InputVector = ConsumeInputVector();
-	if (MovementMode == EPupMovementMode::M_Walking || MovementMode == EPupMovementMode::M_Falling || MovementMode ==
-		EPupMovementMode::M_Deflected)
+	if (MatchModes(MovementMode, {EPupMovementMode::M_Walking, EPupMovementMode::M_Falling, EPupMovementMode::M_Deflected}))
 	{
 		if (!InputVector.IsNearlyZero())
 		{
@@ -592,6 +461,17 @@ void UPupMovementComponent::HandleInputAxis()
 	}
 }
 
+
+void UPupMovementComponent::UpdateRotation(const float DeltaTime)
+{
+	const FRotator NewRotation = GetNewRotation(DeltaTime);
+	if (UpdatedComponent)
+	{
+		const float DeltaYaw = FMath::FindDeltaAngleDegrees(NewRotation.Yaw, UpdatedComponent->GetComponentRotation().Yaw);
+		TurningDirection = DeltaYaw;
+		UpdatedComponent->SetWorldRotation(NewRotation);
+	}
+}
 
 
 // Update method wrappers
@@ -728,9 +608,8 @@ void UPupMovementComponent::MagnetToBasis(const float VelocityFactor, const floa
 		const float DeltaYaw = CurrentFloorComponent->GetComponentRotation().Yaw - LastBasisRotation.Yaw;
 		const FRotator DeltaRotation = FRotator(0.0f, DeltaYaw, 0.0f);
 
-		DrawDebugLine(GetWorld(), UpdatedComponent->GetComponentLocation(), FloorPositionAfterUpdate, FColor::Purple, false, 20.0f, -2);
 		BasisRelativeVelocity = FloorPositionAfterUpdate - UpdatedComponent->GetComponentLocation();
-		UpdatedComponent->AddWorldOffset(BasisRelativeVelocity * VelocityFactor, true);
+		UpdatedComponent->SetWorldLocation(FloorPositionAfterUpdate + FVector::UpVector * 1.0f);
 		BasisRelativeVelocity /= DeltaTime;
 		DesiredRotation += DeltaRotation;
 		UpdatedComponent->AddWorldRotation(DeltaRotation * VelocityFactor);
@@ -740,6 +619,7 @@ void UPupMovementComponent::MagnetToBasis(const float VelocityFactor, const floa
 		BasisRelativeVelocity = FVector::ZeroVector;
 		LastBasisPosition = UpdatedComponent->GetComponentLocation();
 		LastBasisRotation = DesiredRotation;
+		LocalBasisPosition = FVector::ZeroVector;
 	}
 }
 
@@ -796,113 +676,4 @@ FVector UPupMovementComponent::ConsumeAdjustments()
 	const FVector AdjustmentTotal = PendingAdjustments;
 	PendingAdjustments = FVector::ZeroVector;
 	return AdjustmentTotal;
-}
-
-
-// Utilities
-FVector UPupMovementComponent::ClampToPlaneMaxSize(const FVector& VectorIn, const FVector& Normal, const float MaxSize)
-{
-	FVector Planar = VectorIn;
-	const FVector VectorAlongNormal = FVector::DotProduct(Planar, Normal) * Normal;
-	Planar -= VectorAlongNormal;
-
-	if (Planar.Size() > MaxSize)
-	{
-		Planar = Planar.GetSafeNormal() * MaxSize;
-	}
-	return Planar + VectorAlongNormal;
-}
-
-
-bool UPupMovementComponent::SweepCapsule(const FVector Offset, FHitResult& OutHit, const bool bIgnoreInitialOverlap) const
-{
-	ATetherCharacter* Character = Cast<ATetherCharacter>(GetPawnOwner());
-	UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
-	UWorld* World = GetWorld();
-
-	if (IsValid(Character) && IsValid(Capsule) && World)
-	{
-		const FVector Start = Capsule->GetComponentLocation();
-		const FVector End = Start + Offset;
-
-		FCollisionQueryParams QueryParams = FCollisionQueryParams::DefaultQueryParam;
-		QueryParams.AddIgnoredActor(Character);
-		QueryParams.bIgnoreTouches = true;
-		QueryParams.bFindInitialOverlaps = !bIgnoreInitialOverlap;
-
-		for (UPrimitiveComponent* Component : IgnoredComponentsForSweep)
-		{
-			QueryParams.AddIgnoredComponent(Component);
-		}
-
-		const FCollisionResponseParams ResponseParams = FCollisionResponseParams::DefaultResponseParam;
-
-		return World->SweepSingleByChannel(OutHit, Start, End, Capsule->GetComponentQuat(), ECC_Pawn,
-										Capsule->GetCollisionShape(), QueryParams, ResponseParams);
-	}
-	return false;
-}
-
-
-void UPupMovementComponent::RenderHitResult(const FHitResult& HitResult, const FColor Color) const
-{
-	if (GEngine->GameViewport && GEngine->GameViewport->EngineShowFlags.Collision)
-	{
-		if (HitResult.GetComponent())
-		{
-			DrawDebugLine(GetWorld(), HitResult.ImpactPoint, HitResult.ImpactPoint + HitResult.Normal * 100.0f, Color,
-	false, 0.02f, 1.0f, 2.0f);
-			DrawDebugLine(GetWorld(), HitResult.ImpactPoint, HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f, Color,
-	false, 0.02f, 1.0f, 2.0f);
-			DrawDebugString(GetWorld(), HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f,
-			HitResult.GetComponent()->GetName(), nullptr, Color, 0.02f, false, 1.0f);
-		}
-	}
-}
-
-
-bool UPupMovementComponent::CheckFloorValidWithinRange(const float Range, const FHitResult& HitResult) const
-{
-	bool bResult = false;
-
-	if (HitResult.GetComponent() && HitResult.GetComponent()->Mobility != EComponentMobility::Movable)
-	{
-		const FVector DirectionFromCenter = (HitResult.ImpactPoint - HitResult.Component->GetComponentLocation()).GetSafeNormal();
-		const FVector NewSweepLocation = HitResult.ImpactPoint + DirectionFromCenter * Range;
-		
-		FHitResult NewHitResult;
-		FCollisionQueryParams QueryParams = FCollisionQueryParams::DefaultQueryParam;
-		bResult = HitResult.GetComponent()->LineTraceComponent(NewHitResult, NewSweepLocation, NewSweepLocation + FVector::UpVector * -10.0f, QueryParams);
-		// RenderHitResult(NewHitResult);
-	}
-	return bResult;
-}
-
-
-// ReSharper disable once CppMemberFunctionMayBeConst
-// This function may be changed to modify the movementcomponent directly, and probably should not be const forever
-void UPupMovementComponent::HandleExternalOverlaps(const float DeltaTime)
-{
-	if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(UpdatedComponent))
-	{
-		if (OverlapTest(PrimitiveComponent->GetComponentLocation(), PrimitiveComponent->GetComponentQuat(), ECollisionChannel::ECC_WorldDynamic, PrimitiveComponent->GetCollisionShape(), GetOwner()))
-		{
-			FHitResult EscapeHit;
-			const FVector StartLocation = UpdatedComponent->GetComponentLocation();
-			const FVector EndLocation = StartLocation + FVector::UpVector * 50.0f;
-			const FQuat Rotator = UpdatedComponent->GetComponentQuat();
-			FCollisionQueryParams CollisionQueryParams = FCollisionQueryParams::DefaultQueryParam;
-			CollisionQueryParams.AddIgnoredActor(GetOwner());
-			CollisionQueryParams.AddIgnoredComponent(CurrentFloorComponent);
-
-			// If we've somehow gotten trapped inside a component that should've prevented a hit, we can try and sweep
-			// and that will give us enough information to escape.
-			GetWorld()->SweepSingleByChannel(EscapeHit, StartLocation, EndLocation, Rotator, ECollisionChannel::ECC_WorldDynamic, PrimitiveComponent->GetCollisionShape(), CollisionQueryParams);
-			if (EscapeHit.GetComponent())
-			{
-				FVector Adjustment = GetPenetrationAdjustment(EscapeHit);
-				ResolvePenetration(Adjustment, EscapeHit, UpdatedComponent->GetComponentQuat());
-			}
-		}
-	}
 }

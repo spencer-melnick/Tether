@@ -23,6 +23,7 @@ enum class EPupMovementMode : uint8
 	M_Recover	UMETA(DisplayName = "Recover")
 };
 
+
 UCLASS()
 class TETHER_API UPupMovementComponent : public UPawnMovementComponent
 {
@@ -74,7 +75,7 @@ public:
 	void Deflect(const FVector& DeflectionVelocity, const float DeflectTime);
 	
 	/** Try to give the player back control if they have been deflected by some object */
-	void RegainControl();
+	void TryRegainControl();
 	
 	UFUNCTION(BlueprintCallable)
 	/** Attempt to jump, returns false if the jump can't be executed */
@@ -109,6 +110,8 @@ private:
 	/** Perform a single movement substep, returning the amount of time actually simulated in the substep */
 	float SubstepMovement(const float DeltaTime);
 
+	void UpdateVerticalMovement(const float DeltaTime);
+	
 	/** Explicit transition when landing on a floor while in the 'Falling' state */
 	void Land();
 
@@ -125,10 +128,12 @@ private:
 	
 	void TickGravity(const float DeltaTime);
 	
-	void HandleInputAxis();
+	void HandleInputVectors();
 
 
 	// Update method wrapppers
+	void UpdateRotation(const float DeltaTime);
+	
 	FRotator GetNewRotation(const float DeltaTime) const;
 	
 	FVector GetNewVelocity(const float DeltaTime);
@@ -173,6 +178,8 @@ private:
 	bool CheckFloorValidWithinRange(const float Range, const FHitResult& HitResult) const;
 
 	void HandleExternalOverlaps(const float DeltaTime);
+
+	static bool MatchModes(const EPupMovementMode& Subject, std::initializer_list<EPupMovementMode> CheckModes);
 	
 public:	
 	// Properties
