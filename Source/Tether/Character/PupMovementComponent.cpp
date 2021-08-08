@@ -300,21 +300,25 @@ void UPupMovementComponent::AnchorToComponent(UPrimitiveComponent* AnchorTargetC
 	}
 	
 	FHitResult AnchorTestHit;
-	const FVector Offset = AnchorTargetComponent->GetComponentLocation() - UpdatedComponent->GetComponentLocation();
-	SweepCapsule(Offset, AnchorTestHit);
+	UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(UpdatedComponent);
+	AnchorTargetComponent->SweepComponent(AnchorTestHit, UpdatedComponent->GetComponentLocation(),
+		AnchorTargetComponent->GetComponentLocation(),
+		UpdatedComponent->GetComponentQuat(),
+		PrimitiveComponent->GetCollisionShape());
 
-	if (AnchorTargetComponent == AnchorTestHit.GetComponent())
+	AnchorTarget = AnchorTargetComponent;
+	// Anchor slightly away from the exact hit location to prevent getting stuck inside the object.
+	AnchorWorldLocation = AnchorTestHit.Location + AnchorTestHit.ImpactNormal * 2.0f;
+
+	if (AnchorTargetComponent->Mobility == EComponentMobility::Movable)
 	{
-		AnchorTarget = AnchorTargetComponent;
-		AnchorWorldLocation = AnchorTestHit.Location;
 		const FVector Distance = UpdatedComponent->GetComponentLocation() - AnchorTarget->GetComponentLocation();
-		
 		AnchorRelativeLocation =  FVector(FVector::DotProduct(Distance, AnchorTarget->GetForwardVector()),
 			FVector::DotProduct(Distance, AnchorTarget->GetRightVector()),
 			FVector::DotProduct(Distance, AnchorTarget->GetUpVector()));
-
-		SetMovementMode(EPupMovementMode::M_Anchored);
 	}
+
+	SetMovementMode(EPupMovementMode::M_Anchored);
 }
 
 

@@ -89,6 +89,10 @@ bool UPupMovementComponent::CheckFloorValidWithinRange(const float Range, const 
 // This function may be changed to modify the movementcomponent directly, and probably should not be const forever
 void UPupMovementComponent::HandleExternalOverlaps(const float DeltaTime)
 {
+	if (MovementMode == EPupMovementMode::M_Recover)
+	{
+		return;
+	}
 	if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(UpdatedComponent))
 	{
 		if (OverlapTest(PrimitiveComponent->GetComponentLocation(), PrimitiveComponent->GetComponentQuat(), ECollisionChannel::ECC_WorldDynamic, PrimitiveComponent->GetCollisionShape(), GetOwner()))
