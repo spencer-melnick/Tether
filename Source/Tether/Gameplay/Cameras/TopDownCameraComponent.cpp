@@ -54,7 +54,35 @@ void UTopDownCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType
 	{
 		SubjectDistance = CalcDeltaZoom(DeltaTime);
 	}
-	SetWorldLocation(CalcDeltaLocation(DeltaTime));
+	FVector Location = CalcDeltaLocation(DeltaTime);
+	if (bUseSpringArm)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			FHitResult LineTraceHitResult;
+			FCollisionQueryParams QueryParams = FCollisionQueryParams::DefaultQueryParam;
+			for (AActor* Subject : Subjects)
+			{
+				if (Subject)
+				{
+					QueryParams.AddIgnoredActors(Subjects);
+				}
+				else
+				{
+					Subjects.Remove(Subject);
+				}
+			}
+			if (World->LineTraceSingleByChannel(LineTraceHitResult,
+				Subjects[0]->GetActorLocation(),
+				Location,
+				ECollisionChannel::ECC_Camera,
+				QueryParams))
+			{
+				Location = LineTraceHitResult.Location;
+			}
+		}
+	}
+	SetWorldLocation(Location);
 }
 
 
