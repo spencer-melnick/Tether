@@ -40,14 +40,12 @@ bool UPupMovementComponent::SweepCapsule(const FVector InitialOffset, const FVec
 		const FVector End = Capsule->GetComponentLocation() + Offset;
 
 		FCollisionQueryParams QueryParams = FCollisionQueryParams::DefaultQueryParam;
-		QueryParams.AddIgnoredActor(Character);
 		QueryParams.bIgnoreTouches = true;
 		QueryParams.bFindInitialOverlaps = !bIgnoreInitialOverlap;
 
-		for (UPrimitiveComponent* Component : IgnoredComponentsForSweep)
-		{
-			QueryParams.AddIgnoredComponent(Component);
-		}
+		QueryParams.AddIgnoredActor(Character);
+		QueryParams.AddIgnoredActors(IgnoredActors);
+		QueryParams.AddIgnoredComponents(InvalidFloorComponents);
 
 		const FCollisionResponseParams ResponseParams = FCollisionResponseParams::DefaultResponseParam;
 
@@ -60,26 +58,22 @@ bool UPupMovementComponent::SweepCapsule(const FVector InitialOffset, const FVec
 
 void UPupMovementComponent::RenderHitResult(const FHitResult& HitResult, const FColor Color, const bool bPersistent) const
 {
-	if (GEngine->GameViewport && GEngine->GameViewport->EngineShowFlags.Collision)
+	if (bDrawMovementDebug)
 	{
 		if (HitResult.GetComponent())
 		{
-			// DrawDebugLine(GetWorld(), HitResult.ImpactPoint, HitResult.ImpactPoint + HitResult.Normal * 100.0f, Color,	false, 2.0f, -1, 2.0f);
-			DrawDebugLine(GetWorld(), HitResult.ImpactPoint, HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f, Color, false,
+			DrawDebugLine(GetWorld(),
+				HitResult.ImpactPoint,
+				HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f, Color, false,
 				bPersistent ? 0.015f : 2.0f, -1, 2.0f);
 			DrawDebugString(GetWorld(), HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f,
-			HitResult.GetComponent()->GetName(), nullptr, Color, 0.015f, false, 1.0f);
-			if (HitResult.GetComponent()->GetOwner())
-			{
-				DrawDebugString(GetWorld(), HitResult.ImpactPoint + HitResult.ImpactNormal * 150.0f,
-				HitResult.GetComponent()->GetOwner()->GetName(), nullptr, Color, 5.0f, false, 1.0f);
-			}
+				HitResult.GetComponent()->GetName(), nullptr, Color, 0.015f, false, 1.0f);
 		}
 	}
 }
 
 
-bool UPupMovementComponent::CheckFloorValidWithinRange(const float Range, const FHitResult& HitResult) const
+bool UPupMovementComponent::CheckFloorValidWithinRange(const float Range, const FHitResult& HitResult)
 {
 	bool bResult = false;
 
@@ -91,7 +85,6 @@ bool UPupMovementComponent::CheckFloorValidWithinRange(const float Range, const 
 		FHitResult NewHitResult;
 		FCollisionQueryParams QueryParams = FCollisionQueryParams::DefaultQueryParam;
 		bResult = HitResult.GetComponent()->LineTraceComponent(NewHitResult, NewSweepLocation, NewSweepLocation + FVector::UpVector * -10.0f, QueryParams);
-		// RenderHitResult(NewHitResult);
 	}
 	return bResult;
 }
@@ -109,9 +102,16 @@ void UPupMovementComponent::HandleExternalOverlaps(const float DeltaTime)
 	}
 	if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(UpdatedComponent))
 	{
-		if (OverlapTest(PrimitiveComponent->GetComponentLocation(), PrimitiveComponent->GetComponentQuat(), ECollisionChannel::ECC_WorldDynamic, PrimitiveComponent->GetCollisionShape(), GetOwner()))
+		FCollisionQueryParams QueryParams = FCollisionQueryParams::DefaultQueryParam;
+		QueryParams.AddIgnoredActor(GetOwner());
+		QueryParams.AddIgnoredActors(IgnoredActors);
+		if (GetWorld()->OverlapBlockingTestByChannel(
+			PrimitiveComponent->GetComponentLocation(),
+			PrimitiveComponent->GetComponentQuat(),
+			ECollisionChannel::ECC_WorldDynamic,
+			PrimitiveComponent->GetCollisionShape(),
+			QueryParams))
 		{
-			// DrawDebugString(GetWorld(), PrimitiveComponent->GetComponentLocation(),TEXT("X"), nullptr, FColor::Red, 5.0f);
 			FHitResult EscapeHit;
 			FVector EndLocation = UpdatedComponent->GetComponentLocation() + FVector::UpVector * 100.0f;
 			FVector StartLocation =  UpdatedComponent->GetComponentLocation();

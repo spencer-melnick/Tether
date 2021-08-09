@@ -45,13 +45,6 @@ namespace PupMovementCVars
 		KillZ,
 		TEXT("Minimum Z value to kill the player"),
 		ECVF_Default);
-
-	static bool GBDrawMovementDebug = false;
-	static FAutoConsoleVariableRef CVarGBDrawMovementDebug(
-		TEXT("PupMovement.GBDrawMovementDebug"),
-		GBDrawMovementDebug,
-		TEXT("Draw lines for debugging the movement?"),
-		ECVF_Default);
 }
 
 
@@ -120,10 +113,12 @@ float UPupMovementComponent::GetGravityZ() const
 bool UPupMovementComponent::ResolvePenetrationImpl(const FVector& Adjustment, const FHitResult& Hit,
 	const FQuat& NewRotation)
 {
-	if (PupMovementCVars::GBDrawMovementDebug)
+	if (bDrawMovementDebug)
 	{
-		DrawDebugDirectionalArrow(GetWorld(), UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentLocation() + Adjustment * 1.0f, 5.0f, FColor::Blue, false, 10.0f);
-		DrawDebugString(GetWorld(), UpdatedComponent->GetComponentLocation() + FVector(0.0f, 0.0f, 20.0f), UpdatedComponent->ComponentVelocity.ToString(), nullptr, FColor::Blue, 5.0f);
+		DrawDebugDirectionalArrow(GetWorld(), UpdatedComponent->GetComponentLocation(),
+			UpdatedComponent->GetComponentLocation() + Adjustment * 1.0f, 5.0f, FColor::Blue, false, 10.0f);
+		DrawDebugString(GetWorld(), UpdatedComponent->GetComponentLocation() + FVector(0.0f, 0.0f, 20.0f),
+			UpdatedComponent->ComponentVelocity.ToString(), nullptr, FColor::Blue, 5.0f);
 	}
 	if (MatchModes(MovementMode, {EPupMovementMode::M_Walking, EPupMovementMode::M_Falling, EPupMovementMode::M_Deflected}))
 	{
@@ -136,13 +131,14 @@ bool UPupMovementComponent::ResolvePenetrationImpl(const FVector& Adjustment, co
 			{
 				// The further in the sweep the move had to occur, the faster we had to move out of the way
 				AddAdjustment(AdjustmentWithoutBasis / (1 - Hit.Time));
-				if (PupMovementCVars::GBDrawMovementDebug)
+				if (bDrawMovementDebug)
 				{
-					DrawDebugDirectionalArrow(GetWorld(), UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentLocation() + Adjustment * 10.0f, 5.0f, FColor::Green, false, 10.0f);
+					DrawDebugDirectionalArrow(GetWorld(), UpdatedComponent->GetComponentLocation(),
+						UpdatedComponent->GetComponentLocation() + Adjustment * 10.0f, 5.0f, FColor::Green, false, 10.0f);
 				}
 			}
 			RenderHitResult(Hit, FColor::Green);
-			IgnoredComponentsForSweep.Add(Hit.GetComponent());
+			InvalidFloorComponents.Add(Hit.GetComponent());
 		}
 	}
 	return Super::ResolvePenetrationImpl(Adjustment, Hit, NewRotation);
@@ -181,7 +177,7 @@ void UPupMovementComponent::StepMovement(const float DeltaTime)
 	}
 	// Update the alpha value to be used for turning friction
 	MovementSpeedAlpha = Velocity.IsNearlyZero() ? 0.0f : Velocity.Size2D() / MaxSpeed;
-	IgnoredComponentsForSweep.Empty();
+	InvalidFloorComponents.Empty();
 	
 	// Let our primitive component know what its new velocity should be
 	UpdateComponentVelocity();
@@ -284,6 +280,10 @@ bool UPupMovementComponent::SetMovementMode(const EPupMovementMode& NewMovementM
 				// If we detached from a floor platform, add the basis velocity to the player, because our reference frame has changed.
 				AddImpulse(BasisRelativeVelocity);
 			}
+			else
+			{
+				AddImpulse(AnchorRelativeVelocity);
+			}
 			break;
 		}
 	default:
@@ -315,39 +315,26 @@ void UPupMovementComponent::SetDefaultMovementMode()
 	}
 }
 
-void UPupMovementComponent::AnchorToComponent(UPrimitiveComponent* AnchorTargetComponent)
-{
-	if (!AnchorTargetComponent)
-	{
-		return;
-	}
-	
-	FHitResult AnchorTestHit;
-	UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(UpdatedComponent);
-	AnchorTargetComponent->SweepComponent(AnchorTestHit, UpdatedComponent->GetComponentLocation(),
-		AnchorTargetComponent->GetComponentLocation(),
-		UpdatedComponent->GetComponentQuat(),
-		PrimitiveComponent->GetCollisionShape());
-
-	AnchorTarget = AnchorTargetComponent;
-	// Anchor slightly away from the exact hit location to prevent getting stuck inside the object.
-	AnchorWorldLocation = AnchorTestHit.Location + AnchorTestHit.ImpactNormal * 2.0f;
-	
-	if (AnchorTargetComponent->Mobility == EComponentMobility::Movable)
-	{
-		const FVector Distance = AnchorWorldLocation - AnchorTarget->GetComponentLocation();
-		AnchorRelativeLocation =  FVector(FVector::DotProduct(Distance, AnchorTarget->GetForwardVector()),
-			FVector::DotProduct(Distance, AnchorTarget->GetRightVector()),
-			FVector::DotProduct(Distance, AnchorTarget->GetUpVector()));
-	}
-	bIsWalking = false;
-	SetMovementMode(EPupMovementMode::M_Anchored);
-}
-
 
 void UPupMovementComponent::AddImpulse(const FVector Impulse)
 {
 	PendingImpulses += Impulse;
+}
+
+void UPupMovementComponent::IgnoreActor(AActor* Actor)
+{
+	if (Actor)
+	{
+		IgnoredActors.Add(Actor);
+	}
+}
+
+void UPupMovementComponent::UnignoreActor(AActor* Actor)
+{
+	if (Actor)
+	{
+		IgnoredActors.Remove(Actor);
+	}
 }
 
 
@@ -370,11 +357,11 @@ bool UPupMovementComponent::FindFloor(const float SweepDistance, FHitResult& Out
 			if (OutHitResult.bStartPenetrating)
 			{
 				ResolvePenetration(GetPenetrationAdjustment(OutHitResult), OutHitResult, UpdatedComponent->GetComponentQuat());
-				IgnoredComponentsForSweep.Add(OutHitResult.GetComponent());
+				InvalidFloorComponents.Add(OutHitResult.GetComponent());
 			}
 		}
 	}
-	IgnoredComponentsForSweep.Empty();
+	InvalidFloorComponents.Empty();
 	// If this wasn't a valid floor hit, clear the hit result but keep the trace data
 	OutHitResult.Reset(1.f, true);
 	
@@ -389,7 +376,7 @@ bool UPupMovementComponent::IsValidFloorHit(const FHitResult& FloorHit) const
 	if (FloorComponent && FloorComponent->CanCharacterStepUp(GetPawnOwner()))
 	{
 		// Capsule traces will give us ImpactNormals that are sometimes 'glancing' edges
-		// so, the most realiable way of getting the floor's normal is with a line trace
+		// so, the most realiable way of getting the floor's normal is with a line trace.
 		FHitResult NormalLineTrace;
 		FloorComponent->LineTraceComponent(
 			NormalLineTrace,
@@ -402,7 +389,6 @@ bool UPupMovementComponent::IsValidFloorHit(const FHitResult& FloorHit) const
 			return true;
 		}
 	}
-	// GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Green, TEXT("Floor found, but invalid."));
 	return false;
 }
 
@@ -417,45 +403,6 @@ void UPupMovementComponent::SnapToFloor(const FHitResult& FloorHit)
 	SafeMoveUpdatedComponent(
 		FloorHit.Location - UpdatedComponent->GetComponentLocation() + FloorHit.Normal * PupMovementCVars::FloorPadding,
 		UpdatedComponent->GetComponentQuat(), true, DiscardHit, ETeleportType::None);
-}
-
-
-bool UPupMovementComponent::Jump()
-{
-	if (bCanJump)
-	{
-		AddImpulse(UpdatedComponent->GetUpVector() * JumpInitialVelocity);
-		
-		JumpAppliedVelocity += JumpInitialVelocity;
-		bCanJump = false;
-		bJumping = true;
-		
-		SetMovementMode(EPupMovementMode::M_Falling);
-		
-		if (UWorld* World = GetWorld())
-		{
-			if (MaxJumpTime > 0.0f)
-			{
-				World->GetTimerManager().SetTimer(JumpTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
-				{
-					StopJumping();
-				}), MaxJumpTime, false);
-			}
-			else
-			{
-				StopJumping();
-			}
-		}
-		return true;
-	}
-	return false;
-}
-
-
-void UPupMovementComponent::StopJumping()
-{
-	bJumping = false;
-	JumpAppliedVelocity = 0.0f;
 }
 
 
@@ -636,16 +583,24 @@ FVector UPupMovementComponent::ApplySlidingFriction(const FVector& VelocityIn, c
 
 void UPupMovementComponent::MagnetToBasis(const float VelocityFactor, const float DeltaTime)
 {
-	if (MovementMode == EPupMovementMode::M_Anchored && AnchorTarget && AnchorTarget->Mobility == EComponentMobility::Movable)
+	if (MovementMode == EPupMovementMode::M_Anchored)
 	{
-		AnchorWorldLocation = AnchorTarget->GetComponentLocation() + 
-			AnchorRelativeLocation.X * AnchorTarget->GetForwardVector(),
-			AnchorRelativeLocation.Y * AnchorTarget->GetRightVector(),
-			AnchorRelativeLocation.Z * AnchorTarget->GetUpVector();
-		return;
+		if (AnchorTarget && AnchorTarget->Mobility == EComponentMobility::Movable)
+		{
+			const FVector NewAnchorLocation = AnchorTarget->GetComponentLocation() + 
+				AnchorRelativeLocation.X * AnchorTarget->GetForwardVector() +
+				AnchorRelativeLocation.Y * AnchorTarget->GetRightVector() +
+				AnchorRelativeLocation.Z * AnchorTarget->GetUpVector();
+			AnchorRelativeVelocity = (NewAnchorLocation - AnchorWorldLocation) / DeltaTime;
+			AnchorWorldLocation = NewAnchorLocation;
+			DesiredRotation.Yaw = AnchorTarget->GetComponentRotation().Yaw + AnchorRelativeYaw;
+		}
+		else
+		{
+			AnchorRelativeVelocity = FVector::ZeroVector;
+		}
 	}
-	
-	if (bGrounded && CurrentFloorComponent && CurrentFloorComponent->Mobility == EComponentMobility::Movable)
+	else if (bGrounded && CurrentFloorComponent && CurrentFloorComponent->Mobility == EComponentMobility::Movable)
 	{
 		// Where is this local space vector in world space now? How has it moved in world space?
 		const FVector FloorPositionAfterUpdate =

@@ -5,6 +5,45 @@
 #include "TetherCharacter.h"
 
 
+bool UPupMovementComponent::Jump()
+{
+	if (bCanJump)
+	{
+		AddImpulse(UpdatedComponent->GetUpVector() * JumpInitialVelocity);
+		
+		JumpAppliedVelocity += JumpInitialVelocity;
+		bCanJump = false;
+		bJumping = true;
+		
+		SetMovementMode(EPupMovementMode::M_Falling);
+		
+		if (UWorld* World = GetWorld())
+		{
+			if (MaxJumpTime > 0.0f)
+			{
+				World->GetTimerManager().SetTimer(JumpTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
+				{
+					StopJumping();
+				}), MaxJumpTime, false);
+			}
+			else
+			{
+				StopJumping();
+			}
+		}
+		return true;
+	}
+	return false;
+}
+
+
+void UPupMovementComponent::StopJumping()
+{
+	bJumping = false;
+	JumpAppliedVelocity = 0.0f;
+}
+
+
 void UPupMovementComponent::TryRegainControl()
 {
 	if (FVector::DotProduct(DeflectDirection, Velocity) <= KINDA_SMALL_NUMBER)
@@ -42,6 +81,43 @@ void UPupMovementComponent::Deflect(const FVector& DeflectionVelocity, const flo
 }
 
 
+void UPupMovementComponent::AnchorToComponent(UPrimitiveComponent* AnchorTargetComponent)
+{
+	if (!AnchorTargetComponent)
+	{
+		return;
+	}
+	
+	FHitResult AnchorTestHit;
+	UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(UpdatedComponent);
+	const FVector ComponentLocation = UpdatedComponent->GetComponentLocation();
+	AnchorTargetComponent->SweepComponent(AnchorTestHit, ComponentLocation,
+		AnchorTargetComponent->GetComponentLocation(),
+		UpdatedComponent->GetComponentQuat(),
+		PrimitiveComponent->GetCollisionShape());
+
+	AnchorTarget = AnchorTargetComponent;
+	AnchorWorldLocation = AnchorTestHit.Location + AnchorTestHit.ImpactNormal * 2.0f;
+	const FVector Distance = AnchorWorldLocation - AnchorTarget->GetComponentLocation();
+	AnchorRelativeLocation =  FVector(FVector::DotProduct(Distance, AnchorTarget->GetForwardVector()),
+		FVector::DotProduct(Distance, AnchorTarget->GetRightVector()),
+		FVector::DotProduct(Distance, AnchorTarget->GetUpVector()));
+	const FVector RefLocation = AnchorWorldLocation + AnchorTestHit.ImpactNormal * -2.0f;
+	const float NewAnchorYaw = FMath::RadiansToDegrees(FMath::Atan2(
+		RefLocation.Y - ComponentLocation.Y,
+		RefLocation.X - ComponentLocation.X));
+	if (AnchorTargetComponent->Mobility == EComponentMobility::Movable)
+	{
+		bGrounded = false;
+		AnchorRelativeYaw = NewAnchorYaw - AnchorTargetComponent->GetComponentRotation().Yaw;
+	}
+	DesiredRotation.Yaw = NewAnchorYaw;
+
+	bIsWalking = false;
+	SetMovementMode(EPupMovementMode::M_Anchored);
+}
+
+
 void UPupMovementComponent::BreakAnchor(const bool bForceBreak)
 {
 	// These should be thrown out, since any that occurred during the move are invalid
@@ -68,7 +144,6 @@ void UPupMovementComponent::Land()
 
 void UPupMovementComponent::Fall()
 {
-	GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Blue, TEXT("Player fell."));
 	SetMovementMode(EPupMovementMode::M_Falling);
 	if (UWorld* World = GetWorld())
 	{

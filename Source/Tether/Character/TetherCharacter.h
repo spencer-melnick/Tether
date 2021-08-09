@@ -162,7 +162,7 @@ private:
 	UPROPERTY(Transient)
 	AActor* CarriedActor;
 
-	void AnchorToObject(AActor* Object);
+	void AnchorToObject(AActor* Object) const;
 	void ReleaseAnchor();
 
 

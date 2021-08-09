@@ -327,13 +327,12 @@ void ATetherCharacter::PickupObject(AActor* Object)
 {
 	bCarryingObject = true;
 	CarriedActor = Object;
-	UPrimitiveComponent* Target = Cast<UPrimitiveComponent>(CarriedActor->GetRootComponent());
-	if (Target)
+	if (UPrimitiveComponent* Target = Cast<UPrimitiveComponent>(CarriedActor->GetRootComponent()))
 	{
+		MovementComponent->IgnoreActor(Object);
 		Target->SetSimulatePhysics(false);
 		Target->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Overlap);
-
-		Object->AttachToComponent(GrabHandle, FAttachmentTransformRules(EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, EAttachmentRule::KeepWorld, false));
+		Object->AttachToComponent(GrabHandle, FAttachmentTransformRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, false));
 	}
 }
 
@@ -343,6 +342,7 @@ void ATetherCharacter::DropObject()
 	bCarryingObject = false;
 	if(CarriedActor)
 	{
+		MovementComponent->UnignoreActor(CarriedActor);
 		CarriedActor->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
 		UPrimitiveComponent* Target = Cast<UPrimitiveComponent>(CarriedActor->GetRootComponent());
 		if (Target)
@@ -354,7 +354,7 @@ void ATetherCharacter::DropObject()
 }
 
 
-void ATetherCharacter::AnchorToObject(AActor* Object)
+void ATetherCharacter::AnchorToObject(AActor* Object) const
 {
 	if (UPrimitiveComponent* Component = Cast<UPrimitiveComponent>(Object->GetComponentByClass(UPrimitiveComponent::StaticClass())))
 	{
