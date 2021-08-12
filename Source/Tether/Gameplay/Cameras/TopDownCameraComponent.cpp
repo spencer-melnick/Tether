@@ -21,7 +21,6 @@ void UTopDownCameraComponent::BeginPlay()
 
 	SetUsingAbsoluteLocation(true);
 	SetUsingAbsoluteRotation(true);
-
 	Subjects = GetSubjectActors();
 		
 	if (UWorld* World = GetWorld())
@@ -30,6 +29,10 @@ void UTopDownCameraComponent::BeginPlay()
 		{
 			int ScreenSizeX, ScreenSizeY;
 			PlayerController->GetViewportSize(ScreenSizeX, ScreenSizeY);
+			if (PlayerController->GetSplitscreenPlayerCount() >= 2)
+			{
+				FieldOfView /= 2.0f;
+			}
 			ScreenSize = FVector2D(ScreenSizeX, ScreenSizeY);
 		}
 	}
@@ -95,7 +98,15 @@ void UTopDownCameraComponent::AddCameraRotation(const FRotator Rotator)
 FVector UTopDownCameraComponent::CalcDeltaLocation(const float DeltaTime)
 {
 	DesiredFocalPoint = AverageLocationOfTargets(Subjects);
+	if (bKeepSubjectFramed)
+	{
+		if (SubjectLocations[0].SizeSquared() > 1)
+		{
+			FocalPoint = DesiredFocalPoint;
+		}	
+	}
 	FocalPoint = FMath::VInterpTo(FocalPoint, DesiredFocalPoint, DeltaTime, TrackingSpeed);
+
 	return FocalPoint + GetWorldOffset();
 }
 
@@ -228,7 +239,8 @@ FVector UTopDownCameraComponent::AverageLocationOfTargets(TArray<AActor*> Target
 
 			if (bTrackAheadOfMotion)
 			{
-				Average += Target->GetVelocity() * TrackAnticipationTime;
+				FVector AnticipationOffset = Target->GetVelocity() * TrackAnticipationTime;
+				Average += AnticipationOffset.GetClampedToMaxSize(MaxAnticipation);
 			}
 		}
 		else

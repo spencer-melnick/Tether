@@ -151,7 +151,11 @@ void ABeamController::TraverseBeams(float DeltaTime)
 			const FBeamNode& BeamNodeB = BeamNodes[PathEdge.Value];
 
 			BeamEdges.Emplace(BeamNodeA.BeamTarget, BeamNodeB.BeamTarget);
-			
+
+			// Do a thing?
+			BeamNodeA.BeamComponent->SetStatus(EBeamComponentStatus::Connected);
+			BeamNodeB.BeamComponent->SetStatus(EBeamComponentStatus::Connected);
+
 			if (BeamControllerCVars::bDrawDebugConnections)
 			{
 				DrawDebugLine(World,
@@ -231,9 +235,10 @@ TArray<ABeamController::FBeamNode> ABeamController::BuildInitialNodes()
 			{
 				const FVector StartLocation = NodeA.BeamComponent->GetComponentLocation();
 				const FVector EndLocation = NodeB.BeamComponent->GetComponentLocation();
+				const float RealDistance = FVector::Distance(StartLocation, EndLocation);
 				const float PendingDistance = CalculateWeightedDistance(StartLocation, EndLocation);
 
-				if ((MaxNodeDistance < 0.f || PendingDistance < MaxNodeDistance) && !World->LineTraceTestByChannel(StartLocation, EndLocation, BeamTraceChannel))
+				if ((MaxNodeDistance < 0.f || RealDistance < MaxNodeDistance) && !World->LineTraceTestByChannel(StartLocation, EndLocation, BeamTraceChannel))
 				{
 					NodeDistance = PendingDistance;
 				}
@@ -346,6 +351,7 @@ void ABeamController::UpdateBeamFX(const TArray<FBeamFXEdge>& BeamEdges)
 		if (!ActiveFXActors.Contains(PendingEdge))
 		{
 			EdgesPendingCreation.AddUnique(PendingEdge);
+
 		}
 	}
 

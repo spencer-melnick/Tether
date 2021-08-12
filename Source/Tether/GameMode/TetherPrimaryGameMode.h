@@ -31,6 +31,7 @@ public:
 
 	float GetBaseObstacleSpeed(float GamePhaseTime) const;
 
+	UFUNCTION(BlueprintCallable)
 	ABeamController* GetBeamController() const { return BeamController; }
 
 

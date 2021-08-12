@@ -108,7 +108,7 @@ void UPupMovementComponent::HandleExternalOverlaps(const float DeltaTime)
 		if (GetWorld()->OverlapBlockingTestByChannel(
 			PrimitiveComponent->GetComponentLocation(),
 			PrimitiveComponent->GetComponentQuat(),
-			ECollisionChannel::ECC_WorldDynamic,
+			ECollisionChannel::ECC_Pawn,
 			PrimitiveComponent->GetCollisionShape(),
 			QueryParams))
 		{

@@ -55,7 +55,7 @@ private:
 public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking")
-	bool bKeepAllTargetsInFrame;
+	bool bKeepSubjectFramed;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking")
 	bool bTrackAllPlayers = false;
@@ -112,6 +112,10 @@ public:
 	/// How far ahead of the subject we track, in seconds
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Subjects")
 	float TrackAnticipationTime = 1.0f;
+
+	/// The maximum distance the camera can be anticipating the character's movement.
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking")
+	float MaxAnticipation = 200.0f;
 
 	/** If true the camera zoom will not be changed once the minimum and maximum distances are applied */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Zoom")

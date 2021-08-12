@@ -55,6 +55,7 @@ public:
 	bool SetMovementMode(const EPupMovementMode& NewMovementMode);
 
 	/** Return the player's movement mode. **/
+	UFUNCTION(BlueprintCallable)
 	EPupMovementMode GetMovementMode() const;
 	
 	/**
