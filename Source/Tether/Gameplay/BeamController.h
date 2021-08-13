@@ -48,15 +48,15 @@ struct FBeamFXEdge
 		: Target1(nullptr), Target2(nullptr)
 	{};
 
-	FBeamFXEdge(AActor* Target1, AActor* Target2)
+	FBeamFXEdge(UBeamComponent* Target1, UBeamComponent* Target2)
 		: Target1(Target1), Target2(Target2)
 	{};
 
 	UPROPERTY(Transient)
-	AActor* Target1;
+	UBeamComponent* Target1;
 
 	UPROPERTY(Transient)
-	AActor* Target2;
+	UBeamComponent* Target2;
 };
 
 bool operator==(const FBeamFXEdge& EdgeA, const FBeamFXEdge& EdgeB);
@@ -91,11 +91,11 @@ public:
 	 * IBeamTarget or is already tracked. Returns true if the target was actually added.
 	 */
 	UFUNCTION(BlueprintCallable, Category="Beam")
-	bool AddBeamTarget(AActor* Target);
+	bool AddBeamTarget(UBeamComponent* Target);
 
 	/** Removes a beam target. Returns true if the target was actually removed */
 	UFUNCTION(BlueprintCallable, Category="Beam")
-	bool RemoveBeamTarget(AActor* Target);
+	bool RemoveBeamTarget(UBeamComponent* Target);
 
 	/** Function used to calculate weighted distance if mode is set to custom */
 	UFUNCTION(BlueprintNativeEvent)
@@ -105,14 +105,14 @@ public:
 
 	// Event handlers
 
-	void HandleTargetDestroyed(AActor* Target);
-	void HandleTargetModeChanged(AActor* Target, EBeamComponentMode OldMode, EBeamComponentMode NewMode);
+	void HandleTargetDestroyed(UBeamComponent* Target);
+	void HandleTargetModeChanged(UBeamComponent* Target, EBeamComponentMode OldMode, EBeamComponentMode NewMode);
 
 
 	// Accessors
 	
 	UFUNCTION(BlueprintPure)
-	const TArray<AActor*>& GetBeamTargets() const { return BeamTargets; }
+	const TArray<UBeamComponent*>& GetBeamTargets() const { return BeamTargets; }
 
 	/** Returns true if all the beam targets are connected currently */
 	UFUNCTION(BlueprintPure, Category="Beam")
@@ -146,8 +146,7 @@ private:
 
 	struct FBeamNode
 	{
-		AActor* BeamTarget;
-		UBeamComponent* BeamComponent;
+		UBeamComponent* BeamTarget;
 		TArray<float> NodeDistances;
 		int32 LinkedRequirement;
 		uint8 bRequired : 1;
@@ -181,7 +180,7 @@ private:
 	void HandleBeamFXActorTimeout(ABeamFXActor* FXActor);
 
 	UPROPERTY()
-	TArray<AActor*> BeamTargets;
+	TArray<UBeamComponent*> BeamTargets;
 
 	UPROPERTY()
 	TMap<FBeamFXEdge, ABeamFXActor*> ActiveFXActors;

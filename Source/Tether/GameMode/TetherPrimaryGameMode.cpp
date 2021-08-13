@@ -9,7 +9,6 @@
 #include "Tether/Tether.h"
 #include "Tether/Controller/TetherPlayerController.h"
 #include "Tether/Core/TetherUtils.h"
-#include "Tether/Gameplay/BeamComponent.h"
 #include "Tether/Gameplay/BeamController.h"
 
 ATetherPrimaryGameMode::ATetherPrimaryGameMode()
@@ -30,15 +29,32 @@ void ATetherPrimaryGameMode::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 }
 
+void ATetherPrimaryGameMode::StartPlay()
+{
+	UWorld* World = GetWorld();
+	if (ensure(World))
+	{		
+		if (BeamControllerClass)
+		{
+			FActorSpawnParameters SpawnParameters;
+			SpawnParameters.Owner = this;
+			SpawnParameters.ObjectFlags |= RF_Transient;
+			
+			BeamController = World->SpawnActor<ABeamController>(BeamControllerClass,
+				FVector::ZeroVector, FRotator::ZeroRotator,
+				SpawnParameters);
+		}
+		else
+		{
+			UE_LOG(LogTetherGame, Warning, TEXT("TetherPrimaryGameMode::BeginPlay - no beam controller class specified"));
+		}
+	}
+	Super::StartPlay();
+}
+
 void ATetherPrimaryGameMode::BeginPlay()
 {
 	Super::BeginPlay();
-
-	ObstacleVolume = TetherUtils::FindFirstActorWithTag<AVolume>(this, TEXT("ObstacleVolume"));
-	if (!ObstacleVolume)
-	{
-		UE_LOG(LogTetherGame, Warning, TEXT("TetherPrimaryGameMode::BeginPlay - No obstacle volume found!"));
-	}
 
 	UWorld* World = GetWorld();
 	if (ensure(World))
@@ -55,32 +71,11 @@ void ATetherPrimaryGameMode::BeginPlay()
 				TetherGameState->SetGamePhase(ETetherGamePhase::Playing);
 			}), WarmupTime, false);
 		}
-		
-		if (BeamControllerClass)
-		{
-			FActorSpawnParameters SpawnParameters;
-			SpawnParameters.Owner = this;
-			SpawnParameters.ObjectFlags |= RF_Transient;
-			
-			BeamController = World->SpawnActor<ABeamController>(BeamControllerClass,
-				FVector::ZeroVector, FRotator::ZeroRotator,
-				SpawnParameters);
-
-			if (ensure(BeamController))
-			{
-				for (TActorIterator<AActor> Iterator(World); Iterator; ++Iterator)
-				{
-					if (Iterator->Implements<UBeamTarget>())
-					{
-						BeamController->AddBeamTarget(*Iterator);
-					}
-				}
-			}
-		}
-		else
-		{
-			UE_LOG(LogTetherGame, Warning, TEXT("TetherPrimaryGameMode::BeginPlay - no beam controller class specified"));
-		}
+	}
+	ObstacleVolume = TetherUtils::FindFirstActorWithTag<AVolume>(this, TEXT("ObstacleVolume"));
+	if (!ObstacleVolume)
+	{
+		UE_LOG(LogTetherGame, Warning, TEXT("TetherPrimaryGameMode::BeginPlay - No obstacle volume found!"));
 	}
 }
 

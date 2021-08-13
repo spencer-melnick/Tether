@@ -111,6 +111,8 @@ public:
 	UFUNCTION(BlueprintImplementableEvent)
 	void OnJump();
 
+	UFUNCTION(BlueprintCallable)
+	void SetSnapFactor(const float Factor);
 	
 	// Events
 
@@ -164,6 +166,11 @@ private:
 
 	void AnchorToObject(AActor* Object) const;
 	void ReleaseAnchor();
+
+	bool bCompletedPickupAnimation = false;
+	float SnapFactor = 0.0f;
+	FVector InitialCarriedActorPosition;
+	FRotator InitialCarriedActorRotation;
 
 
 	

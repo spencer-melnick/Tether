@@ -23,7 +23,7 @@ void ABeamFXActor::Tick(float DeltaSeconds)
 	}
 }
 
-void ABeamFXActor::GetTargets(AActor*& OutTarget1, AActor*& OutTarget2) const
+void ABeamFXActor::GetTargets(UBeamComponent*& OutTarget1, UBeamComponent*& OutTarget2) const
 {
 	OutTarget1 = Target1;
 	OutTarget2 = Target2;
@@ -31,21 +31,19 @@ void ABeamFXActor::GetTargets(AActor*& OutTarget1, AActor*& OutTarget2) const
 
 FVector ABeamFXActor::GetTargetEffectLocation1() const
 {
-	const UBeamComponent* TargetComponent = UBeamComponent::GetComponentFromActor(Target1);
-	if (ensure(TargetComponent))
+	if (ensure(Target1))
 	{
-		return TargetComponent->GetEffectLocation();
+		return Target1->GetEffectLocation();
 	}
-
+	
 	return FVector::ZeroVector;
 }
 
 FVector ABeamFXActor::GetTargetEffectLocation2() const
 {
-	const UBeamComponent* TargetComponent = UBeamComponent::GetComponentFromActor(Target2);
-	if (ensure(TargetComponent))
+	if (ensure(Target2))
 	{
-		return TargetComponent->GetEffectLocation();
+		return Target2->GetEffectLocation();
 	}
 
 	return FVector::ZeroVector;
@@ -62,9 +60,9 @@ ABeamController* ABeamFXActor::GetOwningBeamController() const
 	return Cast<ABeamController>(GetOwner());
 }
 
-void ABeamFXActor::SetTargets(AActor* NewTarget1, AActor* NewTarget2)
+void ABeamFXActor::SetTargets(UBeamComponent* NewTarget1, UBeamComponent* NewTarget2)
 {
-	if (UBeamComponent::GetComponentFromActor(NewTarget1) && UBeamComponent::GetComponentFromActor(NewTarget2))
+	if (NewTarget1 && NewTarget2)
 	{
 		Target1 = NewTarget1;
 		Target2 = NewTarget2;
@@ -95,8 +93,8 @@ void ABeamFXActor::SetEffectActive(bool bNewActive)
 
 void ABeamFXActor::UpdateFX()
 {
-	const UBeamComponent* TargetComponent1 = UBeamComponent::GetComponentFromActor(Target1);
-	const UBeamComponent* TargetComponent2 = UBeamComponent::GetComponentFromActor(Target2);
+	const UBeamComponent* TargetComponent1 = Target1;
+	const UBeamComponent* TargetComponent2 = Target2;
 	if (ensure(TargetComponent1 && TargetComponent2))
 	{
 		const FVector TargetLocation1 = TargetComponent1->GetEffectLocation();

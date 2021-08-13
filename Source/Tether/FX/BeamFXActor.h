@@ -7,6 +7,7 @@
 #include "BeamFXActor.generated.h"
 
 
+class UBeamComponent;
 class ABeamController;
 
 
@@ -31,11 +32,11 @@ public:
 	UFUNCTION(BlueprintPure)
 	bool IsEffectActive() const { return bEffectActive; }
 
-	AActor* GetTarget1() const { return Target1; }
-	AActor* GetTarget2() const { return Target2; }
+	UBeamComponent* GetTarget1() const { return Target1; }
+	UBeamComponent* GetTarget2() const { return Target2; }
 
 	UFUNCTION(BlueprintPure)
-	void GetTargets(AActor*& OutTarget1, AActor*& OutTarget2) const;
+	void GetTargets(UBeamComponent*& OutTarget1, UBeamComponent*& OutTarget2) const;
 
 	FVector GetTargetEffectLocation1() const;
 	FVector GetTargetEffectLocation2() const;
@@ -59,7 +60,7 @@ private:
 
 	// Beam FX controls
 
-	void SetTargets(AActor* NewTarget1, AActor* NewTarget2);
+	void SetTargets(UBeamComponent* NewTarget1, UBeamComponent* NewTarget2);
 	void ClearTargets();
 	void SetEffectActive(bool bNewActive);
 	void UpdateFX();
@@ -70,8 +71,8 @@ private:
 	bool bEffectActive = false;
 
 	UPROPERTY(Transient)
-	AActor* Target1;
+	UBeamComponent* Target1;
 
 	UPROPERTY(Transient)
-	AActor* Target2;
+	UBeamComponent* Target2;
 };

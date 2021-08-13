@@ -22,6 +22,7 @@ public:
 	// Actor overrides
 
 	virtual void Tick(float DeltaSeconds) override;
+	virtual void StartPlay() override;
 	virtual void BeginPlay() override;
 
 

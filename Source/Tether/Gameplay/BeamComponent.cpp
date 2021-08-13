@@ -2,7 +2,9 @@
 
 #include "BeamComponent.h"
 #include "BeamController.h"
+#include "Kismet/GameplayStatics.h"
 #include "Tether/Tether.h"
+#include "Tether/GameMode/TetherPrimaryGameMode.h"
 
 UBeamComponent::UBeamComponent()
 {
@@ -11,16 +13,23 @@ UBeamComponent::UBeamComponent()
 
 void UBeamComponent::BeginPlay()
 {
-	Super::BeginPlay();
-
+	Super::BeginPlay();	
 	SetMode(static_cast<EBeamComponentMode>(DefaultMode));
+	if (ATetherPrimaryGameMode* TetherPrimaryGameMode = Cast<ATetherPrimaryGameMode>(UGameplayStatics::GetGameMode(GetWorld())))
+	{
+		BeamController = TetherPrimaryGameMode->GetBeamController();
+		if (BeamController)
+		{
+			BeamController->AddBeamTarget(this);
+		}
+	}
 }
 
 void UBeamComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	if (BeamController)
 	{
-		BeamController->HandleTargetDestroyed(GetOwner());
+		BeamController->HandleTargetDestroyed(this);
 	}
 }
 
@@ -66,7 +75,7 @@ void UBeamComponent::SetMode(EBeamComponentMode NewMode)
 
 		if (BeamController)
 		{
-			BeamController->HandleTargetModeChanged(GetOwner(), OldMode, NewMode);
+			BeamController->HandleTargetModeChanged(this, OldMode, NewMode);
 		}
 	}
 }

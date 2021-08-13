@@ -83,6 +83,23 @@ void ATetherCharacter::BeginPlay()
 void ATetherCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+	if (bCarryingObject && !bCompletedPickupAnimation)
+	{
+		if (SnapFactor >= 1.0f)
+		{
+			bCompletedPickupAnimation = true;
+			CarriedActor->AttachToComponent(GrabHandle, FAttachmentTransformRules(
+	EAttachmentRule::SnapToTarget,
+	EAttachmentRule::SnapToTarget,
+	EAttachmentRule::KeepWorld, false));
+		}
+		else
+		{
+			CarriedActor->SetActorLocation(FMath::Lerp(InitialCarriedActorPosition, GrabHandle->GetComponentLocation(), SnapFactor));
+			CarriedActor->SetActorRotation(FMath::Lerp(InitialCarriedActorRotation, GrabHandle->GetComponentRotation(), SnapFactor));
+		}
+	}
 }
 
 
@@ -300,6 +317,14 @@ void ATetherCharacter::Deflect(
 
 // Events
 
+void ATetherCharacter::SetSnapFactor(const float Factor)
+{
+	if (bCarryingObject)
+	{
+		SnapFactor = Factor;
+	}
+}
+
 void ATetherCharacter::HandlePenetration(const FHitResult& HitResult)
 {
 	// Todo: accumulate worst penetration and resolve during physics update
@@ -326,13 +351,19 @@ void ATetherCharacter::OnTetherExpired()
 void ATetherCharacter::PickupObject(AActor* Object)
 {
 	bCarryingObject = true;
+	SnapFactor = 0.0f;
 	CarriedActor = Object;
+	InitialCarriedActorPosition = Object->GetActorLocation();
+	InitialCarriedActorRotation = Object->GetActorRotation();
 	if (UPrimitiveComponent* Target = Cast<UPrimitiveComponent>(CarriedActor->GetRootComponent()))
 	{
 		MovementComponent->IgnoreActor(Object);
 		Target->SetSimulatePhysics(false);
 		Target->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Overlap);
-		Object->AttachToComponent(GrabHandle, FAttachmentTransformRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, false));
+		Object->AttachToComponent(GrabHandle, FAttachmentTransformRules(
+			EAttachmentRule::KeepWorld,
+			EAttachmentRule::KeepWorld,
+			EAttachmentRule::KeepWorld, false));
 	}
 }
 
@@ -340,6 +371,8 @@ void ATetherCharacter::PickupObject(AActor* Object)
 void ATetherCharacter::DropObject()
 {
 	bCarryingObject = false;
+	bCompletedPickupAnimation = false;
+	SnapFactor = 0.0f;
 	if(CarriedActor)
 	{
 		MovementComponent->UnignoreActor(CarriedActor);

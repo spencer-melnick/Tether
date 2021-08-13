@@ -54,26 +54,22 @@ void ABeamController::Tick(float DeltaSeconds)
 }
 
 
-bool ABeamController::AddBeamTarget(AActor* Target)
+bool ABeamController::AddBeamTarget(UBeamComponent* Target)
 {
-	UBeamComponent* BeamComponent = UBeamComponent::GetComponentFromActor(Target);
-
-	if (BeamComponent && BeamTargets.AddUnique(Target) != INDEX_NONE)
+	if (Target && BeamTargets.AddUnique(Target) != INDEX_NONE)
 	{
-		BeamComponent->SetStatus(BeamComponent->GetStatus() | EBeamComponentStatus::Tracked);
+		Target->SetStatus(Target->GetStatus() | EBeamComponentStatus::Tracked);
 		return true;
 	}
 
 	return false;
 }
 
-bool ABeamController::RemoveBeamTarget(AActor* Target)
+bool ABeamController::RemoveBeamTarget(UBeamComponent* Target)
 {
-	UBeamComponent* BeamComponent = Target->Implements<UBeamTarget>() ? IBeamTarget::Execute_GetBeamComponent(Target) : nullptr;
-
-	if (BeamComponent && BeamComponent->BeamController == this)
+	if (Target && Target->BeamController == this)
 	{
-		BeamComponent->BeamController = nullptr;
+		Target->BeamController = nullptr;
 		return BeamTargets.Remove(Target) != 0;
 	}
 
@@ -85,12 +81,12 @@ float ABeamController::CalculateWeightedDistanceCustom_Implementation(FVector St
 	return FVector::Distance(StartLocation, EndLocation);
 }
 
-void ABeamController::HandleTargetDestroyed(AActor* Target)
+void ABeamController::HandleTargetDestroyed(UBeamComponent* Target)
 {
 	RemoveBeamTarget(Target);
 }
 
-void ABeamController::HandleTargetModeChanged(AActor* Target, EBeamComponentMode OldMode, EBeamComponentMode NewMode)
+void ABeamController::HandleTargetModeChanged(UBeamComponent* Target, EBeamComponentMode OldMode, EBeamComponentMode NewMode)
 {
 	// Do something
 }
@@ -145,21 +141,17 @@ void ABeamController::TraverseBeams(float DeltaTime)
 
 	if (const UWorld* World = GetWorld())
 	{
-		for (TPair<int32, int32> PathEdge : PathIndices)
+		for (const TPair<int32, int32> PathEdge : PathIndices)
 		{
 			const FBeamNode& BeamNodeA = BeamNodes[PathEdge.Key];
 			const FBeamNode& BeamNodeB = BeamNodes[PathEdge.Value];
 
 			BeamEdges.Emplace(BeamNodeA.BeamTarget, BeamNodeB.BeamTarget);
 
-			// Do a thing?
-			BeamNodeA.BeamComponent->SetStatus(EBeamComponentStatus::Connected);
-			BeamNodeB.BeamComponent->SetStatus(EBeamComponentStatus::Connected);
-
 			if (BeamControllerCVars::bDrawDebugConnections)
 			{
 				DrawDebugLine(World,
-					BeamNodeA.BeamComponent->GetComponentLocation(), BeamNodeB.BeamComponent->GetComponentLocation(),
+					BeamNodeA.BeamTarget->GetComponentLocation(), BeamNodeB.BeamTarget->GetComponentLocation(),
 					FColor::Cyan, false, DeltaTime + 0.05f, 0, 2.f);
 			}
 		}
@@ -170,17 +162,9 @@ void ABeamController::TraverseBeams(float DeltaTime)
 
 TArray<ABeamController::FBeamNode> ABeamController::BuildInitialNodes()
 {
-	static const auto FilterLambda = [](const AActor* Target)
+	static const auto FilterLambda = [](const UBeamComponent* Target)
 	{
-		const bool bTargetIsValid = Target && Target->Implements<UBeamTarget>();
-		const UBeamComponent* BeamComponent = bTargetIsValid ? IBeamTarget::Execute_GetBeamComponent(Target) : nullptr;
-
-		if (BeamComponent)
-		{
-			return (BeamComponent->GetMode() & EBeamComponentMode::Connectable) != EBeamComponentMode::None;
-		}
-
-		return false;
+		return (Target->GetMode() & EBeamComponentMode::Connectable) != EBeamComponentMode::None;
 	};
 
 	TArray<FBeamNode> BeamNodes;
@@ -191,7 +175,7 @@ TArray<ABeamController::FBeamNode> ABeamController::BuildInitialNodes()
 		return BeamNodes;
 	}
 	
-	TArray<AActor*> FilteredBeamTargets = BeamTargets.FilterByPredicate(FilterLambda);
+	TArray<UBeamComponent*> FilteredBeamTargets = BeamTargets.FilterByPredicate(FilterLambda);
 	const int32 NumNodes = FilteredBeamTargets.Num();
 	BeamNodes.Reserve(NumNodes);
 
@@ -203,11 +187,10 @@ TArray<ABeamController::FBeamNode> ABeamController::BuildInitialNodes()
 		FBeamNode& NewNode = BeamNodes.Emplace_GetRef();
 		NewNode.BeamTarget = FilteredBeamTargets[Index];
 		NewNode.NodeDistances.SetNumUninitialized(NumNodes);
-		NewNode.BeamComponent = NewNode.BeamTarget->Implements<UBeamTarget>() ? IBeamTarget::Execute_GetBeamComponent(NewNode.BeamTarget) : nullptr;
 		NewNode.LinkedRequirement = INDEX_NONE;
-		if (ensure(NewNode.BeamComponent))
+		if (ensure(NewNode.BeamTarget))
 		{
-			NewNode.bRequired = (NewNode.BeamComponent->GetMode() & EBeamComponentMode::Required) != EBeamComponentMode::None;
+			NewNode.bRequired = (NewNode.BeamTarget->GetMode() & EBeamComponentMode::Required) != EBeamComponentMode::None;
 			NewNode.bConnected = NewNode.bRequired;
 			NumRequiredNodes++;
 		}
@@ -231,10 +214,10 @@ TArray<ABeamController::FBeamNode> ABeamController::BuildInitialNodes()
 			FBeamNode& NodeB = BeamNodes[IndexJ];
 			float NodeDistance = -1.f;
 
-			if (ensure(NodeA.BeamComponent && NodeB.BeamComponent))
+			if (ensure(NodeA.BeamTarget && NodeB.BeamTarget))
 			{
-				const FVector StartLocation = NodeA.BeamComponent->GetComponentLocation();
-				const FVector EndLocation = NodeB.BeamComponent->GetComponentLocation();
+				const FVector StartLocation = NodeA.BeamTarget->GetComponentLocation();
+				const FVector EndLocation = NodeB.BeamTarget->GetComponentLocation();
 				const float RealDistance = FVector::Distance(StartLocation, EndLocation);
 				const float PendingDistance = CalculateWeightedDistance(StartLocation, EndLocation);
 
@@ -311,6 +294,7 @@ void ABeamController::FindLinkedNodes(const TArray<FBeamNode>& BeamNodes, int32 
 			{
 				break;
 			}
+			BeamTargets[PreviousNodes[PathIndex]]->SetStatus(EBeamComponentStatus::Connected);
 		}
 	}
 
@@ -343,6 +327,8 @@ void ABeamController::UpdateBeamFX(const TArray<FBeamFXEdge>& BeamEdges)
 		if (!BeamEdges.Contains(ActiveFXActor.Key))
 		{
 			EdgesPendingRemoval.AddUnique(ActiveFXActor.Key);
+			ActiveFXActor.Key.Target1->SetStatus(EBeamComponentStatus::Tracked);
+			ActiveFXActor.Key.Target2->SetStatus(EBeamComponentStatus::Tracked);
 		}
 	}
 
