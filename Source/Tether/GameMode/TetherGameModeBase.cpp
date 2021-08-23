@@ -2,10 +2,13 @@
 
 #include "TetherGameModeBase.h"
 
+#include "EngineUtils.h"
+#include "GameFramework/PlayerStart.h"
 #include "Tether/Controller/TetherPlayerController.h"
 #include "Tether/Core/TetherDeveloperSettings.h"
 #include "Tether/Core/TetherGameInstance.h"
 #include "Tether/Tether.h"
+#include "Tether/Core/TetherWorldSettings.h"
 
 ATetherGameModeBase::ATetherGameModeBase()
 {
@@ -15,7 +18,6 @@ ATetherGameModeBase::ATetherGameModeBase()
 void ATetherGameModeBase::BeginPlay()
 {
 	Super::BeginPlay();
-
 	// Disable splitscreen if this mode should not have splitscreen enabled
 	if (ensure(GEngine && GEngine->GameViewport))
 	{
@@ -34,6 +36,24 @@ void ATetherGameModeBase::BeginPlay()
 	SpawnHUDWidgets();
 }
 
+
+AActor* ATetherGameModeBase::ChoosePlayerStart_Implementation(AController* Player)
+{
+	const int SpawnedPlayerIndex = GetNumPlayers() - 1;
+	if (ATetherWorldSettings* WorldSettings = Cast<ATetherWorldSettings>(GetWorld()->GetWorldSettings()))
+	{
+		if (APlayerStart* PlayerStart = WorldSettings->GetPlayerStart(SpawnedPlayerIndex))
+		{
+			return PlayerStart;
+		}
+	}
+	
+	UE_LOG(LogTetherGame, Warning, TEXT("Could not find a spawn for player number %i."), SpawnedPlayerIndex);
+
+	return Super::ChoosePlayerStart_Implementation(Player);
+}
+
+
 bool ATetherGameModeBase::IsPlayingInEditor() const
 {
 	if (const UWorld* World = GetWorld())
@@ -42,6 +62,7 @@ bool ATetherGameModeBase::IsPlayingInEditor() const
 	}
 	return false;
 }
+
 
 void ATetherGameModeBase::SpawnHUDWidgets()
 {
@@ -56,6 +77,7 @@ void ATetherGameModeBase::SpawnHUDWidgets()
 		}
 	}
 }
+
 
 #if WITH_EDITOR
 void ATetherGameModeBase::SpawnPIEPlayers()

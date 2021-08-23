@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
 #include "NiagaraComponent.h"
+#include "GameFramework/PlayerStart.h"
+
 #include "TetherGameModeBase.generated.h"
 
 
@@ -28,6 +30,8 @@ public:
 
 	virtual void BeginPlay() override;
 
+	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
+			
 
 	// Accessors
 
@@ -52,7 +56,6 @@ protected:
 	/** Returns true if this game mode should spawn PIE players when it is the first loaded gamemode */
 	virtual bool ShouldSpawnPIEPlayers() const { return false; }
 #endif
-	
 
 	// UI Settings
 
@@ -74,5 +77,5 @@ private:
 	/** Spawns additional PIE players according to Tether Developer Settings */
 	void SpawnPIEPlayers();
 #endif
-	
+
 };
