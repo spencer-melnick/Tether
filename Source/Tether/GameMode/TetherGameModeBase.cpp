@@ -39,18 +39,37 @@ void ATetherGameModeBase::BeginPlay()
 
 AActor* ATetherGameModeBase::ChoosePlayerStart_Implementation(AController* Player)
 {
-	const int SpawnedPlayerIndex = GetNumPlayers() - 1;
-	if (ATetherWorldSettings* WorldSettings = Cast<ATetherWorldSettings>(GetWorld()->GetWorldSettings()))
+	if (ATetherPlayerController* TetherPlayerController = Cast<ATetherPlayerController>(Player))
 	{
-		if (APlayerStart* PlayerStart = WorldSettings->GetPlayerStart(SpawnedPlayerIndex))
+		const int SpawnedPlayerSlot = TetherPlayerController->GetPlayerSlot();
+		if (ATetherWorldSettings* WorldSettings = Cast<ATetherWorldSettings>(GetWorld()->GetWorldSettings()))
 		{
-			return PlayerStart;
+			if (APlayerStart* PlayerStart = WorldSettings->GetPlayerStart(SpawnedPlayerSlot))
+			{
+				UE_LOG(LogTetherGame, Verbose, TEXT("Found player start for player at slot %i."), SpawnedPlayerSlot);
+				return PlayerStart;
+			}
 		}
+		UE_LOG(LogTetherGame, Warning, TEXT("Unable to find spawn for player in slot %i. Check that the PlayerSpawn is set in World Settings."), SpawnedPlayerSlot);
 	}
-	
-	UE_LOG(LogTetherGame, Warning, TEXT("Could not find a spawn for player number %i."), SpawnedPlayerIndex);
-
+	else
+	{
+		UE_LOG(LogTetherGame, Warning, TEXT("Could not cast the controller to ATetherPlayerController."));
+	}
 	return Super::ChoosePlayerStart_Implementation(Player);
+}
+
+
+FString ATetherGameModeBase::InitNewPlayer(APlayerController* NewPlayerController, const FUniqueNetIdRepl& UniqueId,
+	const FString& Options, const FString& Portal)
+{
+	if (ATetherPlayerController* TetherPlayerController = Cast<ATetherPlayerController>(NewPlayerController))
+	{
+		const int PlayerSlotNumber = GetNumPlayers() - 1;
+		TetherPlayerController->SetPlayerSlot(PlayerSlotNumber);
+		UE_LOG(LogTetherGame, Verbose, TEXT("Setting player slot number to %i."), PlayerSlotNumber);
+	}
+	return Super::InitNewPlayer(NewPlayerController, UniqueId, Options, Portal);
 }
 
 

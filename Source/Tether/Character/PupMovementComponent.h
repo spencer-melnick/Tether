@@ -113,7 +113,15 @@ public:
 
 	/** Moves the character to the floor, but does not update velocity */
 	void SnapToFloor(const FHitResult& FloorHit);
+
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FMovementModeChanged, EPupMovementMode, OldMovementMode, EPupMovementMode, NewMovementMode);
+	FMovementModeChanged& OnMovementModeChanged(EPupMovementMode, EPupMovementMode) { return MovementModeChanged; }
+
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FJumpEvent, const FVector, FloorLocation);
+	FJumpEvent& OnJumpEvent(const FVector, const float) { return JumpEvent; }
 	
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FLandEvent, const FVector, FloorLocation, const float, ImpactVelocity);
+	FLandEvent& OnLandEvent(const FVector, const float) { return LandEvent; }
 	
 private:
 
@@ -126,7 +134,7 @@ private:
 	void UpdateVerticalMovement(const float DeltaTime);
 	
 	/** Explicit transition when landing on a floor while in the 'Falling' state */
-	void Land();
+	void Land(const FVector& FloorLocation, const float ImpactVelocity);
 
 	/** Explicit transition when a floor becomes invalid while in the 'Walking' state */
 	void Fall();
@@ -219,7 +227,7 @@ private:
 
 	/** Static utility function for checking if a PupMovementMode matches any of a list of modes. **/
 	static bool MatchModes(const EPupMovementMode& Subject, std::initializer_list<EPupMovementMode> CheckModes);
-	
+
 public:	
 	// Properties
 
@@ -517,4 +525,13 @@ private:
 	FTimerHandle JumpTimerHandle;
 	FTimerHandle DeflectTimerHandle;
 	FTimerHandle RecoveryTimerHandle;
+
+	UPROPERTY(BlueprintAssignable)
+	FMovementModeChanged MovementModeChanged;
+	
+	UPROPERTY(BlueprintAssignable)
+	FLandEvent LandEvent;
+
+	UPROPERTY(BlueprintAssignable)
+	FJumpEvent JumpEvent;
 };

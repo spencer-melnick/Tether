@@ -3,6 +3,7 @@
 #include "AITypes.h"
 #include "DrawDebugHelpers.h"
 #include "TetherCharacter.h"
+#include "Components/CapsuleComponent.h"
 
 
 bool UPupMovementComponent::Jump()
@@ -14,6 +15,16 @@ bool UPupMovementComponent::Jump()
 		JumpAppliedVelocity += JumpInitialVelocity;
 		bCanJump = false;
 		bJumping = true;
+
+		ATetherCharacter* Character = Cast<ATetherCharacter>(GetPawnOwner());
+		UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
+
+		float PlayerHeight = 0.0f;
+		if (IsValid(Character) && Capsule)
+		{
+			PlayerHeight = Capsule->GetScaledCapsuleHalfHeight();
+		}
+		JumpEvent.Broadcast(LastBasisPosition - PlayerHeight * UpdatedComponent->GetUpVector());
 		
 		SetMovementMode(EPupMovementMode::M_Falling);
 		
@@ -135,10 +146,11 @@ void UPupMovementComponent::BreakAnchor(const bool bForceBreak)
 }
 
 
-void UPupMovementComponent::Land()
+void UPupMovementComponent::Land(const FVector& FloorLocation, const float ImpactVelocity)
 {
 	SetMovementMode(EPupMovementMode::M_Walking);
 	bCanJump = true;
+	LandEvent.Broadcast(FloorLocation, ImpactVelocity);
 }
 
 

@@ -31,10 +31,10 @@ public:
 	virtual void BeginPlay() override;
 
 	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
-			
 
+	virtual FString InitNewPlayer(APlayerController* NewPlayerController, const FUniqueNetIdRepl& UniqueId, const FString& Options, const FString& Portal) override;
+	
 	// Accessors
-
 	UFUNCTION(BlueprintPure, Category="Splitscreen")
 	bool ShouldUseSplitscreen() const { return bUseSplitscreen; }
 

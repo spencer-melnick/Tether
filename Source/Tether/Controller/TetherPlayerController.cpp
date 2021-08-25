@@ -66,3 +66,15 @@ void ATetherPlayerController::BeginPlay()
 		}
 	}
 }
+
+
+void ATetherPlayerController::SetPlayerSlot(const int SlotNumber)
+{
+	PlayerSlotNumber = SlotNumber;
+}
+
+
+int ATetherPlayerController::GetPlayerSlot() const
+{
+	return PlayerSlotNumber;
+}

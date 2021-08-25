@@ -226,12 +226,13 @@ void UPupMovementComponent::UpdateVerticalMovement(const float DeltaTime)
 	{
 		if (FVector::DotProduct(Velocity, FloorNormal) <= KINDA_SMALL_NUMBER) // Avoid floating point errors..
 		{
+			const FVector ImpactVelocity = FVector::DotProduct(Velocity, FloorNormal) * FloorNormal;
 			if (!bGrounded && MovementMode == EPupMovementMode::M_Falling)
 			{
-				Land();
+				Land(FloorHit.ImpactPoint, ImpactVelocity.Size());
 			}
 			bGrounded = true;
-			Velocity -= FVector::DotProduct(Velocity, FloorNormal) * FloorNormal;
+			Velocity -= ImpactVelocity;
 			SnapToFloor(FloorHit);
 		}
 		else
@@ -289,6 +290,7 @@ bool UPupMovementComponent::SetMovementMode(const EPupMovementMode& NewMovementM
 	default:
 		break;
 	}
+	MovementModeChanged.Broadcast(MovementMode, NewMovementMode);
 	MovementMode = NewMovementMode;
 	return true;
 }

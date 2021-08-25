@@ -26,18 +26,21 @@ public:
 	// Accessors
 	const TArray<TSubclassOf<UUserWidget>>& GetPlayerWidgetClasses() const { return PlayerWidgetClasses; }
 
+	void SetPlayerSlot(const int SlotNumber);
+
+	int GetPlayerSlot() const;
+
+	UPROPERTY(BlueprintReadOnly, VisibleInstanceOnly)
+	int PlayerSlotNumber;
 
 private:
 
 	// HUD tracking
-	
 	bool bSpawnedHUDWidgets = false;
-
 	
 	// Editor properties
 
 	/** Widgets to be spawned on this player controller regardless of game mode */
 	UPROPERTY(EditDefaultsOnly, Category="HUD")
 	TArray<TSubclassOf<UUserWidget>> PlayerWidgetClasses;
-
 };
