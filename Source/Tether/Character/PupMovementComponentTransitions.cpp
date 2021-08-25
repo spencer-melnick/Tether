@@ -101,9 +101,11 @@ void UPupMovementComponent::AnchorToComponent(UPrimitiveComponent* AnchorTargetC
 	
 	FHitResult AnchorTestHit;
 	UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(UpdatedComponent);
+	FVector CloseLocation = FVector::ZeroVector;
+	AnchorTargetComponent->GetClosestPointOnCollision(UpdatedComponent->GetComponentLocation(), CloseLocation);
 	const FVector ComponentLocation = UpdatedComponent->GetComponentLocation();
 	AnchorTargetComponent->SweepComponent(AnchorTestHit, ComponentLocation,
-		AnchorTargetComponent->GetComponentLocation(),
+		CloseLocation,
 		UpdatedComponent->GetComponentQuat(),
 		PrimitiveComponent->GetCollisionShape());
 
