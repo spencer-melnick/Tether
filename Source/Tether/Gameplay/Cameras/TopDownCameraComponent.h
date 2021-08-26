@@ -27,7 +27,9 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void AddCameraRotation(const FRotator Rotator);
-	
+
+	void RecordScreenSize(AController* Controller);
+
 private:
 
 	FVector CalcDeltaLocation(const float DeltaTime);
@@ -49,7 +51,6 @@ private:
 	FVector GetWorldOffset() const;
 
 	FRotator ConsumeRotations();
-
 	
 	// MEMBER VARIABLES
 public:
@@ -142,4 +143,6 @@ private:
 	FVector2D ScreenSize;
 
 	FRotator PendingRotations;
+
+	float InitialFOV;
 };

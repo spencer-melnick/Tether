@@ -116,6 +116,12 @@ float ATetherCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Damag
 	return 0.0f;
 }
 
+void ATetherCharacter::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+	PossessedDelegate.Broadcast(NewController);
+}
+
 
 void ATetherCharacter::Jump()
 {

@@ -47,8 +47,11 @@ public:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
+	virtual void PossessedBy(AController* NewController) override;
 
-
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnPossessedDelegate, AController*)
+	FOnPossessedDelegate& OnPossessedDelegate() { return PossessedDelegate; }
+	
 	// Beam target interface
 
 	virtual UBeamComponent* GetBeamComponent_Implementation() const override { return BeamComponent; }
@@ -117,8 +120,7 @@ public:
 	// Events
 
 	virtual void HandlePenetration(const FHitResult& HitResult);
-
-
+	
 	// Editor properties
 	
 	// Tether settings
@@ -197,4 +199,6 @@ private:
 
 	UPROPERTY(VisibleAnywhere)
 	UBeamComponent* BeamComponent;
+
+	FOnPossessedDelegate PossessedDelegate;
 };

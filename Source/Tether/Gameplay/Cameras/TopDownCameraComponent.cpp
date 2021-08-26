@@ -19,22 +19,19 @@ void UTopDownCameraComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
+	InitialFOV = FieldOfView;
 	SetUsingAbsoluteLocation(true);
 	SetUsingAbsoluteRotation(true);
 	Subjects = GetSubjectActors();
-		
-	if (UWorld* World = GetWorld())
+
+	RecordScreenSize(GetOwner()->GetInstigatorController());
+
+	if (ATetherCharacter* TetherCharacter = Cast<ATetherCharacter>(GetOwner()))
 	{
-		if (APlayerController* PlayerController = World->GetFirstPlayerController())
+		TetherCharacter->OnPossessedDelegate().AddWeakLambda(this, [this](AController* Controller)
 		{
-			int ScreenSizeX, ScreenSizeY;
-			PlayerController->GetViewportSize(ScreenSizeX, ScreenSizeY);
-			if (PlayerController->GetSplitscreenPlayerCount() >= 2)
-			{
-				FieldOfView /= 2.0f;
-			}
-			ScreenSize = FVector2D(ScreenSizeX, ScreenSizeY);
-		}
+			RecordScreenSize(Controller);
+		});
 	}
 
 	SubjectDistance = CalcDeltaZoom(0.0f);
@@ -141,15 +138,12 @@ FRotator UTopDownCameraComponent::CalcDeltaRotation(const float DeltaTime)
 
 FVector2D UTopDownCameraComponent::ConvertVectorToViewSpace(const FVector& WorldLocation) const
 {
-	if (UWorld* World = GetWorld())
-	{
-		if (APlayerController* Player = World->GetFirstPlayerController())
+		if (APlayerController* PlayerController = Cast<APlayerController>(GetOwner()->GetInstigatorController()))
 		{
 			FVector2D ScreenLocation;
-			Player->ProjectWorldLocationToScreen(WorldLocation, ScreenLocation);
+			PlayerController->ProjectWorldLocationToScreen(WorldLocation, ScreenLocation);
 			return ScreenLocation - ScreenSize / 2;
 		}
-	}
 	return FVector2D::ZeroVector;
 }
 
@@ -268,4 +262,22 @@ FRotator UTopDownCameraComponent::ConsumeRotations()
 	const FRotator Rotation = PendingRotations;
 	PendingRotations = FRotator::ZeroRotator;
 	return Rotation;
+}
+
+void UTopDownCameraComponent::RecordScreenSize(AController* Controller)
+{
+	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
+	{
+		int ScreenSizeX, ScreenSizeY;
+		PlayerController->GetViewportSize(ScreenSizeX, ScreenSizeY);
+		if (PlayerController->GetSplitscreenPlayerCount() >= 2)
+		{
+			FieldOfView = InitialFOV / 2.0f;
+		}
+		else
+		{
+			FieldOfView = InitialFOV;
+		}
+		ScreenSize = FVector2D(ScreenSizeX, ScreenSizeY);
+	}
 }

@@ -40,40 +40,40 @@ public:
 	float Distance;
 
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Emitter | Queue")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Emitter|Queue")
 	int MaxQueuedProjectiles = 10;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Emitter | Queue")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Emitter|Queue")
 	int QueuedProjectiles = 0;
 
 	float ProjectileLifetime;
 
 	
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Floor Marker |")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Floor Marker|Timing")
 	bool bTelegraph;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Floor Marker |")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Floor Marker|Timing")
 	float WarningTime;
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Floor Marker |")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Floor Marker|Prediction")
 	UMaterialInterface* FloorMarkerDecalMaterial;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Floor Marker |")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Floor Marker|Prediction")
 	UCurveFloat* AlphaCurve;
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Floor Marker | Arrows")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Floor Marker|Arrows")
 	UMaterialInterface* ArrowMaterial;
 
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Floor Marker | Arrows")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Floor Marker|Arrows")
 	USkeletalMesh* ArrowMesh;
 	
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Floor Marker | Arrows | Animation")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Floor Marker|Arrows|Animation")
 	UAnimationAsset* FrontAnimation;
 
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Floor Marker | Arrows | Animation")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Floor Marker|Arrows|Animation")
 	UAnimationAsset* MiddleAnimation;
 	
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Telegraph | Arrows | Animation")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Floor Marker|Arrows|Animation")
 	UAnimationAsset* BackAnimation;
 	
 protected:
