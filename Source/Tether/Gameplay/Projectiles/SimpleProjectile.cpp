@@ -3,20 +3,16 @@
 #include "SimpleProjectile.h"
 
 #include "DrawDebugHelpers.h"
+#include "Tether/Tether.h"
 #include "Tether/Character/TetherCharacter.h"
 
 ASimpleProjectile::ASimpleProjectile()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
+	// SetTickGroup(ETickingGroup::TG_DuringPhysics);
 
-	CollisionComponent = CreateDefaultSubobject<USphereComponent>(TEXT("Collision Component"));
-	CollisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-	RootComponent = CollisionComponent;
-
-	StaticMeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Static Mesh Component"));
-	StaticMeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	StaticMeshComponent->SetupAttachment(CollisionComponent);
+	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 }
 
 
@@ -29,10 +25,56 @@ void ASimpleProjectile::Tick(float DeltaSeconds)
 	FHitResult HitResult;
 	if (Sweep(Velocity * DeltaSeconds, HitResult))
 	{
-		// GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("Collision"));
+		UE_LOG(LogTetherGame, Verbose, TEXT("Projectile was going to hit something."))
 		BouncePlayer(HitResult);
 	}
+	
 	SetActorLocation(NewLocation, false);
+}
+
+
+void ASimpleProjectile::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+}
+
+
+void ASimpleProjectile::BeginPlay()
+{
+	Super::BeginPlay();
+	if (!CollisionComponent)
+	{
+		if (UActorComponent* Component = GetComponentByClass(UShapeComponent::StaticClass()))
+		{
+			CollisionComponent = Cast<UShapeComponent>(Component);	
+		}
+		else
+		{
+			UE_LOG(LogTetherGame, Warning, TEXT("Projectile does not have a valid collision shape."));
+		}
+	}
+}
+
+void ASimpleProjectile::NotifyHit(UPrimitiveComponent* MyComp, AActor* Other, UPrimitiveComponent* OtherComp,
+	bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse, const FHitResult& Hit)
+{
+	if (ATetherCharacter* HitCharacter = Cast<ATetherCharacter>(Other))
+	{
+		if (!bDebounce)
+		{
+			HitCharacter->Deflect(-HitNormal, LaunchVelocity, Velocity, 1.0, Elasticity, DeflectTime, true);
+
+			if (UWorld* World = GetWorld())
+			{
+				bDebounce = true;
+				World->GetTimerManager().SetTimer(DebounceTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
+				{
+					bDebounce = false;
+				}), DebounceTime, false);
+			}
+		}
+	}
+	Super::NotifyHit(MyComp, Other, OtherComp, bSelfMoved, HitLocation, HitNormal, NormalImpulse, Hit);
 }
 
 
@@ -46,13 +88,6 @@ void ASimpleProjectile::BouncePlayer(const FHitResult& HitResult)
 
 			if (UWorld* World = GetWorld())
 			{
-				#if WITH_EDITOR
-				if (GEngine->GameViewport && GEngine->GameViewport->EngineShowFlags.Collision)
-				{
-					DrawDebugDirectionalArrow(World, HitResult.ImpactPoint, HitResult.ImpactPoint + HitResult.ImpactNormal * -100.0f, 25.0f, FColor::Red, false, 3.0f, 0, 5.0f);
-				}
-				#endif
-				
 				bDebounce = true;
 				World->GetTimerManager().SetTimer(DebounceTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
 				{
@@ -61,15 +96,19 @@ void ASimpleProjectile::BouncePlayer(const FHitResult& HitResult)
 			}
 		}
 	}
-	else
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, TEXT("Collided with a non-player entity"));
-	}
 }
 
 
 bool ASimpleProjectile::Sweep(const FVector& Distance, FHitResult& OutHit) const
 {
+	if (!CollisionComponent)
+	{
+		return false;
+	}
+	if (Distance.IsZero())
+	{
+		return false;
+	}
 	if(UWorld* World = GetWorld())
 	{
 		const FVector Start = CollisionComponent->GetComponentLocation();
@@ -81,7 +120,7 @@ bool ASimpleProjectile::Sweep(const FVector& Distance, FHitResult& OutHit) const
 		CollisionComponent->InitSweepCollisionParams(QueryParams, ResponseParams);
 
 		ResponseParams.CollisionResponse.SetResponse(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Block);
-		return World->SweepSingleByChannel(OutHit, Start, End, FQuat::Identity, CollisionComponent->GetCollisionObjectType(),
+		return World->SweepSingleByChannel(OutHit, Start, End, CollisionComponent->GetComponentQuat(), CollisionComponent->GetCollisionObjectType(),
 			CollisionComponent->GetCollisionShape(), QueryParams, ResponseParams);
 		
 	}

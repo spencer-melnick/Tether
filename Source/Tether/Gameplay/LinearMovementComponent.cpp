@@ -18,6 +18,7 @@ void ULinearMovementComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
+	SetTickGroup(ETickingGroup::TG_DuringPhysics);
 	Direction = GetOwner()->GetActorRotation();
 	
 }
@@ -31,13 +32,21 @@ void ULinearMovementComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 	AActor* Parent = GetOwner();
 	const FVector NewLocation = Parent->GetActorLocation() + Direction.RotateVector(LinearVelocity) * DeltaTime;
 	FHitResult Result;
-	Parent->SetActorLocation(NewLocation, true, &Result, ETeleportType::None);
+	if (Parent->SetActorLocation(NewLocation, true, &Result, ETeleportType::None))
+	{
+		if (UActorComponent* Primitive = Parent->GetComponentByClass(UPrimitiveComponent::StaticClass()))
+		{
+			Parent->ReceiveHit(Cast<UPrimitiveComponent>(Primitive), Result.GetActor(), Result.GetComponent(), true, Result.Location, Result.Normal, Result.Distance * Result.Normal, Result);
+		}
+	}
 }
+
 
 void ULinearMovementComponent::SetVelocity(const FVector& Velocity)
 {
 	LinearVelocity = Velocity;
 }
+
 
 void ULinearMovementComponent::SetVelocity(const float& Velocity)
 {

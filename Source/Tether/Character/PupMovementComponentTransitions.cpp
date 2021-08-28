@@ -57,12 +57,15 @@ void UPupMovementComponent::StopJumping()
 
 void UPupMovementComponent::TryRegainControl()
 {
-	if (FVector::DotProduct(DeflectDirection, Velocity) <= KINDA_SMALL_NUMBER)
+	if (bCanRegainControl)
 	{
-		DeflectDirection = FVector::ZeroVector;
-		if (MovementMode == EPupMovementMode::M_Deflected)
+		if (FVector::DotProduct(DeflectDirection, Velocity) <= KINDA_SMALL_NUMBER)
 		{
-			SetDefaultMovementMode();
+			DeflectDirection = FVector::ZeroVector;
+			if (MovementMode == EPupMovementMode::M_Deflected)
+			{
+				SetDefaultMovementMode();
+			}
 		}
 	}
 }
