@@ -9,7 +9,7 @@
 #include "Tether/Tether.h"
 #include "Tether/Controller/TetherPlayerController.h"
 #include "Tether/Core/TetherUtils.h"
-#include "Tether/Gameplay/BeamController.h"
+#include "Tether/Gameplay/Beam/BeamController.h"
 
 ATetherPrimaryGameMode::ATetherPrimaryGameMode()
 {

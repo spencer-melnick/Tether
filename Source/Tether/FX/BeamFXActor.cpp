@@ -3,8 +3,8 @@
 #include "BeamFXActor.h"
 
 #include "Tether/Tether.h"
-#include "Tether/Gameplay/BeamComponent.h"
-#include "Tether/Gameplay/BeamController.h"
+#include "Tether/Gameplay/Beam/BeamComponent.h"
+#include "Tether/Gameplay/Beam/BeamController.h"
 
 
 ABeamFXActor::ABeamFXActor()

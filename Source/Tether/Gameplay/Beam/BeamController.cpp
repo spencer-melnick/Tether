@@ -160,15 +160,14 @@ void ABeamController::TraverseBeams(float DeltaTime)
 	UpdateBeamFX(BeamEdges);
 }
 
+
 TArray<ABeamController::FBeamNode> ABeamController::BuildInitialNodes()
 {
 	static const auto FilterLambda = [](const UBeamComponent* Target)
 	{
 		return (Target->GetMode() & EBeamComponentMode::Connectable) != EBeamComponentMode::None;
 	};
-
 	TArray<FBeamNode> BeamNodes;
-
 	const UWorld* World = GetWorld();
 	if (!World)
 	{
@@ -234,6 +233,7 @@ TArray<ABeamController::FBeamNode> ABeamController::BuildInitialNodes()
 
 	return BeamNodes;
 }
+
 
 void ABeamController::FindLinkedNodes(const TArray<FBeamNode>& BeamNodes, int32 StartingIndex, TArray<TPair<int32, int32>>& OutPath, TSet<int32>& OutEndIndices)
 {
@@ -301,6 +301,7 @@ void ABeamController::FindLinkedNodes(const TArray<FBeamNode>& BeamNodes, int32 
 	OutEndIndices.Append(EndIndices);
 }
 
+
 float ABeamController::CalculateWeightedDistance(FVector StartLocation, FVector EndLocation) const
 {
 	switch (WeightingMode)
@@ -315,6 +316,7 @@ float ABeamController::CalculateWeightedDistance(FVector StartLocation, FVector 
 			return CalculateWeightedDistanceCustom(StartLocation, EndLocation);
 	}
 }
+
 
 void ABeamController::UpdateBeamFX(const TArray<FBeamFXEdge>& BeamEdges)
 {
@@ -361,6 +363,7 @@ void ABeamController::UpdateBeamFX(const TArray<FBeamFXEdge>& BeamEdges)
 		}
 	}
 }
+
 
 ABeamFXActor* ABeamController::AcquireBeamFXActor()
 {
