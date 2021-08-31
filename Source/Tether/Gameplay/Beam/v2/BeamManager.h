@@ -31,5 +31,7 @@ public:
 	uint8 AddUniqueNode(UBeamNodeComponent* Node);
 	
 private:
+
+	UPROPERTY(VisibleInstanceOnly)
 	TArray<TWeakObjectPtr<UBeamNodeComponent>> Nodes;
 };

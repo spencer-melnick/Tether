@@ -9,21 +9,6 @@ UBeamSourceNodeComponent::UBeamSourceNodeComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
 
-	// ...
+	bSelfPowered = true;
+	bRecieveConnections = false;
 }
-
-
-void UBeamSourceNodeComponent::BeginPlay()
-{
-	Super::BeginPlay();
-	bPowered = true;
-	PowerOrigin = this;
-}
-
-
-void UBeamSourceNodeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
-{
-	TryPowerNodes();
-	ValidateConnections();
-}
-

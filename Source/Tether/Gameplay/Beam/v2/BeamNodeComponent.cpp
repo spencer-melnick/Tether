@@ -18,18 +18,26 @@ UBeamNodeComponent::UBeamNodeComponent()
 
 void UBeamNodeComponent::BeginPlay()
 {
-	Register();
 	Super::BeginPlay();
-	SetActive(bPowered);
+	Register();
+	SetActive(bPowered || bSelfPowered);
 }
 
 
 void UBeamNodeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
-	if (bPowered)
+	if (bSendConnections && bPowered || bSelfPowered)
 	{
-		TryPowerNodes();
-		ValidateConnections();
+		if (PowerSource.IsValid() || bSelfPowered)
+		{
+			TryPowerNodes();
+			ValidateConnections();
+		}
+		else
+		{
+			PowerSource = nullptr;
+			PowerOff();
+		}
 	}
 }
 
@@ -97,11 +105,11 @@ void UBeamNodeComponent::Register()
 
 void UBeamNodeComponent::PowerOn(UBeamNodeComponent* Source, UBeamNodeComponent* Origin, int Iteration)
 {
-	if (Iteration >= MaxIterations)
+	if (Iteration >= MaxIterations || !bRecieveConnections)
 	{
 		return;
 	}
-	// UE_LOG(LogTetherGame, Verbose, TEXT("Beam node %i turned on by node %i... Stack iteration %i"), Id, Source->GetId(), Iteration);
+	UE_LOG(LogTetherGame, Verbose, TEXT("Beam node %i turned on by node %i... Stack iteration %i"), Id, Source->GetId(), Iteration);
 	bPowered = true;
 	SetActive(true);
 	PowerSource = Source;
@@ -119,12 +127,15 @@ void UBeamNodeComponent::PowerOff(int Iteration)
 	}
 	for (TWeakObjectPtr<UBeamNodeComponent> Node : NodesSupplying)
 	{
-		// UE_LOG(LogTetherGame, Verbose, TEXT("Beam node %i turned off by %i... Stack iteration %i"), Node->GetId(), Id, Iteration);
-		Node->PowerOff(Iteration + 1);
+		if (Node.IsValid())
+		{
+			// UE_LOG(LogTetherGame, Verbose, TEXT("Beam node %i turned off by %i... Stack iteration %i"), Node->GetId(), Id, Iteration);
+			Node->PowerOff(Iteration + 1);
+		}
 	}
 	NodesSupplying.Empty();
 	bPowered = false;
-	SetActive(false);
+	SetActive(bActiveWhenUnpowered);
 	PowerSource = nullptr;
 	PowerOrigin = nullptr;
 }
@@ -134,15 +145,21 @@ void UBeamNodeComponent::TryPowerNodes(int Iteration)
 {
 	for (UBeamNodeComponent* Node : GetBeamComponentsInRange(Range))
 	{
-		if(Node == this || Node->GetPowered() || Node == PowerSource)
+		if (!Node || Node == this || Node->GetPowered() || !Node->bRecieveConnections || Node == PowerSource)
 		{
 			continue;
 		}
 		if (CanReachBeam(Node))
 		{
-			DrawDebugLine(GetWorld(), GetComponentLocation(), Node->GetComponentLocation(), FColor::Blue, false, 5.0f, 1, 5.0f);
 			NodesSupplying.AddUnique(Node);
-			Node->PowerOn(this, PowerOrigin.Get(), Iteration);
+			if (bSelfPowered)
+			{
+				Node->PowerOn(this, this, Iteration);
+			}
+			else
+			{
+				Node->PowerOn(this, PowerOrigin.Get(), Iteration);
+			}
 		}
 	}
 }
@@ -154,10 +171,11 @@ void UBeamNodeComponent::ValidateConnections()
 	for (int i = 0; i < NodesSupplying.Num(); i++)
 	{
 		UBeamNodeComponent* Node = NodesSupplying[i].Get();
-		if (!CanReachBeam(Node))
+		if (Node && !CanReachBeam(Node))
 		{
 			NodesPendingDeletion.Insert(i, 0);
 		}
+		DrawDebugLine(GetWorld(), GetComponentLocation(), Node->GetComponentLocation(), FColor::Blue, false, 5.0f, 1, 5.0f);
 	}
 	for (int IndexToDelete : NodesPendingDeletion)
 	{

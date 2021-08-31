@@ -18,6 +18,7 @@ public:
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
+	
 	UFUNCTION(BlueprintCallable)
 	void PowerOn(UBeamNodeComponent* Source, UBeamNodeComponent* Origin, int Iteration = 0);
 
@@ -25,7 +26,7 @@ public:
 	void PowerOff(int Iteration = 0);
 	
 	UFUNCTION(BlueprintCallable)
-	bool GetPowered() const { return bPowered; }
+	bool GetPowered() const { return bPowered || bSelfPowered; }
 
 	uint8 GetId() const { return Id; }
 	
@@ -51,19 +52,28 @@ public:
 	float Range = 500.0f;
 
 protected:
-	UPROPERTY(Transient, VisibleInstanceOnly)
+	UPROPERTY(VisibleInstanceOnly, Category = "Beam")
 	TWeakObjectPtr<UBeamNodeComponent> PowerSource;
 	
-	UPROPERTY(VisibleInstanceOnly)
+	UPROPERTY(VisibleInstanceOnly, Category = "Beam")
 	bool bPowered = false;
 
-	UPROPERTY(Transient, VisibleInstanceOnly)
+	UPROPERTY(VisibleInstanceOnly, Category = "Beam")
 	TArray<TWeakObjectPtr<UBeamNodeComponent>> NodesSupplying;
 
-	UPROPERTY(Transient, VisibleInstanceOnly)
+	UPROPERTY(VisibleInstanceOnly, Category = "Beam")
 	TWeakObjectPtr<UBeamNodeComponent> PowerOrigin;
 
+	bool bActiveWhenUnpowered = false;
+
+	bool bRecieveConnections = true;
+	
+	bool bSendConnections = true;
+
+	bool bSelfPowered = false;
+	
 private:
+	UPROPERTY(Transient, VisibleInstanceOnly)
 	uint8 Id;
 
 	uint8 MaxIterations = 10;
