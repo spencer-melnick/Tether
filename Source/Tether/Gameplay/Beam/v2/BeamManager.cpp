@@ -33,12 +33,36 @@ void ABeamManager::AddNode(UBeamNodeComponent* Node)
 
 uint8 ABeamManager::AddUniqueNode(UBeamNodeComponent* Node)
 {
+	Cleanup();
 	const TWeakObjectPtr<UBeamNodeComponent> NodeRef = TWeakObjectPtr<UBeamNodeComponent>(Node);
 	if (!Nodes.Contains(NodeRef))
 	{
-		UE_LOG(LogTetherGame, Verbose, TEXT("Registered new beam node."));
+		// UE_LOG(LogTetherGame, Verbose, TEXT("Registered new beam node."));
 		return Nodes.Add(NodeRef);
 	}
 	return -1;
+}
+
+void ABeamManager::Cleanup()
+{
+	TArray<int> IndicesToDelete;
+	for (int i = 0; i < Nodes.Num(); i++)
+	{
+		if (Nodes[i].IsStale())
+		{
+			IndicesToDelete.Insert(i, 0);
+		}
+	}
+	for (int IndexToDelete : IndicesToDelete)
+	{
+		Nodes.RemoveAt(IndexToDelete);
+	}
+	
+}
+
+
+float ABeamManager::GetTickInterval() const
+{
+	return TickInterval;
 }
 

@@ -20,9 +20,22 @@ public:
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
+	virtual void PowerOn(UBeamNodeComponent* Source, UBeamNodeComponent* Origin, int Iteration) override;
+
+	virtual void PowerOff(int Iteration) override;
+	
+	void RecieveEnergy(const float EnergyRatio);
+
+	UFUNCTION(BlueprintCallable)
+	float GetPowerPercentage() const;
+	
 	UPROPERTY(EditAnywhere, Category = "Beam|Receiver")
 	float EnergyConsumptionRate = 10.0f;
 
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Beam|Reciever")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Beam|Receiver")
 	bool bActive = false;
+
+private:
+	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Beam|Receiver")
+	float PowerPercentage = 0.0f;
 };

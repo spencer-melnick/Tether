@@ -10,20 +10,41 @@ UBeamReceiverComponent::UBeamReceiverComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
 	bActiveWhenUnpowered = true;
+	bSendConnections = false;
 }
 
 // Called every frame
 void UBeamReceiverComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
-	ValidateConnections();
-	if (UBeamBatteryComponent* Battery = Cast<UBeamBatteryComponent>(PowerOrigin))
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	bActive = PowerPercentage > 0.0f;
+}
+
+void UBeamReceiverComponent::PowerOn(UBeamNodeComponent* Source, UBeamNodeComponent* Origin, int Iteration)
+{
+	Super::PowerOn(Source, Origin, Iteration);
+	if (UBeamBatteryComponent* Battery = Cast<UBeamBatteryComponent>(Origin))
 	{
-		const float EnergyConsumed = Battery->ConsumeEnergy(EnergyConsumptionRate * DeltaTime);
-		bActive = EnergyConsumed >= EnergyConsumptionRate * DeltaTime;
+		Battery->ReceiveEnergyRequest(EnergyConsumptionRate, this);
 	}
-	else
-	{
-		bActive = false;
-	}
+}
+
+
+void UBeamReceiverComponent::PowerOff(int Iteration)
+{
+	PowerPercentage = 0.0f;
+	Super::PowerOff(Iteration);
+}
+
+
+void UBeamReceiverComponent::RecieveEnergy(const float EnergyRatio)
+{
+	PowerPercentage = EnergyRatio;
+}
+
+
+float UBeamReceiverComponent::GetPowerPercentage() const
+{
+	return PowerPercentage;
 }
 

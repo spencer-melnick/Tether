@@ -29,9 +29,16 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	uint8 AddUniqueNode(UBeamNodeComponent* Node);
+
+	void Cleanup();
+	
+	float GetTickInterval() const;
 	
 private:
 
 	UPROPERTY(VisibleInstanceOnly)
 	TArray<TWeakObjectPtr<UBeamNodeComponent>> Nodes;
+
+	UPROPERTY(VisibleInstanceOnly)
+	float TickInterval = 0.0f;
 };

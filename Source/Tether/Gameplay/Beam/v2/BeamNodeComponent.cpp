@@ -41,6 +41,28 @@ void UBeamNodeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	}
 }
 
+void UBeamNodeComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+	PowerOff();
+}
+
+
+void UBeamNodeComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
+{
+	if (bSendConnections)
+	{
+		for (TWeakObjectPtr<UBeamNodeComponent> Node : NodesSupplying)
+		{
+			if(Node.IsValid())
+			{
+				Node->PowerOff();
+			}
+		}
+	}
+	Super::OnComponentDestroyed(bDestroyingHierarchy);
+}
+
 
 bool UBeamNodeComponent::CanReachBeam(const UBeamNodeComponent* OtherBeamComponent) const
 {
@@ -94,6 +116,7 @@ void UBeamNodeComponent::Register()
 		if (ABeamManager* BeamManager = Cast<ABeamManager>(Manager))
 		{
 			Id = BeamManager->AddUniqueNode(this);
+			PrimaryComponentTick.TickInterval = BeamManager->GetTickInterval();
 		}
 		else
 		{
@@ -109,18 +132,25 @@ void UBeamNodeComponent::PowerOn(UBeamNodeComponent* Source, UBeamNodeComponent*
 	{
 		return;
 	}
-	UE_LOG(LogTetherGame, Verbose, TEXT("Beam node %i turned on by node %i... Stack iteration %i"), Id, Source->GetId(), Iteration);
 	bPowered = true;
 	SetActive(true);
 	PowerSource = Source;
 	PowerOrigin = Origin;
-	
-	TryPowerNodes(Iteration + 1);
+
+	if (bSendConnections)
+	{
+		TryPowerNodes(Iteration + 1);
+	}
 }
 
 
 void UBeamNodeComponent::PowerOff(int Iteration)
 {
+	if (!this)
+	{
+		UE_LOG(LogTetherGame, Error, TEXT("A node lost itself..."));
+		return;
+	}
 	if (Iteration >= MaxIterations)
 	{
 		return;
@@ -129,15 +159,14 @@ void UBeamNodeComponent::PowerOff(int Iteration)
 	{
 		if (Node.IsValid())
 		{
-			// UE_LOG(LogTetherGame, Verbose, TEXT("Beam node %i turned off by %i... Stack iteration %i"), Node->GetId(), Id, Iteration);
 			Node->PowerOff(Iteration + 1);
 		}
 	}
 	NodesSupplying.Empty();
 	bPowered = false;
-	SetActive(bActiveWhenUnpowered);
 	PowerSource = nullptr;
 	PowerOrigin = nullptr;
+	SetActive(bActiveWhenUnpowered);
 }
 
 
@@ -171,15 +200,22 @@ void UBeamNodeComponent::ValidateConnections()
 	for (int i = 0; i < NodesSupplying.Num(); i++)
 	{
 		UBeamNodeComponent* Node = NodesSupplying[i].Get();
-		if (Node && !CanReachBeam(Node))
+		if (Node)
+		{
+			if(!CanReachBeam(Node))
+			{
+				NodesPendingDeletion.Insert(i, 0);
+				NodesSupplying[i]->PowerOff();
+			}
+			DrawDebugLine(GetWorld(), GetComponentLocation(), Node->GetComponentLocation(), FColor::Blue, true, 5.0f, 1, 5.0f);
+		}
+		else
 		{
 			NodesPendingDeletion.Insert(i, 0);
 		}
-		DrawDebugLine(GetWorld(), GetComponentLocation(), Node->GetComponentLocation(), FColor::Blue, false, 5.0f, 1, 5.0f);
 	}
 	for (int IndexToDelete : NodesPendingDeletion)
 	{
-		NodesSupplying[IndexToDelete]->PowerOff();
 		NodesSupplying.RemoveAt(IndexToDelete);
 	}
 }

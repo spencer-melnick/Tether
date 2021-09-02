@@ -14,21 +14,28 @@ class TETHER_API UBeamNodeComponent : public USceneComponent
 public:	
 	UBeamNodeComponent();
 
-	virtual void BeginPlay() override;
+	virtual void BeginPlay() override final;
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+
+	virtual void OnComponentDestroyed(bool bDestroyingHierarchy) override;
+	
 	
 	UFUNCTION(BlueprintCallable)
-	void PowerOn(UBeamNodeComponent* Source, UBeamNodeComponent* Origin, int Iteration = 0);
+	virtual void PowerOn(UBeamNodeComponent* Source, UBeamNodeComponent* Origin, int Iteration = 0);
 
 	UFUNCTION(BlueprintCallable)
-	void PowerOff(int Iteration = 0);
+	virtual void PowerOff(int Iteration = 0);
 	
 	UFUNCTION(BlueprintCallable)
 	bool GetPowered() const { return bPowered || bSelfPowered; }
 
+	TWeakObjectPtr<UBeamNodeComponent> GetOrigin() const { return PowerOrigin; }
+	
 	uint8 GetId() const { return Id; }
+
 	
 protected:
 	void TryPowerNodes(int Iteration = 0);
@@ -52,17 +59,17 @@ public:
 	float Range = 500.0f;
 
 protected:
-	UPROPERTY(VisibleInstanceOnly, Category = "Beam")
+	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Beam")
 	TWeakObjectPtr<UBeamNodeComponent> PowerSource;
+
+	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Beam")
+	TWeakObjectPtr<UBeamNodeComponent> PowerOrigin;
 	
-	UPROPERTY(VisibleInstanceOnly, Category = "Beam")
+	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Beam")
 	bool bPowered = false;
 
-	UPROPERTY(VisibleInstanceOnly, Category = "Beam")
+	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Beam")
 	TArray<TWeakObjectPtr<UBeamNodeComponent>> NodesSupplying;
-
-	UPROPERTY(VisibleInstanceOnly, Category = "Beam")
-	TWeakObjectPtr<UBeamNodeComponent> PowerOrigin;
 
 	bool bActiveWhenUnpowered = false;
 
@@ -73,7 +80,7 @@ protected:
 	bool bSelfPowered = false;
 	
 private:
-	UPROPERTY(Transient, VisibleInstanceOnly)
+	UPROPERTY(VisibleInstanceOnly)
 	uint8 Id;
 
 	uint8 MaxIterations = 10;
