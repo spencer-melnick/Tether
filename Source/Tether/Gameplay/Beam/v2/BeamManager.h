@@ -33,12 +33,12 @@ public:
 	void Cleanup();
 	
 	float GetTickInterval() const;
+
+	UPROPERTY(EditInstanceOnly)
+	float TickInterval = 0.1f;
 	
 private:
 
 	UPROPERTY(VisibleInstanceOnly)
 	TArray<TWeakObjectPtr<UBeamNodeComponent>> Nodes;
-
-	UPROPERTY(VisibleInstanceOnly)
-	float TickInterval = 0.0f;
 };

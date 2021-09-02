@@ -18,8 +18,6 @@ public:
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-
 	virtual void OnComponentDestroyed(bool bDestroyingHierarchy) override;
 	
 	
@@ -46,8 +44,8 @@ protected:
 
 	TArray<UBeamNodeComponent*> GetBeamComponentsInRange(const float SearchRange) const;
 
+	
 private:
-
 	void Register();
 
 // PROPERTIES

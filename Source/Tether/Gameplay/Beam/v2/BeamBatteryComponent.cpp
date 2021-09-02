@@ -19,7 +19,6 @@ FEnergyRequest::FEnergyRequest(const float RequestAmount, UBeamReceiverComponent
 UBeamBatteryComponent::UBeamBatteryComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
-	PrimaryComponentTick.TickGroup = ETickingGroup::TG_PostPhysics;
 	bActiveWhenUnpowered = true;
 }
 
@@ -63,10 +62,6 @@ void UBeamBatteryComponent::PowerReceivers(const float DeltaTime)
 		{
 			PowerRatio = RequestedEnergy == 0.0f ? 0.0f : GenerationRate / RequestedEnergy;
 		}
-	}
-	else
-	{
-		PowerRatio = 1.0f;
 	}
 	Energy = FMath::Clamp(Energy + EnergyDelta, 0.0f, MaxEnergy);
 	TArray<int> PendingDeletionIndices;

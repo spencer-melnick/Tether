@@ -26,7 +26,7 @@ void UBeamNodeComponent::BeginPlay()
 
 void UBeamNodeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
-	if (bSendConnections && bPowered || bSelfPowered)
+	if (bSendConnections && (bPowered || bSelfPowered))
 	{
 		if (PowerSource.IsValid() || bSelfPowered)
 		{
@@ -35,16 +35,9 @@ void UBeamNodeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 		}
 		else
 		{
-			PowerSource = nullptr;
 			PowerOff();
 		}
 	}
-}
-
-void UBeamNodeComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
-{
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-	PowerOff();
 }
 
 
@@ -71,8 +64,7 @@ bool UBeamNodeComponent::CanReachBeam(const UBeamNodeComponent* OtherBeamCompone
 		return false;
 	}
 	const float Distance = FVector::Distance(GetComponentLocation(), OtherBeamComponent->GetComponentLocation());
-	const float MaxRange = FMath::Max(Range, OtherBeamComponent->Range);
-	if (Distance > MaxRange)
+	if (Distance > Range)
 	{
 		return false;
 	}
@@ -128,7 +120,7 @@ void UBeamNodeComponent::Register()
 
 void UBeamNodeComponent::PowerOn(UBeamNodeComponent* Source, UBeamNodeComponent* Origin, int Iteration)
 {
-	if (Iteration >= MaxIterations || !bRecieveConnections)
+	if (Iteration >= MaxIterations)
 	{
 		return;
 	}
@@ -146,11 +138,6 @@ void UBeamNodeComponent::PowerOn(UBeamNodeComponent* Source, UBeamNodeComponent*
 
 void UBeamNodeComponent::PowerOff(int Iteration)
 {
-	if (!this)
-	{
-		UE_LOG(LogTetherGame, Error, TEXT("A node lost itself..."));
-		return;
-	}
 	if (Iteration >= MaxIterations)
 	{
 		return;
@@ -207,7 +194,9 @@ void UBeamNodeComponent::ValidateConnections()
 				NodesPendingDeletion.Insert(i, 0);
 				NodesSupplying[i]->PowerOff();
 			}
-			DrawDebugLine(GetWorld(), GetComponentLocation(), Node->GetComponentLocation(), FColor::Blue, true, 5.0f, 1, 5.0f);
+			const FVector Start = GetComponentLocation();
+			const FVector End = Node->GetComponentLocation();
+			DrawDebugLine(GetWorld(), Start, End, FColor::Blue, false, PrimaryComponentTick.TickInterval, 0, 5.0f);
 		}
 		else
 		{

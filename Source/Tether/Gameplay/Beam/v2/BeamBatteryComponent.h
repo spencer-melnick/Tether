@@ -33,17 +33,18 @@ public:
 	UBeamBatteryComponent();
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
-
+	
 	void ReceiveEnergyRequest(const float RequestAmount, UBeamReceiverComponent* Requester);
+
 	
 private:
 	UFUNCTION(BlueprintCallable)
 	float GetStoragePercent() const;
 
 	void PowerReceivers(const float DeltaTime);
+
 	
 public:
-	
 	UPROPERTY(EditAnywhere, Category = "Beam|Battery")
 	float MaxEnergy = 1000.0f;
 
