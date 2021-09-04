@@ -13,13 +13,6 @@ UBeamReceiverComponent::UBeamReceiverComponent()
 	bSendConnections = false;
 }
 
-// Called every frame
-void UBeamReceiverComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
-{
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	bActive = PowerPercentage > 0.0f;
-}
-
 void UBeamReceiverComponent::PowerOn(UBeamNodeComponent* Source, UBeamNodeComponent* Origin, int Iteration)
 {
 	Super::PowerOn(Source, Origin, Iteration);

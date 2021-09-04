@@ -7,12 +7,15 @@
 #include "CollisionQueryParams.h"
 #include "DrawDebugHelpers.h"
 #include "GeneratedCodeHelpers.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Tether/Tether.h"
 
 UBeamNodeComponent::UBeamNodeComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.bStartWithTickEnabled = true;
 }
 
 
@@ -20,46 +23,27 @@ void UBeamNodeComponent::BeginPlay()
 {
 	Super::BeginPlay();
 	Register();
-	SetActive(bPowered || bSelfPowered);
 }
 
 
-void UBeamNodeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+void UBeamNodeComponent::TickComponent(float DeltaTime, ELevelTick TickType,
+	FActorComponentTickFunction* ThisTickFunction)
 {
-	if (bSendConnections && (bPowered || bSelfPowered))
+	for (int i = 0; i < NodesSupplying.Num() && i < BeamEffects.Num(); i++)
 	{
-		if (PowerSource.IsValid() || bSelfPowered)
+		if (!NodesSupplying[i].IsValid() || !BeamEffects[i])
 		{
-			TryPowerNodes();
-			ValidateConnections();
+			continue;
 		}
-		else
-		{
-			PowerOff();
-		}
+		BeamEffects[i]->SetVariableVec3(TEXT("StartLocation"), GetComponentLocation());
+		BeamEffects[i]->SetVariableVec3(TEXT("EndLocation"), NodesSupplying[i]->GetComponentLocation());
 	}
-}
-
-
-void UBeamNodeComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
-{
-	if (bSendConnections)
-	{
-		for (TWeakObjectPtr<UBeamNodeComponent> Node : NodesSupplying)
-		{
-			if(Node.IsValid())
-			{
-				Node->PowerOff();
-			}
-		}
-	}
-	Super::OnComponentDestroyed(bDestroyingHierarchy);
 }
 
 
 bool UBeamNodeComponent::CanReachBeam(const UBeamNodeComponent* OtherBeamComponent) const
 {
-	if (!OtherBeamComponent)
+	if (!OtherBeamComponent || !bSendConnections)
 	{
 		return false;
 	}
@@ -118,6 +102,18 @@ void UBeamNodeComponent::Register()
 }
 
 
+void UBeamNodeComponent::SpawnEffectComponent(UBeamNodeComponent* OtherNode)
+{
+	if (BeamEffect)
+	{
+		UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, BeamEffect, GetComponentLocation());
+		Effect->SetVariableVec3(TEXT("StartLocation"), GetComponentLocation());
+		Effect->SetVariableVec3(TEXT("EndLocation"), OtherNode->GetComponentLocation());
+		BeamEffects.Add(Effect);
+	}
+}
+
+
 void UBeamNodeComponent::PowerOn(UBeamNodeComponent* Source, UBeamNodeComponent* Origin, int Iteration)
 {
 	if (Iteration >= MaxIterations)
@@ -131,7 +127,7 @@ void UBeamNodeComponent::PowerOn(UBeamNodeComponent* Source, UBeamNodeComponent*
 
 	if (bSendConnections)
 	{
-		TryPowerNodes(Iteration + 1);
+		FindNewNodes(Iteration + 1);
 	}
 }
 
@@ -149,7 +145,14 @@ void UBeamNodeComponent::PowerOff(int Iteration)
 			Node->PowerOff(Iteration + 1);
 		}
 	}
+	for (UNiagaraComponent* Effect : BeamEffects)
+	{
+		Effect->DestroyInstance();
+		Effect->DeactivateImmediate();
+		Effect->DestroyComponent();
+	}
 	NodesSupplying.Empty();
+	BeamEffects.Empty();
 	bPowered = false;
 	PowerSource = nullptr;
 	PowerOrigin = nullptr;
@@ -157,8 +160,12 @@ void UBeamNodeComponent::PowerOff(int Iteration)
 }
 
 
-void UBeamNodeComponent::TryPowerNodes(int Iteration)
+void UBeamNodeComponent::FindNewNodes(int Iteration)
 {
+	if (!bSendConnections)
+	{
+		return;
+	}
 	for (UBeamNodeComponent* Node : GetBeamComponentsInRange(Range))
 	{
 		if (!Node || Node == this || Node->GetPowered() || !Node->bRecieveConnections || Node == PowerSource)
@@ -167,14 +174,19 @@ void UBeamNodeComponent::TryPowerNodes(int Iteration)
 		}
 		if (CanReachBeam(Node))
 		{
-			NodesSupplying.AddUnique(Node);
-			if (bSelfPowered)
+			if (!NodesSupplying.Contains(Node))
 			{
-				Node->PowerOn(this, this, Iteration);
-			}
-			else
-			{
-				Node->PowerOn(this, PowerOrigin.Get(), Iteration);
+				NodesSupplying.Add(Node);
+				if (bSelfPowered)
+				{
+					Node->PowerOn(this, this, Iteration);
+					SpawnEffectComponent(Node);
+				}
+				else
+				{
+					Node->PowerOn(this, PowerOrigin.Get(), Iteration);
+					SpawnEffectComponent(Node);
+				}
 			}
 		}
 	}
@@ -192,11 +204,8 @@ void UBeamNodeComponent::ValidateConnections()
 			if(!CanReachBeam(Node))
 			{
 				NodesPendingDeletion.Insert(i, 0);
-				NodesSupplying[i]->PowerOff();
+				Node->PowerOff(1);
 			}
-			const FVector Start = GetComponentLocation();
-			const FVector End = Node->GetComponentLocation();
-			DrawDebugLine(GetWorld(), Start, End, FColor::Blue, false, PrimaryComponentTick.TickInterval, 0, 5.0f);
 		}
 		else
 		{
@@ -205,6 +214,35 @@ void UBeamNodeComponent::ValidateConnections()
 	}
 	for (int IndexToDelete : NodesPendingDeletion)
 	{
-		NodesSupplying.RemoveAt(IndexToDelete);
+		if (NodesSupplying.IsValidIndex(IndexToDelete))
+		{
+			NodesSupplying.RemoveAt(IndexToDelete);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Invalid node supplying index %d"), IndexToDelete);
+		}
+		if (BeamEffects.IsValidIndex(IndexToDelete))
+		{
+			UNiagaraComponent* Effect = BeamEffects[IndexToDelete];
+			BeamEffects.RemoveAt(IndexToDelete);
+			Effect->DestroyComponent();
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Invalid beam effect index %d"), IndexToDelete);
+		}
 	}
 }
+
+
+FBeamConnection::FBeamConnection()
+	:Child(nullptr), Effect(nullptr)
+{}
+
+
+FBeamConnection::FBeamConnection(UBeamNodeComponent* Child, UNiagaraComponent* Effect)
+	:Child(Child), Effect(Effect)
+{}
+
+

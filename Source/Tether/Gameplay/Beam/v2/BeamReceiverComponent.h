@@ -18,8 +18,6 @@ public:
 	// Sets default values for this component's properties
 	UBeamReceiverComponent();
 
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
-
 	virtual void PowerOn(UBeamNodeComponent* Source, UBeamNodeComponent* Origin, int Iteration) override;
 
 	virtual void PowerOff(int Iteration) override;

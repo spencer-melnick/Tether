@@ -3,6 +3,7 @@
 
 #include "BeamManager.h"
 
+#include "BeamBatteryComponent.h"
 #include "Tether/Tether.h"
 
 
@@ -17,13 +18,34 @@ ABeamManager::ABeamManager()
 void ABeamManager::BeginPlay()
 {
 	Super::BeginPlay();
-	
+	PrimaryActorTick.UpdateTickIntervalAndCoolDown(TickInterval);
 }
 
 // Called every frame
 void ABeamManager::Tick(float DeltaTime)
 {
-	Super::Tick(DeltaTime);
+	Cleanup();
+	for (TWeakObjectPtr<UBeamNodeComponent> Node : Nodes)
+	{
+		if (Node->GetPowered())
+		{
+			Node->ValidateConnections();
+		}
+	}
+	for (TWeakObjectPtr<UBeamNodeComponent> Node : Nodes)
+	{
+		if (Node->GetPowered())
+		{
+			Node->FindNewNodes(0);
+		}
+	}
+	for (TWeakObjectPtr<UBeamNodeComponent> Node : Nodes)
+	{
+		if (UBeamBatteryComponent* Battery = Cast<UBeamBatteryComponent>(Node.Get()))
+		{
+			Battery->PowerReceivers(DeltaTime);
+		}
+	}
 }
 
 void ABeamManager::AddNode(UBeamNodeComponent* Node)
@@ -57,7 +79,6 @@ void ABeamManager::Cleanup()
 	{
 		Nodes.RemoveAt(IndexToDelete);
 	}
-	
 }
 
 
@@ -65,4 +86,3 @@ float ABeamManager::GetTickInterval() const
 {
 	return TickInterval;
 }
-

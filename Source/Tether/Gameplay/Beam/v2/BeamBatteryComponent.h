@@ -36,13 +36,12 @@ public:
 	
 	void ReceiveEnergyRequest(const float RequestAmount, UBeamReceiverComponent* Requester);
 
+	void PowerReceivers(const float DeltaTime);
+
 	
 private:
 	UFUNCTION(BlueprintCallable)
 	float GetStoragePercent() const;
-
-	void PowerReceivers(const float DeltaTime);
-
 	
 public:
 	UPROPERTY(EditAnywhere, Category = "Beam|Battery")

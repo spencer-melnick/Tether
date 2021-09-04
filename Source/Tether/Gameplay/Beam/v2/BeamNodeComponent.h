@@ -3,6 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
+#include "NiagaraSystem.h"
 #include "Components/SceneComponent.h"
 #include "BeamNodeComponent.generated.h"
 
@@ -17,15 +19,16 @@ public:
 	virtual void BeginPlay() override final;
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
-
-	virtual void OnComponentDestroyed(bool bDestroyingHierarchy) override;
-	
 	
 	UFUNCTION(BlueprintCallable)
 	virtual void PowerOn(UBeamNodeComponent* Source, UBeamNodeComponent* Origin, int Iteration = 0);
 
 	UFUNCTION(BlueprintCallable)
 	virtual void PowerOff(int Iteration = 0);
+
+	void FindNewNodes(int Iteration = 0);
+
+	void ValidateConnections();
 	
 	UFUNCTION(BlueprintCallable)
 	bool GetPowered() const { return bPowered || bSelfPowered; }
@@ -36,10 +39,6 @@ public:
 
 	
 protected:
-	void TryPowerNodes(int Iteration = 0);
-
-	void ValidateConnections();
-	
 	bool CanReachBeam(const UBeamNodeComponent* OtherBeamComponent) const;
 
 	TArray<UBeamNodeComponent*> GetBeamComponentsInRange(const float SearchRange) const;
@@ -47,6 +46,8 @@ protected:
 	
 private:
 	void Register();
+
+	void SpawnEffectComponent(UBeamNodeComponent* OtherNode);
 
 // PROPERTIES
 public:
@@ -62,12 +63,12 @@ protected:
 
 	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Beam")
 	TWeakObjectPtr<UBeamNodeComponent> PowerOrigin;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Beam|FX")
+	UNiagaraSystem* BeamEffect;
 	
 	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Beam")
 	bool bPowered = false;
-
-	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Beam")
-	TArray<TWeakObjectPtr<UBeamNodeComponent>> NodesSupplying;
 
 	bool bActiveWhenUnpowered = false;
 
@@ -82,4 +83,27 @@ private:
 	uint8 Id;
 
 	uint8 MaxIterations = 10;
+
+	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Beam")
+	TArray<TWeakObjectPtr<UBeamNodeComponent>> NodesSupplying;
+
+	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Beam|FX")
+	TArray<UNiagaraComponent*> BeamEffects; 
+
+};
+
+USTRUCT()
+struct FBeamConnection
+{
+	GENERATED_BODY()
+	
+public:
+	FBeamConnection();
+	FBeamConnection(UBeamNodeComponent* Child, UNiagaraComponent* Effect);
+
+	UPROPERTY(Transient)
+	UBeamNodeComponent* Child;
+
+	UPROPERTY(Transient)
+	UNiagaraComponent* Effect;	
 };

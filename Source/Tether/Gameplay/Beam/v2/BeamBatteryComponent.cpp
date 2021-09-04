@@ -27,13 +27,20 @@ void UBeamBatteryComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	FActorComponentTickFunction* ThisTickFunction)
 {
 	bSelfPowered = Energy >= 0.0f;
-	PowerReceivers(DeltaTime);
+	// PowerReceivers(DeltaTime);
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 }
 
 
 void UBeamBatteryComponent::ReceiveEnergyRequest(const float RequestAmount, UBeamReceiverComponent* Requester)
 {
+	for (FEnergyRequest Request : Requests)
+	{
+		if (Request.Requester == Requester)
+		{
+			return;
+		}
+	}
 	Requests.Add(FEnergyRequest(RequestAmount, Requester));
 	RequestedEnergy += RequestAmount;
 }
