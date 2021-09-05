@@ -19,6 +19,7 @@ FEnergyRequest::FEnergyRequest(const float RequestAmount, UBeamReceiverComponent
 UBeamBatteryComponent::UBeamBatteryComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.bStartWithTickEnabled = true;
 	bActiveWhenUnpowered = true;
 }
 
@@ -26,8 +27,7 @@ UBeamBatteryComponent::UBeamBatteryComponent()
 void UBeamBatteryComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	FActorComponentTickFunction* ThisTickFunction)
 {
-	bSelfPowered = Energy >= 0.0f;
-	// PowerReceivers(DeltaTime);
+	bSelfPowered = Energy > 0.0f || GenerationRate > 0.0f;
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 }
 

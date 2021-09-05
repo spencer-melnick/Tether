@@ -12,10 +12,21 @@
 #include "Kismet/GameplayStatics.h"
 #include "Tether/Tether.h"
 
+FBeamConnection::FBeamConnection()
+	:Child(nullptr), Effect(nullptr)
+{}
+
+
+FBeamConnection::FBeamConnection(UBeamNodeComponent* Child, UNiagaraComponent* Effect)
+	:Child(Child), Effect(Effect)
+{}
+
+
 UBeamNodeComponent::UBeamNodeComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
 	PrimaryComponentTick.bStartWithTickEnabled = true;
+	PrimaryComponentTick.TickInterval = 0.0f;
 }
 
 
@@ -29,14 +40,14 @@ void UBeamNodeComponent::BeginPlay()
 void UBeamNodeComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	FActorComponentTickFunction* ThisTickFunction)
 {
-	for (int i = 0; i < NodesSupplying.Num() && i < BeamEffects.Num(); i++)
+	for (int i = 0; i < NodesSupplying.Num(); i++)
 	{
-		if (!NodesSupplying[i].IsValid() || !BeamEffects[i])
+		if (!NodesSupplying[i].Child || !NodesSupplying[i].Effect)
 		{
 			continue;
 		}
-		BeamEffects[i]->SetVariableVec3(TEXT("StartLocation"), GetComponentLocation());
-		BeamEffects[i]->SetVariableVec3(TEXT("EndLocation"), NodesSupplying[i]->GetComponentLocation());
+		NodesSupplying[i].Effect->SetVariableVec3(TEXT("StartLocation"), GetComponentLocation());
+		NodesSupplying[i].Effect->SetVariableVec3(TEXT("EndLocation"), NodesSupplying[i].Child->GetComponentLocation());
 	}
 }
 
@@ -67,18 +78,15 @@ bool UBeamNodeComponent::CanReachBeam(const UBeamNodeComponent* OtherBeamCompone
 TArray<UBeamNodeComponent*> UBeamNodeComponent::GetBeamComponentsInRange(const float SearchRange) const
 {
 	TArray<UBeamNodeComponent*> ResultComponents;
-	if (AActor* Manager = UGameplayStatics::GetActorOfClass(this, ABeamManager::StaticClass()))
+	if (Manager)
 	{
-		if (ABeamManager* BeamManager = Cast<ABeamManager>(Manager))
+		for (TWeakObjectPtr<UBeamNodeComponent> BeamNodeComponent : Manager->GetNodes())
 		{
-			for (TWeakObjectPtr<UBeamNodeComponent> BeamNodeComponent : BeamManager->GetNodes())
+			if (BeamNodeComponent.Get() == this)
 			{
-				if (BeamNodeComponent.Get() == this)
-				{
-					continue;
-				}
-				ResultComponents.Add(BeamNodeComponent.Get());
+				continue;
 			}
+			ResultComponents.Add(BeamNodeComponent.Get());
 		}
 	}
 	return ResultComponents;
@@ -87,12 +95,12 @@ TArray<UBeamNodeComponent*> UBeamNodeComponent::GetBeamComponentsInRange(const f
 
 void UBeamNodeComponent::Register()
 {
-	if (AActor* Manager = UGameplayStatics::GetActorOfClass(this, ABeamManager::StaticClass()))
+	if (AActor* GenericManager = UGameplayStatics::GetActorOfClass(this, ABeamManager::StaticClass()))
 	{
-		if (ABeamManager* BeamManager = Cast<ABeamManager>(Manager))
+		if (ABeamManager* BeamManager = Cast<ABeamManager>(GenericManager))
 		{
+			Manager = BeamManager;
 			Id = BeamManager->AddUniqueNode(this);
-			PrimaryComponentTick.TickInterval = BeamManager->GetTickInterval();
 		}
 		else
 		{
@@ -102,15 +110,16 @@ void UBeamNodeComponent::Register()
 }
 
 
-void UBeamNodeComponent::SpawnEffectComponent(UBeamNodeComponent* OtherNode)
+UNiagaraComponent* UBeamNodeComponent::SpawnEffectComponent(UBeamNodeComponent* OtherNode) const
 {
 	if (BeamEffect)
 	{
 		UNiagaraComponent* Effect = UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, BeamEffect, GetComponentLocation());
 		Effect->SetVariableVec3(TEXT("StartLocation"), GetComponentLocation());
 		Effect->SetVariableVec3(TEXT("EndLocation"), OtherNode->GetComponentLocation());
-		BeamEffects.Add(Effect);
+		return Effect;
 	}
+	return nullptr;
 }
 
 
@@ -138,21 +147,18 @@ void UBeamNodeComponent::PowerOff(int Iteration)
 	{
 		return;
 	}
-	for (TWeakObjectPtr<UBeamNodeComponent> Node : NodesSupplying)
+	for (FBeamConnection Connection : NodesSupplying)
 	{
-		if (Node.IsValid())
+		if (Connection.Child)
 		{
-			Node->PowerOff(Iteration + 1);
+			Connection.Child->PowerOff(Iteration + 1);
+		}
+		if (Connection.Effect)
+		{
+			Connection.Effect->DestroyComponent();
 		}
 	}
-	for (UNiagaraComponent* Effect : BeamEffects)
-	{
-		Effect->DestroyInstance();
-		Effect->DeactivateImmediate();
-		Effect->DestroyComponent();
-	}
 	NodesSupplying.Empty();
-	BeamEffects.Empty();
 	bPowered = false;
 	PowerSource = nullptr;
 	PowerOrigin = nullptr;
@@ -174,19 +180,21 @@ void UBeamNodeComponent::FindNewNodes(int Iteration)
 		}
 		if (CanReachBeam(Node))
 		{
-			if (!NodesSupplying.Contains(Node))
+			bool Contains = false;
+			for (FBeamConnection Connection : NodesSupplying)
 			{
-				NodesSupplying.Add(Node);
-				if (bSelfPowered)
+				/// Todo: figure out how to properly implement Contains() method.
+				if (Connection.Child == Node)
 				{
-					Node->PowerOn(this, this, Iteration);
-					SpawnEffectComponent(Node);
+					Contains = true;
+					break;
 				}
-				else
-				{
-					Node->PowerOn(this, PowerOrigin.Get(), Iteration);
-					SpawnEffectComponent(Node);
-				}
+			}
+			if (!Contains)
+			{
+				UBeamNodeComponent* Origin = bSelfPowered ? this : PowerOrigin.Get();
+				NodesSupplying.Add(FBeamConnection(Node, SpawnEffectComponent(Node)));
+				Node->PowerOn(this, Origin, Iteration);
 			}
 		}
 	}
@@ -198,7 +206,7 @@ void UBeamNodeComponent::ValidateConnections()
 	TArray<int> NodesPendingDeletion;
 	for (int i = 0; i < NodesSupplying.Num(); i++)
 	{
-		UBeamNodeComponent* Node = NodesSupplying[i].Get();
+		UBeamNodeComponent* Node = NodesSupplying[i].Child;
 		if (Node)
 		{
 			if(!CanReachBeam(Node))
@@ -216,33 +224,11 @@ void UBeamNodeComponent::ValidateConnections()
 	{
 		if (NodesSupplying.IsValidIndex(IndexToDelete))
 		{
+			if (NodesSupplying[IndexToDelete].Effect)
+			{
+				NodesSupplying[IndexToDelete].Effect->DestroyComponent();
+			}
 			NodesSupplying.RemoveAt(IndexToDelete);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Invalid node supplying index %d"), IndexToDelete);
-		}
-		if (BeamEffects.IsValidIndex(IndexToDelete))
-		{
-			UNiagaraComponent* Effect = BeamEffects[IndexToDelete];
-			BeamEffects.RemoveAt(IndexToDelete);
-			Effect->DestroyComponent();
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Invalid beam effect index %d"), IndexToDelete);
 		}
 	}
 }
-
-
-FBeamConnection::FBeamConnection()
-	:Child(nullptr), Effect(nullptr)
-{}
-
-
-FBeamConnection::FBeamConnection(UBeamNodeComponent* Child, UNiagaraComponent* Effect)
-	:Child(Child), Effect(Effect)
-{}
-
-

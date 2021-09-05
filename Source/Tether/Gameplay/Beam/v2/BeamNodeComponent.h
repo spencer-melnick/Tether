@@ -8,6 +8,24 @@
 #include "Components/SceneComponent.h"
 #include "BeamNodeComponent.generated.h"
 
+class ABeamManager;
+class UBeamNodeComponent;
+USTRUCT()
+struct FBeamConnection
+{
+	GENERATED_BODY()
+	
+public:
+	FBeamConnection();
+	FBeamConnection(UBeamNodeComponent* Child, UNiagaraComponent* Effect);
+	
+	UPROPERTY(Transient, VisibleInstanceOnly)
+	UBeamNodeComponent* Child;
+
+	UPROPERTY(Transient, VisibleInstanceOnly)
+	UNiagaraComponent* Effect;	
+};
+
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class TETHER_API UBeamNodeComponent : public USceneComponent
 {
@@ -47,7 +65,7 @@ protected:
 private:
 	void Register();
 
-	void SpawnEffectComponent(UBeamNodeComponent* OtherNode);
+	UNiagaraComponent* SpawnEffectComponent(UBeamNodeComponent* OtherNode) const;
 
 // PROPERTIES
 public:
@@ -85,25 +103,8 @@ private:
 	uint8 MaxIterations = 10;
 
 	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Beam")
-	TArray<TWeakObjectPtr<UBeamNodeComponent>> NodesSupplying;
-
-	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Beam|FX")
-	TArray<UNiagaraComponent*> BeamEffects; 
-
-};
-
-USTRUCT()
-struct FBeamConnection
-{
-	GENERATED_BODY()
-	
-public:
-	FBeamConnection();
-	FBeamConnection(UBeamNodeComponent* Child, UNiagaraComponent* Effect);
+	TArray<FBeamConnection> NodesSupplying;
 
 	UPROPERTY(Transient)
-	UBeamNodeComponent* Child;
-
-	UPROPERTY(Transient)
-	UNiagaraComponent* Effect;	
+	ABeamManager* Manager;
 };
