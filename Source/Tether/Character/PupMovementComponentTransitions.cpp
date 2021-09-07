@@ -24,7 +24,48 @@ bool UPupMovementComponent::Jump()
 		{
 			PlayerHeight = Capsule->GetScaledCapsuleHalfHeight();
 		}
-		JumpEvent.Broadcast(LastBasisPosition - PlayerHeight * UpdatedComponent->GetUpVector());
+		JumpEvent.Broadcast(LastBasisPosition - PlayerHeight * UpdatedComponent->GetUpVector(), true);
+		
+		SetMovementMode(EPupMovementMode::M_Falling);
+		
+		if (UWorld* World = GetWorld())
+		{
+			if (MaxJumpTime > 0.0f)
+			{
+				World->GetTimerManager().SetTimer(JumpTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
+				{
+					StopJumping();
+				}), MaxJumpTime, false);
+			}
+			else
+			{
+				StopJumping();
+			}
+		}
+		return true;
+	}
+	if (bCanDoubleJump)
+	{
+		AddImpulse(UpdatedComponent->GetUpVector() * JumpInitialVelocity);
+		if (bIsWalking)
+		{
+			// Apply extra directional velocity
+			AddImpulse(MaxAcceleration * DesiredRotation.RotateVector(FVector::ForwardVector));
+		}
+		
+		JumpAppliedVelocity += JumpInitialVelocity;
+		bCanDoubleJump = false;
+		bJumping = true;
+
+		ATetherCharacter* Character = Cast<ATetherCharacter>(GetPawnOwner());
+		UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
+
+		float PlayerHeight = 0.0f;
+		if (IsValid(Character) && Capsule)
+		{
+			PlayerHeight = Capsule->GetScaledCapsuleHalfHeight();
+		}
+		JumpEvent.Broadcast(LastBasisPosition - PlayerHeight * UpdatedComponent->GetUpVector(), false);
 		
 		SetMovementMode(EPupMovementMode::M_Falling);
 		
@@ -155,6 +196,10 @@ void UPupMovementComponent::Land(const FVector& FloorLocation, const float Impac
 {
 	SetMovementMode(EPupMovementMode::M_Walking);
 	bCanJump = true;
+	if (bDoubleJump)
+	{
+		bCanDoubleJump = true;
+	}
 	LandEvent.Broadcast(FloorLocation, ImpactVelocity);
 }
 

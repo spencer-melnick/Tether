@@ -117,8 +117,8 @@ public:
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FMovementModeChanged, EPupMovementMode, OldMovementMode, EPupMovementMode, NewMovementMode);
 	FMovementModeChanged& OnMovementModeChanged(EPupMovementMode, EPupMovementMode) { return MovementModeChanged; }
 
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FJumpEvent, const FVector, FloorLocation);
-	FJumpEvent& OnJumpEvent(const FVector, const float) { return JumpEvent; }
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FJumpEvent, const FVector, FloorLocation, const bool, bInitialJump);
+	FJumpEvent& OnJumpEvent(const FVector, const bool) { return JumpEvent; }
 	
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FLandEvent, const FVector, FloorLocation, const float, ImpactVelocity);
 	FLandEvent& OnLandEvent(const FVector, const float) { return LandEvent; }
@@ -358,6 +358,12 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Jumping", meta = (ClampMin = 0.0f, ClampMax = 1.0f))
 	float AirControlFactor = 0.2f;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Jumping")
+	bool bDoubleJump = true;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Jumping", meta = (ClampMin = 0.0f, ClampMax = 1.0f))
+	float DoubleJumpeAccelerationFactor = 0.5f;
+	
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement|Jumping")
 	bool bJumping = false;
 
@@ -517,6 +523,9 @@ private:
 	/** How much of the ApexJumpVelocity has been applied so far to the player? **/
 	float JumpAppliedVelocity;
 
+	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Movement|Jumping")
+	bool bCanDoubleJump = false;
+	
 	FVector PendingAdjustments = FVector::ZeroVector;
 	FVector PendingImpulses = FVector::ZeroVector;
 	
