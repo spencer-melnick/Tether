@@ -83,7 +83,7 @@ void ATetherCharacter::BeginPlay()
 void ATetherCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-
+	
 	if (bCarryingObject && !bCompletedPickupAnimation)
 	{
 		if (SnapFactor >= 1.0f)
@@ -331,6 +331,7 @@ void ATetherCharacter::SetSnapFactor(const float Factor)
 	}
 }
 
+
 void ATetherCharacter::HandlePenetration(const FHitResult& HitResult)
 {
 	// Todo: accumulate worst penetration and resolve during physics update
@@ -397,7 +398,12 @@ void ATetherCharacter::AnchorToObject(AActor* Object) const
 {
 	if (UPrimitiveComponent* Component = Cast<UPrimitiveComponent>(Object->GetComponentByClass(UPrimitiveComponent::StaticClass())))
 	{
-		MovementComponent->AnchorToComponent(Component);
+		AnchorToComponent(Component);
 	}
+}
+
+void ATetherCharacter::AnchorToComponent(UPrimitiveComponent* Component, const FVector& Location) const
+{
+	MovementComponent->AnchorToComponent(Component, Location);
 }
 

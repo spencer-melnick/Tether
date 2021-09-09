@@ -70,7 +70,7 @@ public:
 
 	/** Grab onto a specific location, preventing the player from falling or moving */
 	UFUNCTION(BlueprintCallable)
-	void AnchorToComponent(UPrimitiveComponent* AnchorTargetComponent);
+	void AnchorToComponent(UPrimitiveComponent* AnchorTargetComponent, const FVector& Location);
 
 	/** Have the player let go of an anchor point, optionally forcing them */
 	UFUNCTION(BlueprintCallable)
@@ -90,6 +90,8 @@ public:
 	/** Force jump to end, automatically called after MaxJumpTime seconds have elapsed **/
 	void StopJumping();
 
+	void Mantle();
+	
 	/**
 	* Add velocity directly to the player.
 	* The impulse will be consumed on the next tick.
@@ -122,6 +124,9 @@ public:
 	
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FLandEvent, const FVector, FloorLocation, const float, ImpactVelocity);
 	FLandEvent& OnLandEvent(const FVector, const float) { return LandEvent; }
+
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FMantleEvent);
+	FMantleEvent& OnMantleEvent() { return MantleEvent; }
 	
 private:
 
@@ -151,6 +156,8 @@ private:
 	 * was desynced during this time.
 	 **/
 	void EndRecovery();
+
+	void ClimbMantle();
 	
 	void TickGravity(const float DeltaTime);
 
@@ -265,6 +272,13 @@ public:
 	FVector DirectionVector;
 
 	/**
+	 * How far the player is pushing the control stick in any given direction
+	 * On Keyboard, defaults to 1.
+	 **/
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement")
+	float InputFactor;
+
+	/**
 	 * Is the player receiving directional input from the controller
 	 * that is VALID, i.e., causing any movement -- linear or rotational.
 	 * Used to drive animations.
@@ -367,7 +381,12 @@ public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement|Jumping")
 	bool bJumping = false;
 
+	/** Is the player grabbing a ledge, instead of holding an object? **/
+	UPROPERTY(BlueprintReadOnly, VisibleInstanceOnly, Category = "Movement|Anchored")
+	bool bMantling = false;
 
+	UPROPERTY(BlueprintReadOnly, VisibleInstanceOnly, Transient, Category = "Movement|Anchored")
+	bool bCanMantle = true;
 	
 	/** How quickly the player should move to their anchor, in units/s **/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Anchored", meta = (ClampMin = 0.0f))
@@ -377,11 +396,12 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Anchored", meta = (ClampMin = 0.0f))
 	float SnapRotationVelocity = 360.0f;
 
+
+	
 	/**
 	 * This sub-category stores information of the player's transform,
 	 * relative to the floor basis. It should be read only.
 	 **/
-
 
 	/** Our location, from the anchor object's frame of reference **/
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement|Anchored|Basis")
@@ -534,6 +554,7 @@ private:
 	FTimerHandle JumpTimerHandle;
 	FTimerHandle DeflectTimerHandle;
 	FTimerHandle RecoveryTimerHandle;
+	FTimerHandle MantleTimerHandle;
 
 	UPROPERTY(BlueprintAssignable)
 	FMovementModeChanged MovementModeChanged;
@@ -543,4 +564,7 @@ private:
 
 	UPROPERTY(BlueprintAssignable)
 	FJumpEvent JumpEvent;
+
+	UPROPERTY(BlueprintAssignable)
+	FMantleEvent MantleEvent;
 };

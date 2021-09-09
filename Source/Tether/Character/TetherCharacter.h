@@ -159,7 +159,7 @@ private:
 	bool bAlive = true;
 
 	// Interaction Handling
-	
+
 	void PickupObject(AActor* Object);
 	void DropObject();
 
@@ -167,6 +167,7 @@ private:
 	AActor* CarriedActor;
 
 	void AnchorToObject(AActor* Object) const;
+	void AnchorToComponent(UPrimitiveComponent* Component, const FVector& Location = FVector::ZeroVector) const;
 	void ReleaseAnchor();
 
 	bool bCompletedPickupAnimation = false;

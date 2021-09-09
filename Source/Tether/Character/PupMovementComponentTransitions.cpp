@@ -4,10 +4,20 @@
 #include "DrawDebugHelpers.h"
 #include "TetherCharacter.h"
 #include "Components/CapsuleComponent.h"
+#include "Tether/Tether.h"
 
 
 bool UPupMovementComponent::Jump()
 {
+	if (MatchModes(MovementMode, {EPupMovementMode::M_Recover, EPupMovementMode::M_None}))
+	{
+		return false;
+	}
+	if (bMantling)
+	{
+		ClimbMantle();
+		return false;
+	}
 	if (bCanJump)
 	{
 		AddImpulse(UpdatedComponent->GetUpVector() * JumpInitialVelocity);
@@ -46,11 +56,11 @@ bool UPupMovementComponent::Jump()
 	}
 	if (bCanDoubleJump)
 	{
-		AddImpulse(UpdatedComponent->GetUpVector() * JumpInitialVelocity);
+		Velocity.Z = JumpInitialVelocity;
 		if (bIsWalking)
 		{
 			// Apply extra directional velocity
-			AddImpulse(MaxAcceleration * DesiredRotation.RotateVector(FVector::ForwardVector));
+			AddImpulse(MaxAcceleration * DesiredRotation.RotateVector(FVector::ForwardVector) * InputFactor * DoubleJumpeAccelerationFactor);
 		}
 		
 		JumpAppliedVelocity += JumpInitialVelocity;
@@ -136,40 +146,46 @@ void UPupMovementComponent::Deflect(const FVector& DeflectionVelocity, const flo
 }
 
 
-void UPupMovementComponent::AnchorToComponent(UPrimitiveComponent* AnchorTargetComponent)
+void UPupMovementComponent::AnchorToComponent(UPrimitiveComponent* AnchorTargetComponent, const FVector& Location)
 {
 	if (!AnchorTargetComponent)
 	{
 		return;
 	}
-	
-	FHitResult AnchorTestHit;
-	UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(UpdatedComponent);
-	FVector CloseLocation = FVector::ZeroVector;
-	AnchorTargetComponent->GetClosestPointOnCollision(UpdatedComponent->GetComponentLocation(), CloseLocation);
+	FVector AttachmentLocation;
 	const FVector ComponentLocation = UpdatedComponent->GetComponentLocation();
-	AnchorTargetComponent->SweepComponent(AnchorTestHit, ComponentLocation,
-		CloseLocation,
-		UpdatedComponent->GetComponentQuat(),
-		PrimitiveComponent->GetCollisionShape());
 
 	AnchorTarget = AnchorTargetComponent;
-	AnchorWorldLocation = AnchorTestHit.Location + AnchorTestHit.ImpactNormal * 2.0f;
+
+	if (Location == FVector::ZeroVector)
+	{
+		FHitResult AnchorTestHit;
+		UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(UpdatedComponent);
+		AnchorTargetComponent->GetClosestPointOnCollision(UpdatedComponent->GetComponentLocation(), AttachmentLocation);
+		AnchorTargetComponent->SweepComponent(AnchorTestHit, ComponentLocation,
+			AttachmentLocation,
+			UpdatedComponent->GetComponentQuat(),
+			PrimitiveComponent->GetCollisionShape());		
+		AnchorWorldLocation = AnchorTestHit.Location + AnchorTestHit.ImpactNormal * 2.0f;
+	}
+	else
+	{
+		AnchorWorldLocation = Location;
+	}
 	const FVector Distance = AnchorWorldLocation - AnchorTarget->GetComponentLocation();
-	AnchorRelativeLocation =  FVector(FVector::DotProduct(Distance, AnchorTarget->GetForwardVector()),
+	AnchorRelativeLocation =  FVector(
+		FVector::DotProduct(Distance, AnchorTarget->GetForwardVector()),
 		FVector::DotProduct(Distance, AnchorTarget->GetRightVector()),
 		FVector::DotProduct(Distance, AnchorTarget->GetUpVector()));
-	const FVector RefLocation = AnchorWorldLocation + AnchorTestHit.ImpactNormal * -2.0f;
 	const float NewAnchorYaw = FMath::RadiansToDegrees(FMath::Atan2(
-		RefLocation.Y - ComponentLocation.Y,
-		RefLocation.X - ComponentLocation.X));
+		AttachmentLocation.Y - ComponentLocation.Y,
+		AttachmentLocation.X - ComponentLocation.X));
 	if (AnchorTargetComponent->Mobility == EComponentMobility::Movable)
 	{
 		bGrounded = false;
 		AnchorRelativeYaw = NewAnchorYaw - AnchorTargetComponent->GetComponentRotation().Yaw;
 	}
 	DesiredRotation.Yaw = NewAnchorYaw;
-
 	bIsWalking = false;
 	SetMovementMode(EPupMovementMode::M_Anchored);
 }
@@ -189,6 +205,10 @@ void UPupMovementComponent::BreakAnchor(const bool bForceBreak)
 	}
 	AnchorRelativeLocation = FVector::ZeroVector;
 	AnchorWorldLocation = FVector::ZeroVector;
+	GetWorld()->GetTimerManager().SetTimer(MantleTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
+	{;
+		bCanMantle = true;
+	}), 1.0f, false);
 }
 
 
@@ -254,4 +274,94 @@ void UPupMovementComponent::EndRecovery()
 	LastBasisPosition = UpdatedComponent->GetComponentLocation();
 	ClearImpulse();
 	SetDefaultMovementMode();
+}
+
+
+void UPupMovementComponent::ClimbMantle()
+{
+	if (UCapsuleComponent* CapsuleComponent = Cast<UCapsuleComponent>(UpdatedComponent))
+	{
+		FHitResult CapsuleTrace;
+		const FVector MantleLocation = AnchorWorldLocation + UpdatedComponent->GetForwardVector() * CapsuleComponent->GetCollisionShape().GetCapsuleRadius() * 2.0f;
+		AnchorTarget->SweepComponent(CapsuleTrace, MantleLocation + FVector::UpVector * CapsuleComponent->GetCollisionShape().GetCapsuleHalfHeight() * 3.0f, MantleLocation,
+			CapsuleComponent->GetComponentQuat(), CapsuleComponent->GetCollisionShape());
+		if (AnchorTarget->Mobility == EComponentMobility::Movable)
+		{
+			const FVector Difference = CapsuleTrace.Location - AnchorTarget->GetComponentLocation();
+			AnchorRelativeLocation = FVector(
+				FVector::DotProduct(Difference, AnchorTarget->GetForwardVector()),
+				FVector::DotProduct(Difference, AnchorTarget->GetRightVector()),
+				FVector::DotProduct(Difference, AnchorTarget->GetUpVector()));
+		}
+		else
+		{
+			AnchorWorldLocation = CapsuleTrace.Location;
+		}
+	}
+	bCanDoubleJump = true;
+	bMantling = false;
+	MantleEvent.Broadcast();
+	
+	GetWorld()->GetTimerManager().SetTimer(MantleTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
+	{
+		BreakAnchor();
+	}), 0.1f, false);
+}
+
+
+void UPupMovementComponent::Mantle()
+{
+	if (UpdatedComponent->GetClass() != UCapsuleComponent::StaticClass() || !bCanMantle)
+	{
+		return;
+	}
+	UCapsuleComponent* CapsuleComponent = Cast<UCapsuleComponent>(UpdatedComponent);
+	const float SearchDistanceV = 10.0f;
+	const float SearchDistanceH = 40.0f;
+	const float CapsuleRadius = CapsuleComponent->GetScaledCapsuleRadius();
+	
+	const FVector EyePosition = CapsuleComponent->GetComponentLocation() +
+		(CapsuleComponent->GetUnscaledCapsuleHalfHeight() - CapsuleRadius) * FVector::UpVector +
+		CapsuleRadius * CapsuleComponent->GetForwardVector();
+	FHitResult LineTraceResult;
+	
+	FCollisionQueryParams CollisionQueryParams = FCollisionQueryParams::DefaultQueryParam;
+	CollisionQueryParams.AddIgnoredActor(this->GetOwner());
+	
+	if (GetWorld()->LineTraceSingleByChannel(LineTraceResult,
+		EyePosition, EyePosition + CapsuleComponent->GetForwardVector() * SearchDistanceH,
+		ECollisionChannel::ECC_Pawn,
+		CollisionQueryParams,
+		CapsuleComponent->GetCollisionResponseToChannels()))
+	{
+		// Found object in front of the player... we need to sweep again
+		if (!LineTraceResult.GetComponent() || !LineTraceResult.GetComponent()->CanCharacterStepUp(this->GetPawnOwner()))
+		{
+			return;
+		}
+		UPrimitiveComponent* Target = LineTraceResult.GetComponent();
+		const float Alpha = 1.0f;
+		const float Yaw = FMath::RadiansToDegrees(FMath::Atan2(-LineTraceResult.ImpactNormal.Y, -LineTraceResult.ImpactNormal.X));
+		const FVector MantleLocation = LineTraceResult.ImpactPoint - LineTraceResult.ImpactNormal * Alpha;
+		
+		if (Target->LineTraceComponent(LineTraceResult,
+			MantleLocation + FVector::UpVector * SearchDistanceV, MantleLocation,
+			CollisionQueryParams) && !LineTraceResult.bStartPenetrating && LineTraceResult.Normal.Z >= 0.975f)
+		{
+			AnchorWorldLocation = LineTraceResult.Location + (CapsuleComponent->GetComponentLocation() - EyePosition);
+			const FVector Difference = AnchorWorldLocation - Target->GetComponentLocation();
+			AnchorRelativeLocation = FVector(
+				FVector::DotProduct(Difference, Target->GetForwardVector()),
+				FVector::DotProduct(Difference, Target->GetRightVector()),
+				FVector::DotProduct(Difference, Target->GetUpVector()));
+			AnchorRelativeYaw = Yaw - Target->GetComponentRotation().Yaw;
+			AnchorTarget = Target;
+			DesiredRotation.Yaw = Yaw;
+			
+			bMantling = true;
+			bCanMantle = false;
+			bIsWalking = false;
+			SetMovementMode(EPupMovementMode::M_Anchored);
+		}
+	}
 }

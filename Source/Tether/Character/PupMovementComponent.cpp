@@ -170,6 +170,11 @@ void UPupMovementComponent::StepMovement(const float DeltaTime)
 		{
 			Recover();
 		}
+
+		if (MovementMode == EPupMovementMode::M_Falling && Velocity.Z <= 0.0f)
+		{
+			Mantle();
+		}
 	}
 	else if (MovementMode == EPupMovementMode::M_Recover && bIgnoreObstaclesWhenRecovering)
 	{
@@ -315,6 +320,7 @@ void UPupMovementComponent::SetDefaultMovementMode()
 	{
 		SetMovementMode(EPupMovementMode::M_Falling);
 	}
+	bMantling = false;
 }
 
 
@@ -434,8 +440,9 @@ void UPupMovementComponent::HandleInputVectors()
 	{
 		if (!InputVector.IsNearlyZero())
 		{
+			InputFactor = FMath::Min(InputVector.Size(), 1.0f);
 			bIsWalking = true;
-			DirectionVector = UpdatedComponent->GetForwardVector() * FMath::Min(InputVector.Size(), 1.0f);
+			DirectionVector = UpdatedComponent->GetForwardVector() * InputFactor;
 			const float Angle = FMath::RadiansToDegrees(
 				FMath::Atan2(InputVector.GetSafeNormal2D().Y, InputVector.GetSafeNormal2D().X));
 			DesiredRotation.Yaw = Angle + CameraYaw;
@@ -508,7 +515,7 @@ FVector UPupMovementComponent::GetNewVelocity(const float DeltaTime)
 				                             : MaxAcceleration * DirectionVector;
 			FVector NewVelocity = Velocity + Acceleration * DeltaTime;
 
-			NewVelocity = ClampToPlaneMaxSize(NewVelocity, FloorNormal, MaxSpeed);
+			NewVelocity = ClampToPlaneMaxSize(NewVelocity, FloorNormal, MaxSpeed * InputFactor);
 			NewVelocity = ApplyFriction(NewVelocity, DeltaTime);
 			NewVelocity += ConsumeImpulse();
 			return NewVelocity;
