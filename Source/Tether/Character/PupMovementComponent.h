@@ -337,6 +337,9 @@ public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement|Rotation")
 	float TurningDirection = 0.0f;
 
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movement|Jumping", meta = (ClampMin = 0.0f))
+	float FloorSnapDistance = 5.0f;
 	
 	/** Can the player jump? Determined by internal implementation. **/
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Movement|Jumping")

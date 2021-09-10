@@ -15,70 +15,20 @@ class TETHER_API AProjectileEmitter : public AActor
 	GENERATED_BODY()
 	
 public:	
-	// Sets default values for this actor's properties
 	AProjectileEmitter();
 
+	virtual void Tick(float DeltaTime) override;
+	
+    virtual void BeginPlay() override;
+
+	virtual void OnConstruction(const FTransform& Transform) override;
+
+	
 	UFUNCTION(BlueprintCallable)
 	void FireProjectile();
 
-	virtual void OnConstruction(const FTransform& Transform) override;	
-
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Components")
-	UProjectileEmitterComponent* ProjectileEmitterComponent;
-
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Components")
-	UDecalComponent* FloorMarkerComponent;
-	
-	
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Emitter")
-	const TSubclassOf<ASimpleProjectile> ProjectileClass;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Emitter")
-	float Velocity;
-	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Emitter")
-	float Distance;
-
-	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Emitter|Queue")
-	int MaxQueuedProjectiles = 10;
-
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Emitter|Queue")
-	int QueuedProjectiles = 0;
-
-	float ProjectileLifetime;
-
-	
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Floor Marker|Timing")
-	bool bTelegraph;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Floor Marker|Timing")
-	float WarningTime;
-	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Floor Marker|Prediction")
-	UMaterialInterface* FloorMarkerDecalMaterial;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Floor Marker|Prediction")
-	UCurveFloat* AlphaCurve;
-	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Floor Marker|Arrows")
-	UMaterialInterface* ArrowMaterial;
-
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Floor Marker|Arrows")
-	USkeletalMesh* ArrowMesh;
-	
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Floor Marker|Arrows|Animation")
-	UAnimationAsset* FrontAnimation;
-
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Floor Marker|Arrows|Animation")
-	UAnimationAsset* MiddleAnimation;
-	
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category="Floor Marker|Arrows|Animation")
-	UAnimationAsset* BackAnimation;
-	
-protected:
-	// Called when the game starts or when spawned
-	virtual void BeginPlay() override;
+	UFUNCTION(BlueprintImplementableEvent, Category = "Emitter Events")
+	void DisplayWarning(const float Alpha);
 
 private:
 	void DisplayFloorMarker();
@@ -87,13 +37,54 @@ private:
 
 	void RecalculateFloorMarkerSize();
 
-	void SetArrowMaterial(UMaterialInstanceDynamic* Material);
+	void SetMaterials();
 
-	void SetFloorMarkerMaterial(UMaterialInstanceDynamic* Material);
 	
+public:
+	UPROPERTY(VisibleAnywhere)
+	UProjectileEmitterComponent* ProjectileEmitterComponent;
+
+	UPROPERTY(VisibleAnywhere)
+	UDecalComponent* FloorMarkerComponent;
+
+	
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Emitter|Queue")
+	int MaxQueuedProjectiles = 10;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Emitter|Queue")
+	int QueuedProjectiles = 0;
+
+	
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Emitter|Timing")
+	bool bTelegraph;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Emitter|Timing")
+	float WarningTime;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Emitter|Timing")
+	UCurveFloat* AlphaCurve;
+
+	
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Emitter|Floor Marker|Prediction")
+	UMaterialInterface* FloorMarkerDecalMaterial;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Emitter|Floor Marker|Arrows")
+	UMaterialInterface* ArrowMaterial;
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Emitter|Floor Marker|Arrows")
+	USkeletalMesh* ArrowMesh;
+
+	
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Emitter|Arrows|Animation")
+	UAnimationAsset* FrontAnimation;
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Emitter|Arrows|Animation")
+	UAnimationAsset* MiddleAnimation;
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Emitter|Arrows|Animation")
+	UAnimationAsset* BackAnimation;
+	
+
+private:	
 	FTimerHandle WarningHandle;
 
-	UPROPERTY()
+	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Emitter|Arrows")
 	TArray<USkeletalMeshComponent*> ArrowComponents;
 
 	UPROPERTY(Transient)
@@ -103,12 +94,4 @@ private:
 	UMaterialInstanceDynamic* ArrowMaterialDynamic;
 
 	float AlphaFallback = 0.0f;
-
-public:	
-	// Called every frame
-	virtual void Tick(float DeltaTime) override;
-
-	UFUNCTION(BlueprintImplementableEvent, Category = "Emitter Events")
-	void DisplayWarning(const float Alpha);
-
 };

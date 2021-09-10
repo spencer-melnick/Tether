@@ -171,7 +171,7 @@ void UPupMovementComponent::StepMovement(const float DeltaTime)
 			Recover();
 		}
 
-		if (MovementMode == EPupMovementMode::M_Falling && Velocity.Z <= 0.0f)
+		if (MovementMode == EPupMovementMode::M_Falling && Velocity.Z <= 100.0f)
 		{
 			Mantle();
 		}
@@ -227,7 +227,7 @@ void UPupMovementComponent::UpdateVerticalMovement(const float DeltaTime)
 {
 	// First check if we're on the floor
 	FHitResult FloorHit;
-	if (FindFloor(10.0f, FloorHit, 2))
+	if (FindFloor(FloorSnapDistance, FloorHit, 2))
 	{
 		if (FVector::DotProduct(Velocity, FloorNormal) <= KINDA_SMALL_NUMBER) // Avoid floating point errors..
 		{

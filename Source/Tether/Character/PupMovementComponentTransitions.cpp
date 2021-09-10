@@ -4,8 +4,6 @@
 #include "DrawDebugHelpers.h"
 #include "TetherCharacter.h"
 #include "Components/CapsuleComponent.h"
-#include "Tether/Tether.h"
-
 
 bool UPupMovementComponent::Jump()
 {
@@ -20,7 +18,7 @@ bool UPupMovementComponent::Jump()
 	}
 	if (bCanJump)
 	{
-		AddImpulse(UpdatedComponent->GetUpVector() * JumpInitialVelocity);
+		AddImpulse(UpdatedComponent->GetUpVector() * (JumpInitialVelocity - Velocity.Z));
 		
 		JumpAppliedVelocity += JumpInitialVelocity;
 		bCanJump = false;
@@ -317,7 +315,7 @@ void UPupMovementComponent::Mantle()
 	}
 	UCapsuleComponent* CapsuleComponent = Cast<UCapsuleComponent>(UpdatedComponent);
 	const float SearchDistanceV = 10.0f;
-	const float SearchDistanceH = 40.0f;
+	const float SearchDistanceH = 20.0f;
 	const float CapsuleRadius = CapsuleComponent->GetScaledCapsuleRadius();
 	
 	const FVector EyePosition = CapsuleComponent->GetComponentLocation() +
@@ -345,7 +343,7 @@ void UPupMovementComponent::Mantle()
 		const FVector MantleLocation = LineTraceResult.ImpactPoint - LineTraceResult.ImpactNormal * Alpha;
 		
 		if (Target->LineTraceComponent(LineTraceResult,
-			MantleLocation + FVector::UpVector * SearchDistanceV, MantleLocation,
+			MantleLocation + FVector::UpVector * SearchDistanceV, MantleLocation - FVector::UpVector * SearchDistanceV,
 			CollisionQueryParams) && !LineTraceResult.bStartPenetrating && LineTraceResult.Normal.Z >= 0.975f)
 		{
 			AnchorWorldLocation = LineTraceResult.Location + (CapsuleComponent->GetComponentLocation() - EyePosition);

@@ -72,8 +72,9 @@ void UTopDownCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType
 					Subjects.Remove(Subject);
 				}
 			}
+			const FVector CameraFacing = (Subjects[0]->GetActorLocation() - Location).GetSafeNormal();
 			if (World->LineTraceSingleByChannel(LineTraceHitResult,
-				Subjects[0]->GetActorLocation(),
+				Subjects[0]->GetActorLocation() + CameraFacing * -20.0f,
 				Location,
 				ECollisionChannel::ECC_Camera,
 				QueryParams))
