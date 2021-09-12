@@ -449,6 +449,7 @@ void UPupMovementComponent::HandleInputVectors()
 		}
 		else
 		{
+			InputFactor = 0.0f;
 			bIsWalking = false;
 			DirectionVector = FVector::ZeroVector;
 			DesiredRotation = UpdatedComponent->GetComponentRotation();
@@ -511,13 +512,13 @@ FVector UPupMovementComponent::GetNewVelocity(const float DeltaTime)
 		{
 			DirectionVector = FQuat::FindBetweenNormals(FVector::UpVector, FloorNormal).RotateVector(DirectionVector);
 			const FVector Acceleration = DirectionVector.IsNearlyZero()
-				                             ? FVector::ZeroVector
-				                             : MaxAcceleration * DirectionVector;
+                 ? FVector::ZeroVector
+                 : MaxAcceleration * DirectionVector + BreakingFriction * DirectionVector.GetSafeNormal();
 			FVector NewVelocity = Velocity + Acceleration * DeltaTime;
-
-			NewVelocity = ClampToPlaneMaxSize(NewVelocity, FloorNormal, MaxSpeed * InputFactor);
 			NewVelocity = ApplyFriction(NewVelocity, DeltaTime);
+			NewVelocity = ClampToPlaneMaxSize(NewVelocity, FloorNormal, MaxSpeed);
 			NewVelocity += ConsumeImpulse();
+			Speed = NewVelocity.Size();
 			return NewVelocity;
 		}
 	case EPupMovementMode::M_Falling:
@@ -566,24 +567,18 @@ FVector UPupMovementComponent::HoldJump(const float DeltaTime)
 }
 
 
-FVector UPupMovementComponent::ApplyFriction(const FVector& VelocityIn, const float DeltaTime) const
+FVector UPupMovementComponent::ApplyFriction(const FVector& VelocityIn, const float DeltaTime)
 {
-	if (bIsWalking)
-	{
-		const FVector VelocityVertical = FVector::DotProduct(FloorNormal, VelocityIn) * FloorNormal;
+	const FVector VelocityVertical = FVector::DotProduct(FloorNormal, VelocityIn) * FloorNormal;
+	const FVector VelocityAlongPlane = VelocityIn - VelocityVertical;
+	// const FVector DirectionVectorNormalized = DirectionVector.GetSafeNormal();
 
-		// Take the Vertical Velocity (along the Floor Normal) out of the interpolation, and add it back in later.
-		const FVector DirectionVectorNormalized = DirectionVector.GetSafeNormal();
-		return FMath::VInterpConstantTo(VelocityIn - VelocityVertical,
-		                                FVector::DotProduct(VelocityIn, DirectionVectorNormalized) *
-		                                DirectionVectorNormalized, DeltaTime, RunningFriction) + VelocityVertical;
-	}
-	return ApplySlidingFriction(VelocityIn, DeltaTime, BreakingFriction);
+	const FVector DesiredVelocity = FVector::ZeroVector;
+	return FMath::VInterpConstantTo(VelocityAlongPlane, DesiredVelocity, DeltaTime, BreakingFriction) + VelocityVertical;
 }
 
 
-FVector UPupMovementComponent::ApplySlidingFriction(const FVector& VelocityIn, const float DeltaTime,
-                                                    const float Friction) const
+FVector UPupMovementComponent::ApplySlidingFriction(const FVector& VelocityIn, const float DeltaTime, const float Friction) const
 {
 	const FVector VelocityVertical = FVector::DotProduct(FloorNormal, VelocityIn) * FloorNormal;
 	return FMath::VInterpConstantTo(VelocityIn, VelocityVertical, DeltaTime, Friction);

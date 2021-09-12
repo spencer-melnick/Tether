@@ -119,8 +119,11 @@ float UTopDownCameraComponent::CalcDeltaZoom(const float DeltaTime)
 FRotator UTopDownCameraComponent::CalcDeltaRotation(const float DeltaTime)
 {
 	FRotator NewRotation = GetComponentRotation();
-	RotationalVelocity = ConsumeRotations() * RotationSensitivity;
+	RotationalVelocity = ConsumeRotations() * RotationSpeed;
 
+	RotationalVelocity.Yaw *= XSensitivity * (bInvertCameraX ? -1 : 1);
+	RotationalVelocity.Pitch *= YSensitivity * (bInvertCameraY ? 1 : -1);
+	
 	NewRotation += RotationalVelocity * DeltaTime;
 
 	if (ATetherCharacter* Player = Cast<ATetherCharacter>(Subjects[0]))
@@ -128,7 +131,7 @@ FRotator UTopDownCameraComponent::CalcDeltaRotation(const float DeltaTime)
 		const float DeltaRotation = FMath::FindDeltaAngleDegrees(GetComponentRotation().Yaw, Player->GetActorRotation().Yaw);
 		if (CopyRotationFactor > 0.0f && Player->MovementComponent->bIsWalking && FMath::Abs(DeltaRotation) <= 160.0f)
 		{
-			NewRotation.Yaw += DeltaRotation * CopyRotationFactor * DeltaTime;
+			NewRotation.Yaw += DeltaRotation * CopyRotationFactor * Player->MovementComponent->InputFactor * DeltaTime;
 		}
 	}
 	
@@ -260,10 +263,11 @@ FVector UTopDownCameraComponent::GetWorldOffset() const
 
 FRotator UTopDownCameraComponent::ConsumeRotations()
 {
-	const FRotator Rotation = PendingRotations;
+	const FRotator Rotation = PendingRotations;	
 	PendingRotations = FRotator::ZeroRotator;
 	return Rotation;
 }
+
 
 void UTopDownCameraComponent::RecordScreenSize(AController* Controller)
 {

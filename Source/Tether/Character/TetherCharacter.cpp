@@ -90,9 +90,9 @@ void ATetherCharacter::Tick(float DeltaSeconds)
 		{
 			bCompletedPickupAnimation = true;
 			CarriedActor->AttachToComponent(GrabHandle, FAttachmentTransformRules(
-	EAttachmentRule::SnapToTarget,
-	EAttachmentRule::SnapToTarget,
-	EAttachmentRule::KeepWorld, false));
+			EAttachmentRule::SnapToTarget,
+			EAttachmentRule::SnapToTarget,
+			EAttachmentRule::KeepWorld, false));
 		}
 		else
 		{

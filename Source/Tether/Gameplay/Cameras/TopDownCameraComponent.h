@@ -54,7 +54,17 @@ private:
 	
 	// MEMBER VARIABLES
 public:
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "User", meta = (ClampMin = 0.0f, ClampMax = 10.0f))
+	float YSensitivity = 1.0f;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "User")
+	bool bInvertCameraY = false;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "User", meta = (ClampMin = 0.0f, ClampMax = 10.0f))
+	float XSensitivity = 1.0f;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "User")
+	bool bInvertCameraX = false;
+
+	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking")
 	bool bKeepSubjectFramed;
 
@@ -73,18 +83,18 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking")
 	float TrackingSpeed = 0.2f;
 
+	/// The maximum distance the camera can be anticipating the character's movement.
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking")
-	bool bUseSpringArm = true;
+	float MaxAnticipation = 200.0f;
 
-
-
+	/** The Rotation speed of the camera in deg/s, scaled by the input factor **/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Rotation")
-	float RotationSensitivity = 5.0f;
+	float RotationSpeed = 5.0f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Rotation")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Rotation", meta = (ClampMin = -90.0f, ClampMax = 90.0f))
 	float MinPitch = -85.0f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Rotation")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Rotation", meta = (ClampMin = -90.0f, ClampMax = 90.0f))
 	float MaxPitch = 0.0f;
 	
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Tracking|Rotation")
@@ -114,27 +124,21 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Subjects")
 	float TrackAnticipationTime = 1.0f;
 
-	/// The maximum distance the camera can be anticipating the character's movement.
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking")
-	float MaxAnticipation = 200.0f;
-
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Zoom")
+	bool bUseSpringArm = true;
 	/** If true the camera zoom will not be changed once the minimum and maximum distances are applied */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Zoom")
 	bool bLockZoom = false;
-
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Transient, Category = "Tracking|Zoom")
 	float SubjectDistance;
-
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Tracking|Zoom")
 	float DesiredSubjectDistance;
 
 	/// The closest we can get to the subjects. This value will prevent the camera from zooming in too close.
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Zoom")
 	float MinimumSubjectDistance;
-
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Zoom")
 	float MaximumSubjectDistance;
-
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Zoom")
 	float ZoomSpeed;
 	

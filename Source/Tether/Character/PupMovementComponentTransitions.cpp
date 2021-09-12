@@ -60,6 +60,7 @@ bool UPupMovementComponent::Jump()
 			// Apply extra directional velocity
 			AddImpulse(MaxAcceleration * DesiredRotation.RotateVector(FVector::ForwardVector) * InputFactor * DoubleJumpeAccelerationFactor);
 		}
+		UpdatedComponent->SetWorldRotation(DesiredRotation);
 		
 		JumpAppliedVelocity += JumpInitialVelocity;
 		bCanDoubleJump = false;
@@ -314,8 +315,6 @@ void UPupMovementComponent::Mantle()
 		return;
 	}
 	UCapsuleComponent* CapsuleComponent = Cast<UCapsuleComponent>(UpdatedComponent);
-	const float SearchDistanceV = 10.0f;
-	const float SearchDistanceH = 20.0f;
 	const float CapsuleRadius = CapsuleComponent->GetScaledCapsuleRadius();
 	
 	const FVector EyePosition = CapsuleComponent->GetComponentLocation() +
@@ -327,7 +326,7 @@ void UPupMovementComponent::Mantle()
 	CollisionQueryParams.AddIgnoredActor(this->GetOwner());
 	
 	if (GetWorld()->LineTraceSingleByChannel(LineTraceResult,
-		EyePosition, EyePosition + CapsuleComponent->GetForwardVector() * SearchDistanceH,
+		EyePosition, EyePosition + CapsuleComponent->GetForwardVector() * GrabRangeForward,
 		ECollisionChannel::ECC_Pawn,
 		CollisionQueryParams,
 		CapsuleComponent->GetCollisionResponseToChannels()))
@@ -340,26 +339,36 @@ void UPupMovementComponent::Mantle()
 		UPrimitiveComponent* Target = LineTraceResult.GetComponent();
 		const float Alpha = 1.0f;
 		const float Yaw = FMath::RadiansToDegrees(FMath::Atan2(-LineTraceResult.ImpactNormal.Y, -LineTraceResult.ImpactNormal.X));
+		
 		const FVector MantleLocation = LineTraceResult.ImpactPoint - LineTraceResult.ImpactNormal * Alpha;
+		const FVector WallNormal = LineTraceResult.Normal;
 		
 		if (Target->LineTraceComponent(LineTraceResult,
-			MantleLocation + FVector::UpVector * SearchDistanceV, MantleLocation - FVector::UpVector * SearchDistanceV,
-			CollisionQueryParams) && !LineTraceResult.bStartPenetrating && LineTraceResult.Normal.Z >= 0.975f)
+			MantleLocation + FVector::UpVector * GrabRangeTop, MantleLocation + FVector::DownVector * GrabRangeBottom,
+			CollisionQueryParams) && !LineTraceResult.bStartPenetrating)
 		{
-			AnchorWorldLocation = LineTraceResult.Location + (CapsuleComponent->GetComponentLocation() - EyePosition);
-			const FVector Difference = AnchorWorldLocation - Target->GetComponentLocation();
-			AnchorRelativeLocation = FVector(
-				FVector::DotProduct(Difference, Target->GetForwardVector()),
-				FVector::DotProduct(Difference, Target->GetRightVector()),
-				FVector::DotProduct(Difference, Target->GetUpVector()));
-			AnchorRelativeYaw = Yaw - Target->GetComponentRotation().Yaw;
-			AnchorTarget = Target;
-			DesiredRotation.Yaw = Yaw;
-			
-			bMantling = true;
-			bCanMantle = false;
-			bIsWalking = false;
-			SetMovementMode(EPupMovementMode::M_Anchored);
+			const FVector TopWallNormal = LineTraceResult.Normal;
+			const FVector LedgeDirection = FVector::CrossProduct(TopWallNormal, WallNormal).GetUnsafeNormal();
+			/* Check how close our ledge direction vector is to the 'right vector',
+			 * assuming that the 'forward vector' is the direction the player will rotate towards --
+			 * the opposite of the WallNormal */
+			if (FMath::Abs(FVector::DotProduct(LedgeDirection, WallNormal.RotateAngleAxis(90.0f, FVector::UpVector))) >= LedgeDeviation)
+			{
+				AnchorWorldLocation = LineTraceResult.Location + (CapsuleComponent->GetComponentLocation() - EyePosition);
+				const FVector Difference = AnchorWorldLocation - Target->GetComponentLocation();
+				AnchorRelativeLocation = FVector(
+					FVector::DotProduct(Difference, Target->GetForwardVector()),
+					FVector::DotProduct(Difference, Target->GetRightVector()),
+					FVector::DotProduct(Difference, Target->GetUpVector()));
+				AnchorRelativeYaw = Yaw - Target->GetComponentRotation().Yaw;
+				AnchorTarget = Target;
+				DesiredRotation.Yaw = Yaw;
+				
+				bMantling = true;
+				bCanMantle = false;
+				bIsWalking = false;
+				SetMovementMode(EPupMovementMode::M_Anchored);
+			}
 		}
 	}
 }
