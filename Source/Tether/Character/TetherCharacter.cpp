@@ -8,8 +8,10 @@
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Tether/Tether.h"
 #include "Tether/GameMode/TetherPrimaryGameMode.h"
 #include "Tether/GameMode/TetherPrimaryGameState.h"
+#include "Tether/Gameplay/Cameras/TopDownCameraComponent.h"
 
 
 // Component name constants
@@ -98,6 +100,16 @@ void ATetherCharacter::Tick(float DeltaSeconds)
 		{
 			CarriedActor->SetActorLocation(FMath::Lerp(InitialCarriedActorPosition, GrabHandle->GetComponentLocation(), SnapFactor));
 			CarriedActor->SetActorRotation(FMath::Lerp(InitialCarriedActorRotation, GrabHandle->GetComponentRotation(), SnapFactor));
+		}
+	}
+	if (SkeletalMeshComponent->IsPlayingRootMotion())
+	{
+		const FRootMotionMovementParams RootMotion = SkeletalMeshComponent->ConsumeRootMotion();
+		if (RootMotion.bHasRootMotion)
+		{
+			const FTransform WorldSpaceRootMotionTransform = SkeletalMeshComponent->ConvertLocalRootMotionToWorld( RootMotion.GetRootMotionTransform() );
+			// UE_LOG(LogTetherGame, Verbose, TEXT("Root motion occuring! %s"), *WorldSpaceRootMotionTransform.ToString());
+			MovementComponent->AddRootMotionTransform(WorldSpaceRootMotionTransform);
 		}
 	}
 }

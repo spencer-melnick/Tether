@@ -6,6 +6,7 @@
 
 #include "Camera/CameraComponent.h"
 #include "GameFramework/Actor.h"
+#include "Tether/Character/TetherCharacter.h"
 
 #include "TopDownCameraComponent.generated.h"
 
@@ -39,12 +40,6 @@ private:
 	FRotator CalcDeltaRotation(const float DeltaTime);
 	
 	FVector2D ConvertVectorToViewSpace(const FVector& WorldLocation) const;
-	
-	FVector2D CalcSubjectScreenLocations();
-	
-	TArray<AActor*> GetSubjectActors() const;
-
-	FVector AverageLocationOfTargets(TArray<AActor*> Targets) const;
 
 	float GetMinimumDistance();
 	
@@ -64,12 +59,6 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "User")
 	bool bInvertCameraX = false;
 
-	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking")
-	bool bKeepSubjectFramed;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking")
-	bool bTrackAllPlayers = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking")
 	bool bTrackParent = true;
@@ -110,11 +99,10 @@ public:
 	
 	/// The actors we are tracking. If we track more than one actor, the first actor in the list will be our 'primary' actor.
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Subjects")
-	TArray<AActor*> Subjects;
-
-	/// Subject locations in screen space, ranging  [-1.0 : 1.0]
+	ATetherCharacter* Subject;
+		
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Tracking|Subjects")
-	TArray<FVector2D> SubjectLocations;
+	FVector SubjectLocation;
 
 	/// Whether or not we try to get ahead of the subjects, based on their velocity.
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Tracking|Subjects")

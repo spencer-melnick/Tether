@@ -8,13 +8,13 @@
 #include "Components/SphereComponent.h"
 #include "GameFramework/Character.h"
 #include "Tether/Gameplay/Beam/BeamComponent.h"
-#include "Tether/Gameplay/Cameras/TopDownCameraComponent.h"
 
 #include "TetherCharacter.generated.h"
 
 class UCameraComponent;
 class USpringArmComponent;
 class UBeamComponent;
+class UTopDownCameraComponent;
 
 
 UCLASS(Blueprintable)
@@ -121,9 +121,9 @@ public:
 
 	virtual void HandlePenetration(const FHitResult& HitResult);
 	
-	// Editor properties
-	
-	// Tether settings
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float EyeHeight = 10.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tether")
 	FVector TetherOffset;

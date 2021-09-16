@@ -4,7 +4,6 @@
 #include "TopDownCameraComponent.h"
 
 #include "GameFramework/GameStateBase.h"
-#include "GameFramework/PlayerState.h"
 #include "Tether/Character/TetherCharacter.h"
 
 // Sets default values
@@ -22,12 +21,12 @@ void UTopDownCameraComponent::BeginPlay()
 	InitialFOV = FieldOfView;
 	SetUsingAbsoluteLocation(true);
 	SetUsingAbsoluteRotation(true);
-	Subjects = GetSubjectActors();
 
 	RecordScreenSize(GetOwner()->GetInstigatorController());
 
 	if (ATetherCharacter* TetherCharacter = Cast<ATetherCharacter>(GetOwner()))
 	{
+		Subject = TetherCharacter;
 		TetherCharacter->OnPossessedDelegate().AddWeakLambda(this, [this](AController* Controller)
 		{
 			RecordScreenSize(Controller);
@@ -57,24 +56,14 @@ void UTopDownCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType
 	FVector Location = CalcDeltaLocation(DeltaTime);
 	if (bUseSpringArm)
 	{
-		if (UWorld* World = GetWorld())
+		if (GetWorld() && Subject)
 		{
 			FHitResult LineTraceHitResult;
 			FCollisionQueryParams QueryParams = FCollisionQueryParams::DefaultQueryParam;
-			for (AActor* Subject : Subjects)
-			{
-				if (Subject)
-				{
-					QueryParams.AddIgnoredActors(Subjects);
-				}
-				else
-				{
-					Subjects.Remove(Subject);
-				}
-			}
-			const FVector CameraFacing = (Subjects[0]->GetActorLocation() - Location).GetSafeNormal();
-			if (World->LineTraceSingleByChannel(LineTraceHitResult,
-				Subjects[0]->GetActorLocation() + CameraFacing * -20.0f,
+			QueryParams.AddIgnoredActor(Subject);
+			const FVector CameraFacing = (SubjectLocation - Location).GetSafeNormal();
+			if (GetWorld()->LineTraceSingleByChannel(LineTraceHitResult,
+				SubjectLocation + CameraFacing * -20.0f,
 				Location,
 				ECollisionChannel::ECC_Camera,
 				QueryParams))
@@ -95,14 +84,8 @@ void UTopDownCameraComponent::AddCameraRotation(const FRotator Rotator)
 
 FVector UTopDownCameraComponent::CalcDeltaLocation(const float DeltaTime)
 {
-	DesiredFocalPoint = AverageLocationOfTargets(Subjects);
-	if (bKeepSubjectFramed)
-	{
-		if (SubjectLocations[0].SizeSquared() > 1)
-		{
-			FocalPoint = DesiredFocalPoint;
-		}	
-	}
+	SubjectLocation = Subject->GetActorLocation() + Subject->EyeHeight * FVector::UpVector;
+	DesiredFocalPoint =  SubjectLocation + (Subject->GetVelocity() * TrackAnticipationTime).GetClampedToMaxSize(MaxAnticipation);
 	FocalPoint = FMath::VInterpTo(FocalPoint, DesiredFocalPoint, DeltaTime, TrackingSpeed);
 
 	return FocalPoint + GetWorldOffset();
@@ -126,15 +109,11 @@ FRotator UTopDownCameraComponent::CalcDeltaRotation(const float DeltaTime)
 	
 	NewRotation += RotationalVelocity * DeltaTime;
 
-	if (ATetherCharacter* Player = Cast<ATetherCharacter>(Subjects[0]))
+	const float DeltaRotation = FMath::FindDeltaAngleDegrees(GetComponentRotation().Yaw, Subject->GetActorRotation().Yaw);
+	if (Subject && CopyRotationFactor > 0.0f && Subject->MovementComponent->bIsWalking && FMath::Abs(DeltaRotation) <= 160.0f)
 	{
-		const float DeltaRotation = FMath::FindDeltaAngleDegrees(GetComponentRotation().Yaw, Player->GetActorRotation().Yaw);
-		if (CopyRotationFactor > 0.0f && Player->MovementComponent->bIsWalking && FMath::Abs(DeltaRotation) <= 160.0f)
-		{
-			NewRotation.Yaw += DeltaRotation * CopyRotationFactor * Player->MovementComponent->InputFactor * DeltaTime;
-		}
-	}
-	
+		NewRotation.Yaw += DeltaRotation * CopyRotationFactor * Subject->MovementComponent->InputFactor * DeltaTime;
+	}	
 	NewRotation.Pitch = FMath::ClampAngle(NewRotation.Pitch, MinPitch, MaxPitch);
 	return NewRotation;
 }
@@ -142,117 +121,19 @@ FRotator UTopDownCameraComponent::CalcDeltaRotation(const float DeltaTime)
 
 FVector2D UTopDownCameraComponent::ConvertVectorToViewSpace(const FVector& WorldLocation) const
 {
-		if (APlayerController* PlayerController = Cast<APlayerController>(GetOwner()->GetInstigatorController()))
-		{
-			FVector2D ScreenLocation;
-			PlayerController->ProjectWorldLocationToScreen(WorldLocation, ScreenLocation);
-			return ScreenLocation - ScreenSize / 2;
-		}
+	if (APlayerController* PlayerController = Cast<APlayerController>(GetOwner()->GetInstigatorController()))
+	{
+		FVector2D ScreenLocation;
+		PlayerController->ProjectWorldLocationToScreen(WorldLocation, ScreenLocation);
+		return ScreenLocation - ScreenSize / 2;
+	}
 	return FVector2D::ZeroVector;
-}
-
-
-FVector2D UTopDownCameraComponent::CalcSubjectScreenLocations()
-{
-	float MaxX = 0, MaxY = 0;
-
-	const int SubjectCount = Subjects.Num();
-	if (SubjectCount != SubjectLocations.Num())
-	{
-		SubjectLocations.SetNum(SubjectCount);
-	}
-	
-	for (int i = 0; i < Subjects.Num(); i++)
-	{
-		if (Subjects[i])
-		{
-			FVector2D ScreenSpace = ConvertVectorToViewSpace(Subjects[i]->GetActorLocation());
-			SubjectLocations[i] = ScreenSpace * 2 / ScreenSize;
-			
-			ScreenSpace = ScreenSpace.GetAbs();
-			
-			if (ScreenSpace.X > MaxX)
-			{
-				MaxX = ScreenSpace.X;
-			}
-
-			if (ScreenSpace.Y > MaxY)
-			{
-				MaxY = ScreenSpace.Y;
-			}
-		}
-	}
-	if (MaxX < MaxY * AspectRatio)
-	{
-		MaxX = MaxY * AspectRatio;
-	}
-	return FVector2D(MaxX * 2, MaxY * 2);
-}
-
-
-TArray<AActor*> UTopDownCameraComponent::GetSubjectActors() const
-{
-	TArray<AActor*> OutputArray;
-
-	if (bTrackAllPlayers)
-	{
-		if (UWorld* World = GetWorld())
-		{
-			if (AGameStateBase* GameState = World->GetGameState())
-			{
-				TArray<APlayerState*> PlayerStates = GameState->PlayerArray;
-				for (APlayerState* PlayerState : PlayerStates)
-				{
-					AActor* PlayerControlledActor = PlayerState->GetPawn();
-					if (PlayerControlledActor)
-					{
-						OutputArray.Add(PlayerControlledActor);
-					}
-				}
-			}
-		}
-	}
-	if (bTrackParent)
-	{
-		AActor* Parent = GetOwner();
-		if (!OutputArray.Contains(Parent))
-		{
-			OutputArray.Add(Parent);
-		}
-	}
-	return OutputArray;
-}
-
-
-FVector UTopDownCameraComponent::AverageLocationOfTargets(TArray<AActor*> Targets) const
-{
-	FVector Average = FVector::ZeroVector;
-	int Count = Targets.Num();
-	
-	for (AActor* Target : Targets)
-	{
-		if (Target)
-		{
-			Average += Target->GetActorLocation();
-
-			if (bTrackAheadOfMotion)
-			{
-				FVector AnticipationOffset = Target->GetVelocity() * TrackAnticipationTime;
-				Average += AnticipationOffset.GetClampedToMaxSize(MaxAnticipation);
-			}
-		}
-		else
-		{
-			Count --;
-		}
-	}
-	return Count == 0 ? FVector::ZeroVector : Average / Count;
 }
 
 
 float UTopDownCameraComponent::GetMinimumDistance()
 {
-	return CalcSubjectScreenLocations().X / (2 * FMath::Tan(FMath::DegreesToRadians(FieldOfView / 2)));
+	return 100.0f;
 }
 
 

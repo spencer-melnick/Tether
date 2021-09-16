@@ -130,6 +130,10 @@ void UPupMovementComponent::Deflect(const FVector& DeflectionVelocity, const flo
 	}
 	if (UWorld* World = GetWorld())
 	{
+		if (MovementMode == EPupMovementMode::M_Anchored)
+		{
+			BreakAnchor(true);
+		}
 		SetMovementMode(EPupMovementMode::M_Deflected);
 		DeflectDirection = DeflectionVelocity.GetSafeNormal();
 		const float DeflectTimeRemaining = DeflectTimerHandle.IsValid() ? World->GetTimerManager().GetTimerRemaining(DeflectTimerHandle) : 0.f;
@@ -204,10 +208,10 @@ void UPupMovementComponent::BreakAnchor(const bool bForceBreak)
 	}
 	AnchorRelativeLocation = FVector::ZeroVector;
 	AnchorWorldLocation = FVector::ZeroVector;
-	GetWorld()->GetTimerManager().SetTimer(MantleTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
+	GetWorld()->GetTimerManager().SetTimer(MantleDebounceTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
 	{;
 		bCanMantle = true;
-	}), 1.0f, false);
+	}), 0.2f, false);
 }
 
 
@@ -278,33 +282,47 @@ void UPupMovementComponent::EndRecovery()
 
 void UPupMovementComponent::ClimbMantle()
 {
-	if (UCapsuleComponent* CapsuleComponent = Cast<UCapsuleComponent>(UpdatedComponent))
+	if (FVector::DotProduct(DirectionVector, -UpdatedComponent->GetForwardVector()) > 0.5f)
 	{
-		FHitResult CapsuleTrace;
-		const FVector MantleLocation = AnchorWorldLocation + UpdatedComponent->GetForwardVector() * CapsuleComponent->GetCollisionShape().GetCapsuleRadius() * 2.0f;
-		AnchorTarget->SweepComponent(CapsuleTrace, MantleLocation + FVector::UpVector * CapsuleComponent->GetCollisionShape().GetCapsuleHalfHeight() * 3.0f, MantleLocation,
-			CapsuleComponent->GetComponentQuat(), CapsuleComponent->GetCollisionShape());
-		if (AnchorTarget->Mobility == EComponentMobility::Movable)
+		BreakAnchor(false);
+	}
+	else
+	{
+		MantleEvent.Broadcast();
+		GetWorld()->GetTimerManager().SetTimer(MantleTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
 		{
-			const FVector Difference = CapsuleTrace.Location - AnchorTarget->GetComponentLocation();
-			AnchorRelativeLocation = FVector(
-				FVector::DotProduct(Difference, AnchorTarget->GetForwardVector()),
-				FVector::DotProduct(Difference, AnchorTarget->GetRightVector()),
-				FVector::DotProduct(Difference, AnchorTarget->GetUpVector()));
-		}
-		else
-		{
-			AnchorWorldLocation = CapsuleTrace.Location;
-		}
+			BreakAnchor();
+		}), 0.8f, false);
 	}
 	bCanDoubleJump = true;
 	bMantling = false;
-	MantleEvent.Broadcast();
-	
-	GetWorld()->GetTimerManager().SetTimer(MantleTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
+}
+
+
+void UPupMovementComponent::EdgeSlide(const float Scale, const float DeltaTime)
+{
+	if (FMath::Abs(Scale) < 0.5f)
 	{
-		BreakAnchor();
-	}), 0.1f, false);
+		return;
+	}
+	const float CurvedScale = Scale > 0.0f ? (Scale - 0.5f) * 2.0f : (Scale + 0.5f) * 2.0f;
+	
+	// TODO: Make this rate a UProperty?
+	const float SlideRate = 100.0f;
+	const float CapsuleRadius = 10.0f;
+	
+	const FVector SlideOffset = LedgeDirection * SlideRate * CurvedScale * DeltaTime;
+	const FVector NewAnchorWorldLocation = UpdatedComponent->GetComponentLocation() + SlideOffset;
+	const FVector RadiusCheckOffset = Scale > 0.0f ? LedgeDirection * CapsuleRadius : LedgeDirection * -CapsuleRadius;
+	
+	FHitResult LineTraceResult;
+	if (AnchorTarget->LineTraceComponent(LineTraceResult,
+		NewAnchorWorldLocation + RadiusCheckOffset,
+		NewAnchorWorldLocation + RadiusCheckOffset + UpdatedComponent->GetForwardVector() * GrabRangeForward,
+		FCollisionQueryParams::DefaultQueryParam))
+	{
+		AnchorWorldLocation = NewAnchorWorldLocation;
+	}
 }
 
 
@@ -318,7 +336,7 @@ void UPupMovementComponent::Mantle()
 	const float CapsuleRadius = CapsuleComponent->GetScaledCapsuleRadius();
 	
 	const FVector EyePosition = CapsuleComponent->GetComponentLocation() +
-		(CapsuleComponent->GetUnscaledCapsuleHalfHeight() - CapsuleRadius) * FVector::UpVector +
+		(CapsuleComponent->GetUnscaledCapsuleHalfHeight() - CapsuleRadius - 8.0f) * FVector::UpVector +
 		CapsuleRadius * CapsuleComponent->GetForwardVector();
 	FHitResult LineTraceResult;
 	
@@ -348,12 +366,22 @@ void UPupMovementComponent::Mantle()
 			CollisionQueryParams) && !LineTraceResult.bStartPenetrating)
 		{
 			const FVector TopWallNormal = LineTraceResult.Normal;
-			const FVector LedgeDirection = FVector::CrossProduct(TopWallNormal, WallNormal).GetUnsafeNormal();
+			LedgeDirection = FVector::CrossProduct(TopWallNormal, WallNormal).GetUnsafeNormal();
 			/* Check how close our ledge direction vector is to the 'right vector',
 			 * assuming that the 'forward vector' is the direction the player will rotate towards --
 			 * the opposite of the WallNormal */
 			if (FMath::Abs(FVector::DotProduct(LedgeDirection, WallNormal.RotateAngleAxis(90.0f, FVector::UpVector))) >= LedgeDeviation)
 			{
+				const FVector LeftSide = UpdatedComponent->GetComponentLocation() - LedgeDirection * CapsuleComponent->GetCollisionShape().GetCapsuleRadius();
+				const FVector RightSide = UpdatedComponent->GetComponentLocation() + LedgeDirection * CapsuleComponent->GetCollisionShape().GetCapsuleRadius();
+				const FVector Offset =  (MantleLocation - UpdatedComponent->GetComponentLocation()).GetSafeNormal2D() * GrabRangeForward;
+
+				FHitResult SizeTraceLeft;
+				FHitResult SizeTraceRight;
+				if (!Target->LineTraceComponent(SizeTraceLeft, LeftSide, LeftSide + Offset, CollisionQueryParams) || !Target->LineTraceComponent(SizeTraceRight, RightSide, RightSide + Offset, CollisionQueryParams))
+				{
+					return;
+				}
 				AnchorWorldLocation = LineTraceResult.Location + (CapsuleComponent->GetComponentLocation() - EyePosition);
 				const FVector Difference = AnchorWorldLocation - Target->GetComponentLocation();
 				AnchorRelativeLocation = FVector(

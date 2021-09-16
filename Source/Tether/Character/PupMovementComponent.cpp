@@ -171,7 +171,7 @@ void UPupMovementComponent::StepMovement(const float DeltaTime)
 			Recover();
 		}
 
-		if (MovementMode == EPupMovementMode::M_Falling && Velocity.Z <= 100.0f)
+		if (MovementMode == EPupMovementMode::M_Falling && Velocity.Z <= -MaximumGrabVelocity)
 		{
 			Mantle();
 		}
@@ -180,12 +180,20 @@ void UPupMovementComponent::StepMovement(const float DeltaTime)
 	{
 		UpdatedComponent->SetWorldLocation(UpdatedComponent->GetComponentLocation() + Velocity * DeltaTime, false);
 	}
+	else if (MovementMode == EPupMovementMode::M_Anchored && bMantling)
+	{
+		EdgeSlide(FVector::DotProduct(LedgeDirection, DirectionVector), DeltaTime);
+	}
 	// Update the alpha value to be used for turning friction
 	MovementSpeedAlpha = Velocity.IsNearlyZero() ? 0.0f : Velocity.Size2D() / MaxSpeed;
 	InvalidFloorComponents.Empty();
 	
 	// Let our primitive component know what its new velocity should be
 	UpdateComponentVelocity();
+
+	// EXPERIMENTAL!!!!
+	HandleRootMotion();
+	
 	StoreBasisTransformPostUpdate();
 }
 
@@ -211,6 +219,11 @@ float UPupMovementComponent::SubstepMovement(const float DeltaTime)
 		if (HitResult.GetComponent())
 		{
 			RelativeVelocity -= HitResult.GetComponent()->GetComponentVelocity();
+		}
+		// Realllyyyy simple wall slide?
+		if (FMath::Abs(HitResult.Normal.Z) <= 0.2f)
+		{
+			// Velocity.Z = FMath::Max(0.0f,Velocity.Z);
 		}
 		const float ImpactVelocityMagnitude = FMath::Max(FVector::DotProduct(-HitResult.Normal, RelativeVelocity), 0.f);
 		Velocity += HitResult.Normal * ImpactVelocityMagnitude;
@@ -453,6 +466,19 @@ void UPupMovementComponent::HandleInputVectors()
 			bIsWalking = false;
 			DirectionVector = FVector::ZeroVector;
 			DesiredRotation = UpdatedComponent->GetComponentRotation();
+		}
+	}
+	else if (MovementMode == EPupMovementMode::M_Anchored && bMantling)
+	{
+		if (!InputVector.IsNearlyZero())
+		{
+			InputFactor = FMath::Min(InputVector.Size(), 1.0f);
+			DirectionVector = InputVector.RotateAngleAxis(CameraYaw, FVector::UpVector);
+		}
+		else
+		{
+			InputFactor = 0.0f;
+			DirectionVector = FVector::ZeroVector;
 		}
 	}
 }

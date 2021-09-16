@@ -72,6 +72,28 @@ void UPupMovementComponent::RenderHitResult(const FHitResult& HitResult, const F
 	}
 }
 
+void UPupMovementComponent::AddRootMotionTransform(const FTransform& RootMotionTransform)
+{
+	PendingRootMotionTransforms += RootMotionTransform;
+}
+
+void UPupMovementComponent::HandleRootMotion()
+{
+	if (MovementMode == EPupMovementMode::M_Anchored)
+	{
+		AnchorWorldLocation += PendingRootMotionTransforms.GetTranslation();
+		AnchorRelativeLocation += PendingRootMotionTransforms.GetTranslation();
+	}
+	else
+	{
+		FHitResult EmptyResult;
+		SafeMoveUpdatedComponent(PendingRootMotionTransforms.GetTranslation(),
+			UpdatedComponent->GetComponentQuat(),
+			true, EmptyResult);
+	}
+	PendingRootMotionTransforms = FTransform::Identity;
+}
+
 
 bool UPupMovementComponent::CheckFloorValidWithinRange(const float Range, const FHitResult& HitResult)
 {

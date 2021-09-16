@@ -99,6 +99,7 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void AddImpulse(const FVector Impulse);
 
+	void AddRootMotionTransform(const FTransform& RootMotionTransform);
 	
 	UFUNCTION(BlueprintCallable)
 	void IgnoreActor(AActor* Actor);
@@ -153,11 +154,15 @@ private:
 	/**
 	 * Timer function to be called when the player has finished their recovery.
 	 * By default, this teleports the player to their last safe location, in case the player
-	 * was desynced during this time.
+	 * was de-synced during this time.
 	 **/
 	void EndRecovery();
 
+	/** Climb up over the ledge and return to default movement mode **/
 	void ClimbMantle();
+
+	/** Slide along the ledge we are currently holding to the right **/
+	void EdgeSlide(const float Scale, const float DeltaTime);
 	
 	void TickGravity(const float DeltaTime);
 
@@ -218,9 +223,12 @@ private:
 	bool SweepCapsule(const FVector Offset, FHitResult& OutHit, const bool bIgnoreInitialOverlap = false) const;
 	bool SweepCapsule(const FVector InitialOffset, const FVector Offset, FHitResult& OutHit, const bool bIgnoreInitialOverlap = false) const;
 
+	
 	/** Utility function for rendering HitResults. Will only fire if bDrawMovementDebug is checked. **/
 	void RenderHitResult(const FHitResult& HitResult, const FColor Color = FColor::White, const bool bPersistent = false) const;
 
+	void HandleRootMotion();
+	
 	/** Static utility for finding if the player is at least 'Range' units from the edge of a surface. **/
 	static bool CheckFloorValidWithinRange(const float Range, const FHitResult& HitResult);
 
@@ -411,11 +419,14 @@ public:
 	 * How far the ledge can deviate from a perfectly 'level' floor.
 	 * At 1.0f, the ledge must be completely level, and at 0.0f
 	 * the ledge could be vertical.
-	 * This value is recommended to be somewhere between 0.5f and 0.9f
+	 * This value is recommended to be somewhere between 0.5f and 0.95f
 	 * to account for errors in floating point arithmetic.
 	 **/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Anchored|Mantling", meta = (ClampMin = 0.0f, ClampMax = 1.0f))
 	float LedgeDeviation = 0.9f;
+
+	UPROPERTY(BlueprintReadOnly, VisibleInstanceOnly, Transient, Category = "Anchored|Mantling")
+	FVector LedgeDirection;
 	
 	/** How quickly the player should move to their anchor, in units/s **/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Anchored", meta = (ClampMin = 0.0f))
@@ -577,6 +588,7 @@ private:
 	
 	FVector PendingAdjustments = FVector::ZeroVector;
 	FVector PendingImpulses = FVector::ZeroVector;
+	FTransform PendingRootMotionTransforms = FTransform::Identity;
 	
 	// Timer Handles
 	FTimerHandle CoyoteTimerHandle;
@@ -584,6 +596,7 @@ private:
 	FTimerHandle DeflectTimerHandle;
 	FTimerHandle RecoveryTimerHandle;
 	FTimerHandle MantleTimerHandle;
+	FTimerHandle MantleDebounceTimerHandle;
 
 	UPROPERTY(BlueprintAssignable)
 	FMovementModeChanged MovementModeChanged;
