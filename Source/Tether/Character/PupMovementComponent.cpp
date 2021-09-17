@@ -487,11 +487,26 @@ void UPupMovementComponent::HandleInputVectors()
 void UPupMovementComponent::UpdateRotation(const float DeltaTime)
 {
 	const FRotator NewRotation = GetNewRotation(DeltaTime);
-	if (UpdatedComponent)
+	UpdatedComponent->SetWorldRotation(NewRotation);
+
+	float DeltaYaw = UpdatedComponent->GetComponentRotation().Yaw - DesiredRotation.Yaw;
+
+	if (DeltaYaw > 180.0f)
 	{
-		const float DeltaYaw = FMath::FindDeltaAngleDegrees(NewRotation.Yaw, UpdatedComponent->GetComponentRotation().Yaw);
-		TurningDirection = DeltaYaw;
-		UpdatedComponent->SetWorldRotation(NewRotation);
+		DeltaYaw -= 360.0f;
+	}
+	else if (DeltaYaw < -180.0f)
+	{
+		DeltaYaw += 360.0f;
+	}
+	// We really shouldn't need modulos here
+	if (FMath::Abs(DeltaYaw) > 0.01f)
+	{
+		TurningDirection = FMath::Lerp(TurningDirection, DeltaYaw > 0.0f ? MovementSpeedAlpha : -MovementSpeedAlpha, 0.1f);
+	}
+	else
+	{
+		TurningDirection = FMath::Lerp(TurningDirection, 0.0f, 0.02f);
 	}
 }
 
