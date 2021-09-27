@@ -17,7 +17,7 @@ class UBeamComponent;
 class UTopDownCameraComponent;
 
 
-UCLASS(Blueprintable)
+UCLASS(Blueprintable, HideCategories("Components"))
 class ATetherCharacter : public APawn, public IBeamTarget
 {
 	GENERATED_BODY()
@@ -116,6 +116,10 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void SetSnapFactor(const float Factor);
+
+	void DragObject(AActor* Target, const FVector Normal);
+
+	void DragObjectRelease();
 	
 	// Events
 
@@ -125,10 +129,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float EyeHeight = 10.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tether")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether")
 	FVector TetherOffset;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tether")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether")
 	FName TetherEffectSocket;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
@@ -137,13 +141,13 @@ public:
 	bool bAnchored = false;
 
 	/** Maximum speed that this character can be launched at when hitting an obstacle */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Deflection")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Deflection")
 	float MaxLaunchSpeed = 500.f;
 
 	// Interaction settings
 
 	/** Trace channel to use when checking for interactive objects */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Interation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interation")
 	TEnumAsByte<ECollisionChannel> InteractionTraceChannel;
 
 private:
@@ -168,7 +172,7 @@ private:
 
 	void AnchorToObject(AActor* Object) const;
 	void AnchorToComponent(UPrimitiveComponent* Component, const FVector& Location = FVector::ZeroVector) const;
-	void ReleaseAnchor();
+	void Release();
 
 	bool bCompletedPickupAnimation = false;
 	float SnapFactor = 0.0f;
@@ -179,27 +183,41 @@ private:
 	
 	// Components
 public:
-	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category="Components")
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Components")
 	UCapsuleComponent* CapsuleComponent;
 
-	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category="Components")
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Components")
 	UPupMovementComponent* MovementComponent;
 	
-	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category="Components")
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Components")
 	USkeletalMeshComponent* SkeletalMeshComponent;
 
-	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category="Components")
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Components")
 	UTopDownCameraComponent* CameraComponent;
 
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Dragging")
+	bool bDraggingObject;
+	
 private:
-	UPROPERTY(VisibleAnywhere, Category="Components")
+	UPROPERTY(VisibleAnywhere, Category = "Components")
 	USphereComponent* GrabSphereComponent;
 
-	UPROPERTY(VisibleAnywhere, Category="Components")
+	UPROPERTY(VisibleAnywhere, Category = "Components")
 	USceneComponent* GrabHandle;
 
 	UPROPERTY(VisibleAnywhere)
 	UBeamComponent* BeamComponent;
+
+	UPROPERTY(VisibleAnywhere, Transient, Category = "Dragging")
+	AActor* DraggingActorObject;
+	
+	/**
+	 * How far the center of the target object is from the center of the character
+	 * Used to maintain the distance between them
+	**/
+    UPROPERTY(VisibleAnywhere, Transient)
+    FVector DragOffset = FVector::ZeroVector;
+
 
 	FOnPossessedDelegate PossessedDelegate;
 };

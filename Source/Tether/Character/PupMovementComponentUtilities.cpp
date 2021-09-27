@@ -8,6 +8,82 @@
 
 
 // Utilities
+namespace  PupMovementCVars
+{
+	static float FloorPadding = 0.01f;
+	static FAutoConsoleVariableRef CVarFloorPadding(
+		TEXT("PupMovement.FloorPadding"),
+		FloorPadding,
+		TEXT("The minimum distance when snapping to the floor."),
+		ECVF_Default);
+}
+
+bool UPupMovementComponent::FindFloor(const float SweepDistance, FHitResult& OutHitResult, const int NumTries)
+{
+	const FVector SweepOffset = FVector::DownVector * SweepDistance;
+	for (int i = 0; i < NumTries; i++)
+	{
+		FHitResult IterativeHitResult;
+		if (SweepCapsule(FVector(0.0f, 0.0f, 10.0f),SweepOffset, IterativeHitResult, false))
+		{
+			OutHitResult = IterativeHitResult;
+			// RenderHitResult(IterativeHitResult, FColor::White, true);
+			if (IsValidFloorHit(IterativeHitResult))
+			{
+				FloorNormal = IterativeHitResult.ImpactNormal;
+				return true;
+			}
+			if (OutHitResult.bStartPenetrating)
+			{
+				ResolvePenetration(GetPenetrationAdjustment(OutHitResult), OutHitResult, UpdatedComponent->GetComponentQuat());
+				InvalidFloorComponents.Add(OutHitResult.GetComponent());
+			}
+		}
+	}
+	InvalidFloorComponents.Empty();
+	// If this wasn't a valid floor hit, clear the hit result but keep the trace data
+	OutHitResult.Reset(1.f, true);
+	return false;
+}
+
+
+bool UPupMovementComponent::IsValidFloorHit(const FHitResult& FloorHit) const
+{
+	// Check if we actually hit a floor component
+	UPrimitiveComponent* FloorComponent = FloorHit.GetComponent();
+	if (FloorComponent && FloorComponent->CanCharacterStepUp(GetPawnOwner()))
+	{
+		// Capsule traces will give us ImpactNormals that are sometimes 'glancing' edges
+		// so, the most realiable way of getting the floor's normal is with a line trace.
+		FHitResult NormalLineTrace;
+		FloorComponent->LineTraceComponent(
+			NormalLineTrace,
+			UpdatedComponent->GetComponentLocation(),
+			UpdatedComponent->GetComponentLocation() + FVector(0.0f, 0.0f, -250.0f),
+			FCollisionQueryParams::DefaultQueryParam);
+		// RenderHitResult(NormalLineTrace, FColor::Red);
+		if (NormalLineTrace.ImpactNormal.Z >= MaxInclineZComponent)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+
+void UPupMovementComponent::SnapToFloor(const FHitResult& FloorHit)
+{
+	FHitResult DiscardHit;
+	if (CheckFloorValidWithinRange(MinimumSafeRadius, FloorHit))
+	{
+		LastValidLocation = FloorHit.Location;
+	}
+	/* SafeMoveUpdatedComponent(
+		FloorHit.Location - UpdatedComponent->GetComponentLocation() + FloorHit.Normal * PupMovementCVars::FloorPadding,
+		UpdatedComponent->GetComponentQuat(), true, DiscardHit, ETeleportType::None); */
+}
+
+
 FVector UPupMovementComponent::ClampToPlaneMaxSize(const FVector& VectorIn, const FVector& Normal, const float MaxSize)
 {
 	FVector Planar = VectorIn;
@@ -50,7 +126,7 @@ bool UPupMovementComponent::SweepCapsule(const FVector InitialOffset, const FVec
 		const FCollisionResponseParams ResponseParams = FCollisionResponseParams::DefaultResponseParam;
 
 		return World->SweepSingleByChannel(OutHit, Start, End, Capsule->GetComponentQuat(), ECC_Pawn,
-										Capsule->GetCollisionShape(), QueryParams, ResponseParams);
+			Capsule->GetCollisionShape(), QueryParams, ResponseParams);
 	}
 	return false;
 }
@@ -58,7 +134,7 @@ bool UPupMovementComponent::SweepCapsule(const FVector InitialOffset, const FVec
 
 void UPupMovementComponent::RenderHitResult(const FHitResult& HitResult, const FColor Color, const bool bPersistent) const
 {
-	if (bDrawMovementDebug)
+	if (bDrawMovementDebug && DrawDebugLayers[TEXT("HitResults")])
 	{
 		if (HitResult.GetComponent())
 		{
@@ -81,8 +157,8 @@ void UPupMovementComponent::HandleRootMotion()
 {
 	if (MovementMode == EPupMovementMode::M_Anchored)
 	{
-		AnchorWorldLocation += PendingRootMotionTransforms.GetTranslation();
-		AnchorRelativeLocation += PendingRootMotionTransforms.GetTranslation();
+		UpdatedComponent->AddWorldOffset(PendingRootMotionTransforms.GetTranslation());
+		LocalBasisPosition += PendingRootMotionTransforms.GetTranslation();
 	}
 	else
 	{
@@ -145,7 +221,7 @@ void UPupMovementComponent::HandleExternalOverlaps(const float DeltaTime)
 			const FQuat Rotator = UpdatedComponent->GetComponentQuat();
 			FCollisionQueryParams CollisionQueryParams = FCollisionQueryParams::DefaultQueryParam;
 			CollisionQueryParams.AddIgnoredActor(GetOwner());
-			CollisionQueryParams.AddIgnoredComponent(CurrentFloorComponent);
+			CollisionQueryParams.AddIgnoredComponent(BasisComponent);
 
 			// If we've somehow gotten trapped inside a component that should've prevented a hit, we can try and sweep
 			// and that will give us enough information to escape.

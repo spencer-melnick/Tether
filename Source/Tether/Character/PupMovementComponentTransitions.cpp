@@ -5,9 +5,30 @@
 #include "TetherCharacter.h"
 #include "Components/CapsuleComponent.h"
 
+void UPupMovementComponent::SetDefaultMovementMode()
+{
+	FHitResult FloorResult;
+	if ((FindFloor(10.f, FloorResult, 1) && Velocity.Z <= 0.0f) || bGrounded)
+	{
+		SetMovementMode(EPupMovementMode::M_Walking);
+		SnapToFloor(FloorResult);
+		bAttachedToBasis = true;
+		BasisComponent = FloorResult.GetComponent();
+		bCanJump = true;
+	}
+	else
+	{
+		SetMovementMode(EPupMovementMode::M_Falling);
+	}
+	bMantling = false;
+	// In the event the input is still being supressed by glitch or otherwise, a transition should reset it.
+	UnsupressInput();
+}
+
+
 bool UPupMovementComponent::Jump()
 {
-	if (MatchModes(MovementMode, {EPupMovementMode::M_Recover, EPupMovementMode::M_None}))
+	if (bSupressingInput || MatchModes(MovementMode, {EPupMovementMode::M_Dragging, EPupMovementMode::M_Recover, EPupMovementMode::M_None}))
 	{
 		return false;
 	}
@@ -18,6 +39,7 @@ bool UPupMovementComponent::Jump()
 	}
 	if (bCanJump)
 	{
+		bAttachedToBasis = false;
 		AddImpulse(UpdatedComponent->GetUpVector() * (JumpInitialVelocity - Velocity.Z));
 		
 		JumpAppliedVelocity += JumpInitialVelocity;
@@ -32,7 +54,7 @@ bool UPupMovementComponent::Jump()
 		{
 			PlayerHeight = Capsule->GetScaledCapsuleHalfHeight();
 		}
-		JumpEvent.Broadcast(LastBasisPosition - PlayerHeight * UpdatedComponent->GetUpVector(), true);
+		JumpEvent.Broadcast(BasisPositionLastTick - PlayerHeight * UpdatedComponent->GetUpVector(), true);
 		
 		SetMovementMode(EPupMovementMode::M_Falling);
 		
@@ -74,7 +96,7 @@ bool UPupMovementComponent::Jump()
 		{
 			PlayerHeight = Capsule->GetScaledCapsuleHalfHeight();
 		}
-		JumpEvent.Broadcast(LastBasisPosition - PlayerHeight * UpdatedComponent->GetUpVector(), false);
+		JumpEvent.Broadcast(BasisPositionLastTick - PlayerHeight * UpdatedComponent->GetUpVector(), false);
 		
 		SetMovementMode(EPupMovementMode::M_Falling);
 		
@@ -158,7 +180,8 @@ void UPupMovementComponent::AnchorToComponent(UPrimitiveComponent* AnchorTargetC
 	FVector AttachmentLocation;
 	const FVector ComponentLocation = UpdatedComponent->GetComponentLocation();
 
-	AnchorTarget = AnchorTargetComponent;
+	bAttachedToBasis = true;
+	BasisComponent = AnchorTargetComponent;
 
 	if (Location == FVector::ZeroVector)
 	{
@@ -169,26 +192,13 @@ void UPupMovementComponent::AnchorToComponent(UPrimitiveComponent* AnchorTargetC
 			AttachmentLocation,
 			UpdatedComponent->GetComponentQuat(),
 			PrimitiveComponent->GetCollisionShape());		
-		AnchorWorldLocation = AnchorTestHit.Location + AnchorTestHit.ImpactNormal * 2.0f;
+		const FVector BasisWorldLocation = AnchorTestHit.Location + AnchorTestHit.ImpactNormal * 2.0f;
+		const FVector Distance = BasisWorldLocation - BasisComponent->GetComponentLocation();
+		LocalBasisPosition = FVector(
+			FVector::DotProduct(Distance, BasisComponent->GetForwardVector()),
+			FVector::DotProduct(Distance, BasisComponent->GetRightVector()),
+			FVector::DotProduct(Distance, BasisComponent->GetUpVector()));
 	}
-	else
-	{
-		AnchorWorldLocation = Location;
-	}
-	const FVector Distance = AnchorWorldLocation - AnchorTarget->GetComponentLocation();
-	AnchorRelativeLocation =  FVector(
-		FVector::DotProduct(Distance, AnchorTarget->GetForwardVector()),
-		FVector::DotProduct(Distance, AnchorTarget->GetRightVector()),
-		FVector::DotProduct(Distance, AnchorTarget->GetUpVector()));
-	const float NewAnchorYaw = FMath::RadiansToDegrees(FMath::Atan2(
-		AttachmentLocation.Y - ComponentLocation.Y,
-		AttachmentLocation.X - ComponentLocation.X));
-	if (AnchorTargetComponent->Mobility == EComponentMobility::Movable)
-	{
-		bGrounded = false;
-		AnchorRelativeYaw = NewAnchorYaw - AnchorTargetComponent->GetComponentRotation().Yaw;
-	}
-	DesiredRotation.Yaw = NewAnchorYaw;
 	bIsWalking = false;
 	SetMovementMode(EPupMovementMode::M_Anchored);
 }
@@ -198,6 +208,8 @@ void UPupMovementComponent::BreakAnchor(const bool bForceBreak)
 {
 	// These should be thrown out, since any that occurred during the move are invalid
 	ConsumeAdjustments();
+	bAttachedToBasis = false;
+	BasisComponent = nullptr;
 	if (bForceBreak)
 	{
 		MovementMode = EPupMovementMode::M_Deflected;
@@ -206,8 +218,6 @@ void UPupMovementComponent::BreakAnchor(const bool bForceBreak)
 	{
 		SetDefaultMovementMode();
 	}
-	AnchorRelativeLocation = FVector::ZeroVector;
-	AnchorWorldLocation = FVector::ZeroVector;
 	GetWorld()->GetTimerManager().SetTimer(MantleDebounceTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
 	{;
 		bCanMantle = true;
@@ -215,7 +225,7 @@ void UPupMovementComponent::BreakAnchor(const bool bForceBreak)
 }
 
 
-void UPupMovementComponent::Land(const FVector& FloorLocation, const float ImpactVelocity)
+void UPupMovementComponent::Land(const FVector& FloorLocation, const float ImpactVelocity, UPrimitiveComponent* FloorComponent)
 {
 	SetMovementMode(EPupMovementMode::M_Walking);
 	bCanJump = true;
@@ -223,12 +233,14 @@ void UPupMovementComponent::Land(const FVector& FloorLocation, const float Impac
 	{
 		bCanDoubleJump = true;
 	}
-	LandEvent.Broadcast(FloorLocation, ImpactVelocity);
+	LandEvent.Broadcast(FloorLocation, ImpactVelocity, FloorComponent);
 }
 
 
 void UPupMovementComponent::Fall()
 {
+	bAttachedToBasis = false;
+	BasisComponent = nullptr;
 	SetMovementMode(EPupMovementMode::M_Falling);
 	if (UWorld* World = GetWorld())
 	{
@@ -274,7 +286,7 @@ void UPupMovementComponent::EndRecovery()
 	Velocity.X = 0.0f;
 	Velocity.Y = 0.0f;
 	UpdatedComponent->SetWorldLocation(LastValidLocation + RecoveryLevitationHeight * UpdatedComponent->GetUpVector());
-	LastBasisPosition = UpdatedComponent->GetComponentLocation();
+	BasisPositionLastTick = UpdatedComponent->GetComponentLocation();
 	ClearImpulse();
 	SetDefaultMovementMode();
 }
@@ -289,40 +301,62 @@ void UPupMovementComponent::ClimbMantle()
 	else
 	{
 		MantleEvent.Broadcast();
-		GetWorld()->GetTimerManager().SetTimer(MantleTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
-		{
-			BreakAnchor();
-		}), 0.8f, false);
+		SupressInput();
 	}
 	bCanDoubleJump = true;
 	bMantling = false;
 }
 
 
-void UPupMovementComponent::EdgeSlide(const float Scale, const float DeltaTime)
+void UPupMovementComponent::EndMantleClimb()
+{
+	BreakAnchor();
+	UnsupressInput();
+}
+
+
+void UPupMovementComponent::BeginDraggingObject(const FVector& TargetNormal)
+{
+	// bIsDraggingSomething = true;
+	DraggingFaceNormal = TargetNormal;
+	SetMovementMode(EPupMovementMode::M_Dragging);
+}
+
+void UPupMovementComponent::EndDraggingObject()
+{
+	SetDefaultMovementMode();
+}
+
+
+bool UPupMovementComponent::EdgeSlide(const float Scale, const float DeltaTime)
 {
 	if (FMath::Abs(Scale) < 0.5f)
 	{
-		return;
+		return false;
 	}
 	const float CurvedScale = Scale > 0.0f ? (Scale - 0.5f) * 2.0f : (Scale + 0.5f) * 2.0f;
 	
 	// TODO: Make this rate a UProperty?
 	const float SlideRate = 100.0f;
 	const float CapsuleRadius = 10.0f;
+
+	const FVector RotatedLedgeDirection = BasisComponent->GetComponentRotation().RotateVector(LedgeDirection);
 	
-	const FVector SlideOffset = LedgeDirection * SlideRate * CurvedScale * DeltaTime;
+	const FVector SlideOffset = RotatedLedgeDirection * SlideRate * CurvedScale * DeltaTime;
 	const FVector NewAnchorWorldLocation = UpdatedComponent->GetComponentLocation() + SlideOffset;
-	const FVector RadiusCheckOffset = Scale > 0.0f ? LedgeDirection * CapsuleRadius : LedgeDirection * -CapsuleRadius;
+	const FVector RadiusCheckOffset = Scale > 0.0f ? RotatedLedgeDirection * CapsuleRadius : RotatedLedgeDirection * -CapsuleRadius;
 	
 	FHitResult LineTraceResult;
-	if (AnchorTarget->LineTraceComponent(LineTraceResult,
+	if (BasisComponent && BasisComponent->LineTraceComponent(LineTraceResult,
 		NewAnchorWorldLocation + RadiusCheckOffset,
 		NewAnchorWorldLocation + RadiusCheckOffset + UpdatedComponent->GetForwardVector() * GrabRangeForward,
 		FCollisionQueryParams::DefaultQueryParam))
 	{
-		AnchorWorldLocation = NewAnchorWorldLocation;
+		UpdatedComponent->AddWorldOffset(SlideOffset);
+		TurningDirection = CurvedScale;
+		return true;
 	}
+	return false;
 }
 
 
@@ -360,6 +394,12 @@ void UPupMovementComponent::Mantle()
 		
 		const FVector MantleLocation = LineTraceResult.ImpactPoint - LineTraceResult.ImpactNormal * Alpha;
 		const FVector WallNormal = LineTraceResult.Normal;
+
+		if (bDrawMovementDebug && DrawDebugLayers[TEXT("MantleHitResults")])
+		{
+			DrawDebugPoint(GetWorld(), MantleLocation, 5.0f, FColor::Purple, false, 1.0f, -1);
+		}
+
 		
 		if (Target->LineTraceComponent(LineTraceResult,
 			MantleLocation + FVector::UpVector * GrabRangeTop, MantleLocation + FVector::DownVector * GrabRangeBottom,
@@ -367,6 +407,7 @@ void UPupMovementComponent::Mantle()
 		{
 			const FVector TopWallNormal = LineTraceResult.Normal;
 			LedgeDirection = FVector::CrossProduct(TopWallNormal, WallNormal).GetUnsafeNormal();
+
 			/* Check how close our ledge direction vector is to the 'right vector',
 			 * assuming that the 'forward vector' is the direction the player will rotate towards --
 			 * the opposite of the WallNormal */
@@ -382,20 +423,35 @@ void UPupMovementComponent::Mantle()
 				{
 					return;
 				}
-				AnchorWorldLocation = LineTraceResult.Location + (CapsuleComponent->GetComponentLocation() - EyePosition);
+				const FVector AnchorWorldLocation = LineTraceResult.Location + (CapsuleComponent->GetComponentLocation() - EyePosition);
 				const FVector Difference = AnchorWorldLocation - Target->GetComponentLocation();
-				AnchorRelativeLocation = FVector(
+
+				if (bDrawMovementDebug && DrawDebugLayers[TEXT("MantleHitResults")])
+				{
+					DrawDebugPoint(GetWorld(), AnchorWorldLocation, 5.0f, FColor::Purple, false, 1.0f, -1);
+				}
+				
+				if (Target->Mobility == EComponentMobility::Movable)
+				{
+					LedgeDirection = Target->GetComponentRotation().GetInverse().RotateVector(LedgeDirection);
+				}				
+				LocalBasisPosition = FVector(
 					FVector::DotProduct(Difference, Target->GetForwardVector()),
 					FVector::DotProduct(Difference, Target->GetRightVector()),
 					FVector::DotProduct(Difference, Target->GetUpVector()));
-				AnchorRelativeYaw = Yaw - Target->GetComponentRotation().Yaw;
-				AnchorTarget = Target;
-				DesiredRotation.Yaw = Yaw;
+
+				BasisRotationLastTick = Target->GetComponentRotation();
 				
 				bMantling = true;
 				bCanMantle = false;
 				bIsWalking = false;
+				bAttachedToBasis = true;
+				BasisComponent = Target;
 				SetMovementMode(EPupMovementMode::M_Anchored);
+
+				UpdatedComponent->SetWorldLocation(AnchorWorldLocation);
+				UpdatedComponent->SetWorldRotation(FRotator(0.0f, Yaw, 0.0f));
+				DesiredRotation = FRotator(0.0f, Yaw, 0.0f);
 			}
 		}
 	}

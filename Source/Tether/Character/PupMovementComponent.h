@@ -20,7 +20,8 @@ enum class EPupMovementMode : uint8
 	M_Falling	UMETA(DisplayName = "Falling"),
 	M_Anchored	UMETA(DisplayName = "Anchored"),
 	M_Deflected UMETA(DisplayName = "Deflected"),
-	M_Recover	UMETA(DisplayName = "Recover")
+	M_Recover	UMETA(DisplayName = "Recover"),
+	M_Dragging	UMETA(DisplayName = "Dragging")
 };
 
 
@@ -45,6 +46,7 @@ public:
 	virtual float GetGravityZ() const override;
 
 	virtual bool ResolvePenetrationImpl(const FVector& Adjustment, const FHitResult& Hit, const FQuat& NewRotation) override;
+	
 	
 	// Movement mode transitions
 	/**
@@ -90,7 +92,16 @@ public:
 	/** Force jump to end, automatically called after MaxJumpTime seconds have elapsed **/
 	void StopJumping();
 
+	/** Try to grab onto a ledge **/
 	void Mantle();
+
+	/** Finish climbing up from a ledge **/
+	UFUNCTION(BlueprintCallable)
+	void EndMantleClimb();
+
+	void BeginDraggingObject(const FVector& TargetNormal);
+
+	void EndDraggingObject();
 	
 	/**
 	* Add velocity directly to the player.
@@ -107,6 +118,11 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void UnignoreActor(AActor* Actor);
 
+	UFUNCTION(BlueprintCallable)
+	void SupressInput();
+
+	UFUNCTION(BlueprintCallable)
+	void UnsupressInput();
 	
 	/** Sweeps for a valid floor beneath the character. If true, OutHitResult contains the sweep result */
 	bool FindFloor(float SweepDistance, FHitResult& OutHitResult, const int NumTries);
@@ -123,11 +139,14 @@ public:
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FJumpEvent, const FVector, FloorLocation, const bool, bInitialJump);
 	FJumpEvent& OnJumpEvent(const FVector, const bool) { return JumpEvent; }
 	
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FLandEvent, const FVector, FloorLocation, const float, ImpactVelocity);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FLandEvent, const FVector, FloorLocation, const float, ImpactVelocity, UPrimitiveComponent*, FloorComponent);
 	FLandEvent& OnLandEvent(const FVector, const float) { return LandEvent; }
 
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FMantleEvent);
 	FMantleEvent& OnMantleEvent() { return MantleEvent; }
+
+	DECLARE_MULTICAST_DELEGATE(FForceDragReleaseEvent);
+	FForceDragReleaseEvent& OnForceDragReleaseEvent() { return ForceDragReleaseEvent; }
 	
 private:
 
@@ -140,7 +159,7 @@ private:
 	void UpdateVerticalMovement(const float DeltaTime);
 	
 	/** Explicit transition when landing on a floor while in the 'Falling' state */
-	void Land(const FVector& FloorLocation, const float ImpactVelocity);
+	void Land(const FVector& FloorLocation, const float ImpactVelocit, UPrimitiveComponent* FloorComponent);
 
 	/** Explicit transition when a floor becomes invalid while in the 'Walking' state */
 	void Fall();
@@ -162,20 +181,14 @@ private:
 	void ClimbMantle();
 
 	/** Slide along the ledge we are currently holding to the right **/
-	void EdgeSlide(const float Scale, const float DeltaTime);
-	
-	void TickGravity(const float DeltaTime);
+	bool EdgeSlide(const float Scale, const float DeltaTime);
 
 	/** Transform any accumulated input vectors to be relative to the player's viewpoint, and store them as a property. **/
 	void HandleInputVectors();
 
 
-	// Update method wrapppers
-	/** Handle all rotation logic -- calls 'GetNewRotation' **/
-	void UpdateRotation(const float DeltaTime);
-
 	/** Return the new rotation for this tick. **/
-	FRotator GetNewRotation(const float DeltaTime) const;
+	FRotator GetNewRotation(const float DeltaTime);
 	/** Return the new velocity for this tick. **/
 	FVector GetNewVelocity(const float DeltaTime);
 
@@ -246,6 +259,10 @@ private:
 public:	
 	// Properties
 
+
+
+	
+	/* ========================== SPEED PROPERTIES ========================== */
 	/**
 	 * The maximum running velocity the player can achieve by running.
 	 * External forces can accelerate the player further, but they will be unable
@@ -266,6 +283,12 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Speed|Friction", meta = (ClampMin = 0.0f))
 	float BreakingFriction = 2000.f;
 
+
+	
+
+
+	
+	/* ========================== INPUT PROPERTIES ========================== */
 	/**
 	 * Where the player is moving, relative to the camera's yaw.
 	 * Converted from accumulated input vectors, with a maximum length of 1.
@@ -288,6 +311,12 @@ public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Input")
 	bool bIsWalking = false;
 
+
+
+
+	
+	
+	/* ========================== ROTATION PROPERTIES ========================== */
 	/**
 	 * How close are we to the maximum (running) velocity, on a linear scale.
 	 * 0 indicates we are not moving at all, while 1
@@ -299,13 +328,6 @@ public:
 	/** The absolute maximum velocity the player can go in any movement state. **/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Jumping", meta = (ClampMin = 0.0f))
 	float TerminalVelocity = 4000.f;
-
-	/**
-	 * Is the player on a valid floor? See: Movement | Planar for
-	 * controlling what is considered a valid floor.
-	 **/
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement")
-	bool bGrounded = false;
 
 	/** Where the player is turning towards. **/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Transient, Category = "Rotation", meta = (MakeEditWidget))
@@ -339,7 +361,18 @@ public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Rotation")
 	float TurningDirection = 0.0f;
 
+	/**
+	* Is the player on a valid floor? See: Movement | Planar for
+	* controlling what is considered a valid floor.
+	**/
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement")
+	bool bGrounded = false;
 
+
+	
+	
+
+	/* ========================== JUMPING PROPERTIES ========================== */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Jumping|Floor", meta = (ClampMin = 0.0f))
 	float FloorSnapDistance = 5.0f;
 	
@@ -377,6 +410,15 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Jumping", meta = (ClampMin = 0.0f, ClampMax = 1.0f))
 	float AirControlFactor = 0.2f;
 
+	/**
+	 * Does the character move forward along the direction is facing?
+	 * If true, the character accelerates only forwards and rotates to accomodate the direction of input.
+	 * If false, the acceleration will be applied regardless of the player's rotation, and they will
+	 * begin to rotate in that direction.
+	 **/
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Jumping")
+	bool bTurnFirst = true;
+	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Jumping")
 	bool bDoubleJump = true;
 
@@ -386,7 +428,11 @@ public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Jumping")
 	bool bJumping = false;
 
+
+
+
 	
+	/* ========================== ANCHORING PROPERTIES ========================== */
 	/** Is the player grabbing a ledge, instead of holding an object? **/
 	UPROPERTY(BlueprintReadOnly, VisibleInstanceOnly, Category = "Anchored|Mantling")
 	bool bMantling = false;
@@ -434,40 +480,10 @@ public:
 
 	/** How quickly the player should rotate to face their anchor, in degrees/s **/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Anchored", meta = (ClampMin = 0.0f))
-	float SnapRotationVelocity = 360.0f;
+	float SnapRotationVelocity = 360.0f;	
 
 
 	
-	/**
-	 * This sub-category stores information of the player's transform,
-	 * relative to the floor basis. It should be read only.
-	 **/
-
-	/** Our location, from the anchor object's frame of reference **/
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Anchored|Basis", meta=(AllowPrivateAccess="true"))
-	FVector AnchorRelativeLocation;
-
-	/** Our yaw, relative to the anchor object's yaw **/
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Anchored|Basis")
-	float AnchorRelativeYaw;
-
-	/**
-	 * The result of converting our relative transform back into world space.
-	 * Only calculated when the anchor object is marked 'Movable'.
-	 **/
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Anchored|Basis", meta=(AllowPrivateAccess="true"))
-	FVector AnchorWorldLocation;
-
-	/**
-	 * How much velocity the player has received by holding onto the anchor,
-	 * a value not reflected in the 'Velocity' property.
-	 * This velocity will be applied as an impulse when the anchor is released.
-	 **/
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Anchored|Basis", meta = (MakeEditWidget))
-	FVector AnchorRelativeVelocity;
-
-	
-
 	/**
 	 * The normal of whatever floor surface the player is standing on.
 	 * Used for calculating movement along the plane.
@@ -488,6 +504,10 @@ public:
 	float MaxInclineZComponent = 0.5f;
 
 
+
+
+
+	
 	/** The deceleration of the player when being set to the Deflected state by another object **/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Deflections", meta = (ClampMin = 0.0f))
 	float DeflectionFriction = 800.0f;
@@ -505,6 +525,9 @@ public:
 	bool bCanJumpWhileDeflected = true;
 
 
+
+
+	
 	/** How long it takes the player to return to the stage after falling. **/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Recovery", meta = (ClampMin = 0.0f))
 	float RecoveryTime = 1.0f;
@@ -525,14 +548,42 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Recovery", meta = (ClampMin = 0.0f))
 	float MinimumSafeRadius = 100.0f;
 
+
+
+
+	
+	/* ========================== DRAGGING PROPERTIES ========================== */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Dragging")
+	bool bDragOnlyWhenGrounded = true;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Dragging")
+	float DragSpeed = 100.0f;
+	
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Dragging")
+	bool bIsDraggingSomething = false;
+	
+	// UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Dragging")
+	// UPrimitiveComponent* ObjectDragging;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Dragging")
+	FVector DraggingFaceNormal;
+
+
+
+
+
+	
 	/**
 	* Should we draw additional debug information?
 	* Renders almost every trace and penetration.
 	* This should only be enabled if the movement is behaving in
 	* an unusual manner or being stuck on level geometry.
 	**/
-	UPROPERTY(Transient, EditInstanceOnly, Category = "Debug")
+	UPROPERTY(Transient, EditAnywhere, Category = "Debug")
 	bool bDrawMovementDebug = false;
+
+	UPROPERTY(Transient, EditAnywhere, Category = "Debug", meta = (EditCondition = "bDrawMovementDebug"))
+	TMap<FString, bool> DrawDebugLayers;
 	
 	
 private:
@@ -540,25 +591,28 @@ private:
 	UPROPERTY(EditInstanceOnly)
 	EPupMovementMode MovementMode = EPupMovementMode::M_Falling;	
 
+	bool bSupressingInput = false;
+	
 	/** Pointer to the component that is serving as the floor. **/
 	UPROPERTY(Transient)
-	UPrimitiveComponent* CurrentFloorComponent;
+	UPrimitiveComponent* BasisComponent;
 
-	/** Pointer to the component that the player is anchored to. **/
-	UPROPERTY(Transient)
-	UPrimitiveComponent* AnchorTarget;
+	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Basis")
+	bool bAttachedToBasis = false;
 
-	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Planar|Basis");
-	FVector LastBasisPosition;
 	
-	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Planar|Basis");
+	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Basis|Relative")
 	FVector LocalBasisPosition;
 	
-	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Planar|Basis");
-	FRotator LastBasisRotation;
-	
-	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Planar|Basis");
+	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Basis|Relative");
 	FVector BasisRelativeVelocity;
+
+		
+	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Basis|History")
+	FRotator BasisRotationLastTick;
+
+	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Basis|History")
+	FVector BasisPositionLastTick;
 
 	/**
 	 * Components to ignore when looking for our floor surface,
@@ -609,4 +663,6 @@ private:
 
 	UPROPERTY(BlueprintAssignable)
 	FMantleEvent MantleEvent;
+
+	FForceDragReleaseEvent ForceDragReleaseEvent;
 };

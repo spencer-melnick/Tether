@@ -69,7 +69,7 @@ void ATetherCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 	PlayerInputComponent->BindAction(TEXT("Jump"), EInputEvent::IE_Released, this, &ATetherCharacter::StopJumping);
 
 	PlayerInputComponent->BindAction(TEXT("Grab"), EInputEvent::IE_Pressed, this, &ATetherCharacter::Interact);
-	PlayerInputComponent->BindAction(TEXT("Grab"), EInputEvent::IE_Released, this, &ATetherCharacter::ReleaseAnchor);
+	PlayerInputComponent->BindAction(TEXT("Grab"), EInputEvent::IE_Released, this, &ATetherCharacter::Release);
 
 	PlayerInputComponent->BindAxis(TEXT("RotateX"), this, &ATetherCharacter::RotateX);
 	PlayerInputComponent->BindAxis(TEXT("RotateY"), this, &ATetherCharacter::RotateY);
@@ -79,29 +79,21 @@ void ATetherCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 void ATetherCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	MovementComponent->OnForceDragReleaseEvent().AddWeakLambda(this, [this]
+	{
+		// The Movement component has initiated the break, so we *must not* instruct it to do anything else
+		// and trust that it has already handled the necessary logic.
+		// Otherwise, the event just becomes a circular reference
+		bDraggingObject = false;
+		MovementComponent->UnignoreActor(DraggingActorObject);
+		DraggingActorObject->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+	});
 }
 
 
 void ATetherCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	
-	if (bCarryingObject && !bCompletedPickupAnimation)
-	{
-		if (SnapFactor >= 1.0f)
-		{
-			bCompletedPickupAnimation = true;
-			CarriedActor->AttachToComponent(GrabHandle, FAttachmentTransformRules(
-			EAttachmentRule::SnapToTarget,
-			EAttachmentRule::SnapToTarget,
-			EAttachmentRule::KeepWorld, false));
-		}
-		else
-		{
-			CarriedActor->SetActorLocation(FMath::Lerp(InitialCarriedActorPosition, GrabHandle->GetComponentLocation(), SnapFactor));
-			CarriedActor->SetActorRotation(FMath::Lerp(InitialCarriedActorRotation, GrabHandle->GetComponentRotation(), SnapFactor));
-		}
-	}
 	if (SkeletalMeshComponent->IsPlayingRootMotion())
 	{
 		const FRootMotionMovementParams RootMotion = SkeletalMeshComponent->ConsumeRootMotion();
@@ -215,7 +207,7 @@ void ATetherCharacter::Interact()
 			{
 				if (Actor->ActorHasTag(PickupTag))
 				{
-					if(!bCarryingObject)
+					if (!bCarryingObject)
 					{
 						PickupObject(Actor);
 						break;
@@ -226,17 +218,34 @@ void ATetherCharacter::Interact()
 					AnchorToObject(Actor);
 					break;
 				}
+				if (Actor->ActorHasTag(TEXT("Draggable")) && MovementComponent->bGrounded)
+				{
+					if (UPrimitiveComponent* Component = Cast<UPrimitiveComponent>(Actor->GetComponentByClass(UPrimitiveComponent::StaticClass())))
+					{
+						const FVector Direction = (Actor->GetActorLocation() - GetActorLocation()).GetSafeNormal2D();
+						FHitResult LineTraceResult;
+						if (Component->LineTraceComponent(LineTraceResult, GetActorLocation(), GetActorLocation() + Direction * 100.0f, FCollisionQueryParams::DefaultQueryParam))
+						{
+							DragObject(Actor, LineTraceResult.Normal);
+						}
+					}
+					break;
+				}
 			}
 		}
 	}
 }
 
 
-void ATetherCharacter::ReleaseAnchor()
+void ATetherCharacter::Release()
 {
 	if (MovementComponent->GetMovementMode() == EPupMovementMode::M_Anchored)
 	{
 		MovementComponent->BreakAnchor();
+	}
+	else if (bDraggingObject)
+	{
+		DragObjectRelease();
 	}
 }
 // ReSharper restore CppMemberFunctionMayBeConst
@@ -296,7 +305,7 @@ void ATetherCharacter::Deflect(
 {
 	if (bAnchored && bForceBreak)
 	{
-		ReleaseAnchor();
+		Release();
 	}
 	
 	if (!bLaunchVertically)
@@ -370,19 +379,21 @@ void ATetherCharacter::OnTetherExpired()
 void ATetherCharacter::PickupObject(AActor* Object)
 {
 	bCarryingObject = true;
-	SnapFactor = 0.0f;
 	CarriedActor = Object;
 	InitialCarriedActorPosition = Object->GetActorLocation();
 	InitialCarriedActorRotation = Object->GetActorRotation();
 	if (UPrimitiveComponent* Target = Cast<UPrimitiveComponent>(CarriedActor->GetRootComponent()))
 	{
 		MovementComponent->IgnoreActor(Object);
-		Target->SetSimulatePhysics(false);
-		Target->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Overlap);
-		Object->AttachToComponent(GrabHandle, FAttachmentTransformRules(
+		// Target->SetSimulatePhysics(false);
+		// Target->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Overlap);
+		Object->AttachToComponent(RootComponent, FAttachmentTransformRules(
+			EAttachmentRule::SnapToTarget,
+			EAttachmentRule::SnapToTarget,
 			EAttachmentRule::KeepWorld,
-			EAttachmentRule::KeepWorld,
-			EAttachmentRule::KeepWorld, false));
+			true));
+		const float CarriedObjectHeight = Target->Bounds.BoxExtent.Z;
+		Object->AddActorLocalOffset(FVector(0.0f, 0.0f, CarriedObjectHeight + CapsuleComponent->GetScaledCapsuleHalfHeight()));
 	}
 }
 
@@ -394,14 +405,20 @@ void ATetherCharacter::DropObject()
 	SnapFactor = 0.0f;
 	if(CarriedActor)
 	{
-		MovementComponent->UnignoreActor(CarriedActor);
-		CarriedActor->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
 		UPrimitiveComponent* Target = Cast<UPrimitiveComponent>(CarriedActor->GetRootComponent());
 		if (Target)
 		{
-			Target->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Block);
+			const float CarriedObjectDepth = Target->Bounds.BoxExtent.X;
 			Target->SetSimulatePhysics(true);
+
+			CarriedActor->AddActorLocalOffset(FVector(CarriedObjectDepth * 2.0f, 0.0f, 0.0f));
 		}
+		MovementComponent->UnignoreActor(CarriedActor);
+		CarriedActor->DetachFromActor(FDetachmentTransformRules(
+			EDetachmentRule::KeepWorld,
+			EDetachmentRule::KeepWorld,
+			EDetachmentRule::KeepWorld,
+			true));
 	}
 }
 
@@ -414,8 +431,29 @@ void ATetherCharacter::AnchorToObject(AActor* Object) const
 	}
 }
 
+
 void ATetherCharacter::AnchorToComponent(UPrimitiveComponent* Component, const FVector& Location) const
 {
 	MovementComponent->AnchorToComponent(Component, Location);
 }
 
+
+void ATetherCharacter::DragObject(AActor* Target, const FVector Normal)
+{
+	bDraggingObject = true;
+	MovementComponent->BeginDraggingObject(Normal);
+	MovementComponent->IgnoreActor(Target);
+	DraggingActorObject = Target;
+	FAttachmentTransformRules AttachmentTransformRules = FAttachmentTransformRules::KeepWorldTransform;
+	AttachmentTransformRules.bWeldSimulatedBodies = true;
+	Target->AttachToActor(this, AttachmentTransformRules);
+}
+
+
+void ATetherCharacter::DragObjectRelease()
+{
+	MovementComponent->EndDraggingObject();
+	MovementComponent->UnignoreActor(DraggingActorObject);
+	bDraggingObject = false;
+	DraggingActorObject->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+}
