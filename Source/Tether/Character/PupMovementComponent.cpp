@@ -142,7 +142,7 @@ void UPupMovementComponent::StepMovement(const float DeltaTime)
 	UpdatedComponent->SetWorldRotation(GetNewRotation(DeltaTime));
 	Velocity = GetNewVelocity(DeltaTime);
 
-	if (MatchModes(MovementMode, {EPupMovementMode::M_Walking, EPupMovementMode::M_Falling, EPupMovementMode::M_Deflected, EPupMovementMode::M_Dragging}))
+	if (MatchModes(MovementMode, {EPupMovementMode::M_Walking, EPupMovementMode::M_Falling, EPupMovementMode::M_Deflected, EPupMovementMode::M_Anchored, EPupMovementMode::M_Dragging}))
 	{
 		UpdateVerticalMovement(DeltaTime);
 		TryRegainControl();
@@ -158,10 +158,6 @@ void UPupMovementComponent::StepMovement(const float DeltaTime)
 		if (UpdatedComponent->GetComponentLocation().Z <= PupMovementCVars::KillZ)
 		{
 			Recover();
-		}
-		if (MovementMode == EPupMovementMode::M_Falling && Velocity.Z <= -MaximumGrabVelocity)
-		{
-			Mantle();
 		}
 	}
 	else if (MovementMode == EPupMovementMode::M_Recover && bIgnoreObstaclesWhenRecovering)
@@ -210,7 +206,6 @@ float UPupMovementComponent::SubstepMovement(const float DeltaTime)
 		// Move normally
 		UpdatedComponent->SetWorldLocation(HitResult.TraceEnd, false);
 	}
-	RenderHitResult(HitResult, FColor::Blue);
 
 	
 	// Remember any penetration adjustments we had to do, and push the player next frame
@@ -258,9 +253,10 @@ void UPupMovementComponent::UpdateVerticalMovement(const float DeltaTime)
 	FHitResult FloorHit;
 	if (FindFloor(FloorSnapDistance, FloorHit, 2))
 	{
-		if (FVector::DotProduct(Velocity, FloorNormal) <= KINDA_SMALL_NUMBER) // Avoid floating point errors..
+		const FVector RelativeVelocity = Velocity - FloorHit.GetComponent()->GetComponentVelocity();
+		if (FVector::DotProduct(RelativeVelocity, FloorNormal) <= KINDA_SMALL_NUMBER) // Avoid floating point errors..
 		{
-			const FVector ImpactVelocity = FVector::DotProduct(Velocity, FloorNormal) * FloorNormal;
+			const FVector ImpactVelocity = FVector::DotProduct(RelativeVelocity, FloorNormal) * FloorNormal;
 			if (!bGrounded && MovementMode == EPupMovementMode::M_Falling)
 			{
 				Land(FloorHit.ImpactPoint, ImpactVelocity.Size(), FloorHit.GetComponent());
@@ -268,8 +264,12 @@ void UPupMovementComponent::UpdateVerticalMovement(const float DeltaTime)
 			bAttachedToBasis = true;
 			BasisComponent = FloorHit.GetComponent();
 			bGrounded = true;
-			// Velocity -= ImpactVelocity;
 			SnapToFloor(FloorHit);
+		}
+		if (MatchModes(MovementMode, {EPupMovementMode::M_Anchored}))
+		{
+			const FVector ImpactVelocity = FVector::DotProduct(RelativeVelocity, FloorNormal) * FloorNormal;
+			Land(FloorHit.ImpactPoint, ImpactVelocity.Size(), FloorHit.GetComponent());
 		}
 	}
 	else
@@ -280,10 +280,30 @@ void UPupMovementComponent::UpdateVerticalMovement(const float DeltaTime)
 		}
 		bGrounded = false;
 	}
-	if (!bGrounded)
+	if (MovementMode == EPupMovementMode::M_Falling && (Velocity.Z <= -MaximumGrabVelocity || bWallScrambling) )
+	{
+		Mantle();
+	}
+	if (!bGrounded && MovementMode != EPupMovementMode::M_Anchored)
 	{
 		// To avoid potential stuttering, only apply gravity if we're not on the ground
 		Velocity.Z += GetGravityZ() * DeltaTime;
+	}
+
+	if (bWallSliding)
+	{
+		// Verify we are actually adjacent to the wall with a line trace
+		FHitResult LineTrace;
+		if (BasisComponent->LineTraceComponent(LineTrace, UpdatedComponent->GetComponentLocation(),
+			UpdatedComponent->GetComponentLocation() - WallNormal * 100.0f,
+			FCollisionQueryParams::DefaultQueryParam))
+		{
+			Velocity = FMath::VInterpConstantTo(Velocity, BasisComponent->ComponentVelocity, DeltaTime, BreakingFriction * 0.25f);
+		}
+		else
+		{
+			bWallSliding = false;
+		}
 	}
 }
 
@@ -415,14 +435,20 @@ FRotator UPupMovementComponent::GetNewRotation(const float DeltaTime)
 			}
 			const FRotator NewRotation = FMath::RInterpConstantTo(UpdatedComponent->GetComponentRotation(), DesiredRotation, DeltaTime, RotationRate);
 			const float DeltaYaw = FMath::FindDeltaAngleDegrees(DesiredRotation.Yaw, NewRotation.Yaw);
-			
+
 			TurningDirection = FMath::Abs(DeltaYaw) > 0.01f ?
-				FMath::Clamp(FMath::Lerp(TurningDirection, DeltaYaw * MovementSpeedAlpha / 90.0f, 0.1f), -1.0f, 1.0f) :
-				FMath::Lerp(TurningDirection, 0.0f, 0.1f);
+				FMath::Clamp(FMath::Lerp(TurningDirection, DeltaYaw / 45.0f, 5.0f * DeltaTime),
+					-1.0f, 1.0f) :
+				FMath::Lerp(TurningDirection, 0.0f, 5.0f * DeltaTime);
 			return NewRotation;
 		}
 	case EPupMovementMode::M_Falling:
 		{
+			if (bWallSliding)
+			{
+				return FMath::RInterpConstantTo(UpdatedComponent->GetComponentRotation(), DesiredRotation, DeltaTime,
+					SnapRotationVelocity);
+			}
 			if (bIsWalking)
 			{
 				DesiredRotation.Yaw = FMath::RadiansToDegrees(FMath::Atan2(DirectionVector.Y, DirectionVector.X));
@@ -467,20 +493,63 @@ FVector UPupMovementComponent::GetNewVelocity(const float DeltaTime)
 		}
 	case EPupMovementMode::M_Falling:
 		{
-			FVector Acceleration = MaxAcceleration * DirectionVector * DeltaTime * AirControlFactor;
+			// FVector Acceleration = MaxAcceleration * DirectionVector * DeltaTime * AirControlFactor;
+			const FVector DesiredPlanarVelocity = bIsWalking ? DirectionVector * MaxSpeed : FVector::ZeroVector;
+			const float Acceleration = MaxAcceleration * AirControlFactor;
+
+			FVector NewVelocity = FMath::VInterpConstantTo(Velocity, DesiredPlanarVelocity + FVector(0.0f, 0.0f, Velocity.Z), DeltaTime, Acceleration);
+			if (bWallSliding)
+			{
+				const float VelocityAwayFromWallScalar = FVector::DotProduct(NewVelocity, WallNormal);
+				const FVector VelocityAwayFromWall = VelocityAwayFromWallScalar * WallNormal;
+
+				if (VelocityAwayFromWallScalar > 0.0f)
+				{
+					NewVelocity -= VelocityAwayFromWall;
+				}
+				else if (VelocityAwayFromWallScalar < -1.0f)
+				{
+					if (bCanScramble)
+					{
+						bCanScramble = false;
+						bWallScrambling = true;
+						GetWorld()->GetTimerManager().SetTimer(EdgeScrambleTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
+						{
+							bWallScrambling = false;
+						}), WallScrambleTime, false);
+					}
+					if (bWallScrambling)
+					{
+						NewVelocity += FVector(0.0f, 0.0f, 2000.0f * DeltaTime);
+					}
+				}
+			}
+			
 			if (bJumping)
 			{
-				Acceleration += HoldJump(DeltaTime);
+				NewVelocity += HoldJump(DeltaTime);
 			}
-			return (Velocity + Acceleration).GetClampedToMaxSize2D(MaxSpeed) + ConsumeImpulse();
+			return NewVelocity + ConsumeImpulse();
 		}
 	case EPupMovementMode::M_Anchored:
 		{
-			if (MovementMode == EPupMovementMode::M_Anchored && bMantling)
+			FVector NewVelocity = FVector::ZeroVector;
+			const FVector DistanceFromDesiredLocation = DesiredAnchorLocation - UpdatedComponent->GetComponentLocation();
+			const FVector DirectionToDesiredLocation = DistanceFromDesiredLocation.GetSafeNormal();
+			
+			if (DistanceFromDesiredLocation.Size() > SnapVelocity * DeltaTime)
+			{
+				NewVelocity = DirectionToDesiredLocation * SnapVelocity;
+			}
+			else
+			{
+				UpdatedComponent->SetWorldLocation(DesiredAnchorLocation);
+			}
+			if (bMantling)
 			{
 				bIsWalking = EdgeSlide(FVector::DotProduct(BasisComponent->GetComponentRotation().RotateVector(LedgeDirection), DirectionVector), DeltaTime);
 			}
-			return FVector::ZeroVector;
+			return NewVelocity;
 		}
 	case EPupMovementMode::M_Deflected:
 		{
@@ -550,10 +619,25 @@ void UPupMovementComponent::MagnetToBasis(const float VelocityFactor, const floa
 			BasisComponent->GetComponentLocation();
 
 		const float DeltaYaw = FMath::FindDeltaAngleDegrees(BasisRotationLastTick.Yaw, BasisComponent->GetComponentRotation().Yaw);
-		BasisRelativeVelocity = PositionAfterUpdate - UpdatedComponent->GetComponentLocation();
+		if (MovementMode == EPupMovementMode::M_Anchored)
+		{
+			BasisRelativeVelocity = PositionAfterUpdate - DesiredAnchorLocation;
+		}
+		else
+		{
+			BasisRelativeVelocity = PositionAfterUpdate - UpdatedComponent->GetComponentLocation();
+		}
 		if (!BasisRelativeVelocity.IsNearlyZero())
 		{
-			UpdatedComponent->SetWorldLocation(PositionAfterUpdate);
+			if (MovementMode == EPupMovementMode::M_Anchored)
+			{
+				UpdatedComponent->AddWorldOffset(PositionAfterUpdate - DesiredAnchorLocation);
+				DesiredAnchorLocation = PositionAfterUpdate;
+			}
+			else
+			{
+				UpdatedComponent->SetWorldLocation(PositionAfterUpdate);
+			}
 			BasisRelativeVelocity /= DeltaTime;
 		}
 		DesiredRotation.Yaw = DesiredRotation.Yaw + DeltaYaw;
@@ -575,7 +659,7 @@ void UPupMovementComponent::StoreBasisTransformPostUpdate()
 {
 	if (bAttachedToBasis && BasisComponent && BasisComponent->Mobility == EComponentMobility::Movable)
 	{
-		BasisPositionLastTick = UpdatedComponent->GetComponentLocation();
+		BasisPositionLastTick = MovementMode == EPupMovementMode::M_Anchored ? DesiredAnchorLocation : UpdatedComponent->GetComponentLocation();
 		// Don't bother storing this information if the object can't move
 		LocalBasisPosition = GetRelativeBasisPosition();
 		BasisRotationLastTick = BasisComponent->GetComponentRotation();
@@ -585,14 +669,14 @@ void UPupMovementComponent::StoreBasisTransformPostUpdate()
 
 FVector UPupMovementComponent::GetRelativeBasisPosition() const
 {
-	if (bAttachedToBasis && BasisComponent)
+	if (bAttachedToBasis)
 	{
-		const FVector Distance = UpdatedComponent->GetComponentLocation() - BasisComponent->GetComponentLocation();
-		
-		return FVector(
-			FVector::DotProduct(Distance, BasisComponent->GetForwardVector()),
-			FVector::DotProduct(Distance, BasisComponent->GetRightVector()),
-			FVector::DotProduct(Distance, BasisComponent->GetUpVector()));
+		FVector Location = UpdatedComponent->GetComponentLocation();
+		if (MovementMode == EPupMovementMode::M_Anchored)
+		{
+			Location = DesiredAnchorLocation;
+		}
+		return GetLocationRelativeToComponent(Location, BasisComponent);
 	}
 	return FVector::ZeroVector;
 }

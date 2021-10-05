@@ -123,6 +123,8 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void UnsupressInput();
+
+	void HitWall(const FHitResult& HitResult);
 	
 	/** Sweeps for a valid floor beneath the character. If true, OutHitResult contains the sweep result */
 	bool FindFloor(float SweepDistance, FHitResult& OutHitResult, const int NumTries);
@@ -255,6 +257,8 @@ private:
 
 	/** Static utility function for checking if a PupMovementMode matches any of a list of modes. **/
 	static bool MatchModes(const EPupMovementMode& Subject, std::initializer_list<EPupMovementMode> CheckModes);
+	
+	FVector GetLocationRelativeToComponent(const FVector& WorldLocation, USceneComponent* Component) const;
 
 public:	
 	// Properties
@@ -361,12 +365,8 @@ public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Rotation")
 	float TurningDirection = 0.0f;
 
-	/**
-	* Is the player on a valid floor? See: Movement | Planar for
-	* controlling what is considered a valid floor.
-	**/
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Movement")
-	bool bGrounded = false;
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Rotation")
+	float AverageTurningSpeed = 0.0f;
 
 
 	
@@ -375,7 +375,15 @@ public:
 	/* ========================== JUMPING PROPERTIES ========================== */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Jumping|Floor", meta = (ClampMin = 0.0f))
 	float FloorSnapDistance = 5.0f;
-	
+
+	/**
+	* Is the player on a valid floor? See: Movement | Planar for
+	* controlling what is considered a valid floor.
+	**/
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Jumping")
+	bool bGrounded = false;
+
+
 	/** Can the player jump? Determined by internal implementation. **/
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Jumping")
 	bool bCanJump = false;
@@ -423,7 +431,7 @@ public:
 	bool bDoubleJump = true;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Jumping", meta = (ClampMin = 0.0f, ClampMax = 1.0f, EditCondition = "bDoubleJump"))
-	float DoubleJumpeAccelerationFactor = 0.5f;
+	float DoubleJumpAccelerationFactor = 0.5f;
 	
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Jumping")
 	bool bJumping = false;
@@ -473,6 +481,9 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, VisibleInstanceOnly, Transient, Category = "Anchored|Mantling")
 	FVector LedgeDirection;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Anchored")
+	FVector DesiredAnchorLocation;
 	
 	/** How quickly the player should move to their anchor, in units/s **/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Anchored", meta = (ClampMin = 0.0f))
@@ -482,6 +493,21 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Anchored", meta = (ClampMin = 0.0f))
 	float SnapRotationVelocity = 360.0f;	
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Anchored|Wall Slide")
+	bool bWallSliding = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Transient, Category = "Anchored|Wall Slide")
+	FVector WallNormal;
+
+	UPROPERTY(BlueprintReadOnly, VisibleInstanceOnly, Transient, Category = "Anchored|Wall Slide|Scramble")
+	bool bCanScramble = false;
+
+	UPROPERTY(BlueprintReadOnly, VisibleInstanceOnly, Transient, Category = "Anchored|Wall Slide|Scramble")
+	bool bWallScrambling = false;
+	
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Anchored|Wall Slide|Scramble")
+	float WallScrambleTime = 10.0f;
+	
 
 	
 	/**
@@ -504,8 +530,8 @@ public:
 	float MaxInclineZComponent = 0.5f;
 
 
-
-
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Planar", Meta = (ClampMin = 0.0f, ClampMax = 1.0f))
+	float MaxWallDeviation = 0.2f;
 
 	
 	/** The deceleration of the player when being set to the Deflected state by another object **/
@@ -651,6 +677,8 @@ private:
 	FTimerHandle RecoveryTimerHandle;
 	FTimerHandle MantleTimerHandle;
 	FTimerHandle MantleDebounceTimerHandle;
+
+	FTimerHandle EdgeScrambleTimerHandle;
 
 	UPROPERTY(BlueprintAssignable)
 	FMovementModeChanged MovementModeChanged;

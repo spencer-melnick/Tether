@@ -18,9 +18,15 @@ namespace  PupMovementCVars
 		ECVF_Default);
 }
 
+
 bool UPupMovementComponent::FindFloor(const float SweepDistance, FHitResult& OutHitResult, const int NumTries)
 {
 	const FVector SweepOffset = FVector::DownVector * SweepDistance;
+
+	if (MovementMode == EPupMovementMode::M_Anchored)
+	{
+		InvalidFloorComponents.Add(BasisComponent);
+	}
 	for (int i = 0; i < NumTries; i++)
 	{
 		FHitResult IterativeHitResult;
@@ -58,8 +64,8 @@ bool UPupMovementComponent::IsValidFloorHit(const FHitResult& FloorHit) const
 		FHitResult NormalLineTrace;
 		FloorComponent->LineTraceComponent(
 			NormalLineTrace,
-			UpdatedComponent->GetComponentLocation(),
-			UpdatedComponent->GetComponentLocation() + FVector(0.0f, 0.0f, -250.0f),
+			FloorHit.ImpactPoint + FVector(0.0f, 0.0f, 250.0f),
+			FloorHit.ImpactPoint + FVector(0.0f, 0.0f, -250.0f),
 			FCollisionQueryParams::DefaultQueryParam);
 		// RenderHitResult(NormalLineTrace, FColor::Red);
 		if (NormalLineTrace.ImpactNormal.Z >= MaxInclineZComponent)
@@ -78,9 +84,9 @@ void UPupMovementComponent::SnapToFloor(const FHitResult& FloorHit)
 	{
 		LastValidLocation = FloorHit.Location;
 	}
-	/* SafeMoveUpdatedComponent(
+	SafeMoveUpdatedComponent(
 		FloorHit.Location - UpdatedComponent->GetComponentLocation() + FloorHit.Normal * PupMovementCVars::FloorPadding,
-		UpdatedComponent->GetComponentQuat(), true, DiscardHit, ETeleportType::None); */
+		UpdatedComponent->GetComponentQuat(), true, DiscardHit, ETeleportType::None);
 }
 
 
@@ -138,12 +144,24 @@ void UPupMovementComponent::RenderHitResult(const FHitResult& HitResult, const F
 	{
 		if (HitResult.GetComponent())
 		{
+			DrawDebugDirectionalArrow(GetWorld(), HitResult.ImpactPoint + HitResult.ImpactNormal * 10.0f, HitResult.ImpactPoint, 5.0f, FColor::Black, false, bPersistent ? 0.015f : 2.0f, -1, 0.5f);
+
 			DrawDebugLine(GetWorld(),
-				HitResult.ImpactPoint,
-				HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f, Color, false,
-				bPersistent ? 0.015f : 2.0f, -1, 2.0f);
+				HitResult.TraceStart,
+				HitResult.TraceEnd, Color, false,
+				bPersistent ? 0.015f : 2.0f, -1, 0.5f);
+			DrawDebugPoint(GetWorld(), HitResult.ImpactPoint, 15.0f, Color, false, bPersistent ? 0.015f : 2.0f, -1);
 			DrawDebugString(GetWorld(), HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f,
 				HitResult.GetComponent()->GetName(), nullptr, Color, 0.015f, false, 1.0f);
+		}
+		else
+		{
+			DrawDebugLine(GetWorld(),
+				HitResult.TraceStart,
+				HitResult.TraceEnd, Color, false,
+				bPersistent ? 0.015f : 2.0f, -1, 0.5f);
+			DrawDebugString(GetWorld(), HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f,
+			TEXT("X"), nullptr, Color, bPersistent ? 0.015f : 2.0f, false, 1.0f);
 		}
 	}
 }
@@ -157,8 +175,10 @@ void UPupMovementComponent::HandleRootMotion()
 {
 	if (MovementMode == EPupMovementMode::M_Anchored)
 	{
-		UpdatedComponent->AddWorldOffset(PendingRootMotionTransforms.GetTranslation());
-		LocalBasisPosition += PendingRootMotionTransforms.GetTranslation();
+		const FVector Translation = PendingRootMotionTransforms.GetTranslation();
+		UpdatedComponent->AddWorldOffset(Translation);
+		LocalBasisPosition += Translation;
+		DesiredAnchorLocation += Translation;
 	}
 	else
 	{
@@ -246,4 +266,20 @@ bool UPupMovementComponent::MatchModes(const EPupMovementMode& Subject, std::ini
 		}
 	}
 	return false;
+}
+
+
+FVector UPupMovementComponent::GetLocationRelativeToComponent(const FVector& WorldLocation, USceneComponent* Component) const
+{
+	if (!Component)
+	{
+		return FVector::ZeroVector;
+	}
+	const FVector ComponentLocation = Component->GetComponentLocation();
+	const FVector Distance = WorldLocation - ComponentLocation;
+		
+	return FVector(
+		FVector::DotProduct(Distance, Component->GetForwardVector()),
+		FVector::DotProduct(Distance, Component->GetRightVector()),
+		FVector::DotProduct(Distance, Component->GetUpVector()));
 }

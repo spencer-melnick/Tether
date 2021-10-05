@@ -31,6 +31,7 @@ public:
 	static const FName SkeletalMeshComponentName;
 	static const FName GrabSphereComponentName;
 	static const FName GrabHandleName;
+	static const FName MantleHandleName;
 	static const FName BeamComponentName;
 	static const FName CameraComponentName;
 
@@ -195,6 +196,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Components")
 	UTopDownCameraComponent* CameraComponent;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Components")
+	USceneComponent* MantleLocationComponent;
+	
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "Dragging")
 	bool bDraggingObject;
 	

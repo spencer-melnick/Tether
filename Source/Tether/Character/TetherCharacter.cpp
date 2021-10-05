@@ -21,6 +21,7 @@ const FName ATetherCharacter::MovementComponentName(TEXT("CharacterMovementCompo
 const FName ATetherCharacter::SkeletalMeshComponentName(TEXT("SkeletalMesh"));
 const FName ATetherCharacter::GrabSphereComponentName(TEXT("GrabSphere"));
 const FName ATetherCharacter::GrabHandleName(TEXT("GrabHandle"));
+const FName ATetherCharacter::MantleHandleName(TEXT("MantleHandle"));
 const FName ATetherCharacter::BeamComponentName(TEXT("BeamComponent"));
 const FName ATetherCharacter::CameraComponentName(TEXT("CameraComponent"));
 
@@ -44,6 +45,10 @@ ATetherCharacter::ATetherCharacter(const FObjectInitializer& ObjectInitializer)
 
 	GrabHandle = CreateDefaultSubobject<USceneComponent>(GrabHandleName);
 	GrabHandle->SetupAttachment(SkeletalMeshComponent, TEXT("HandleSocket"));
+
+	MantleLocationComponent = CreateDefaultSubobject<USceneComponent>(MantleHandleName);
+	MantleLocationComponent->SetupAttachment(RootComponent);
+	MantleLocationComponent->ComponentTags.Add(TEXT("MantleHandle"));
 
 	BeamComponent = CreateDefaultSubobject<UBeamComponent>(BeamComponentName);
 	BeamComponent->SetupAttachment(SkeletalMeshComponent);

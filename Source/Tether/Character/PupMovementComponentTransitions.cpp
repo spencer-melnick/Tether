@@ -8,7 +8,7 @@
 void UPupMovementComponent::SetDefaultMovementMode()
 {
 	FHitResult FloorResult;
-	if ((FindFloor(10.f, FloorResult, 1) && Velocity.Z <= 0.0f) || bGrounded)
+	if ( (FindFloor(10.f, FloorResult, 1) && Velocity.Z <= 0.0f) || bGrounded)
 	{
 		SetMovementMode(EPupMovementMode::M_Walking);
 		SnapToFloor(FloorResult);
@@ -21,6 +21,7 @@ void UPupMovementComponent::SetDefaultMovementMode()
 		SetMovementMode(EPupMovementMode::M_Falling);
 	}
 	bMantling = false;
+	bWallSliding = false;
 	// In the event the input is still being supressed by glitch or otherwise, a transition should reset it.
 	UnsupressInput();
 }
@@ -37,6 +38,44 @@ bool UPupMovementComponent::Jump()
 		ClimbMantle();
 		return false;
 	}
+	if (bWallSliding)
+	{
+		bWallSliding = false;
+		JumpAppliedVelocity += JumpInitialVelocity;
+		bCanJump = false;
+		bJumping = true;
+		bCanScramble = true;
+		
+		AddImpulse(MaxSpeed * WallNormal * 1.5f + (JumpInitialVelocity - Velocity.Z) * UpdatedComponent->GetUpVector() );
+		DesiredRotation.Yaw += 180.0f;
+		float PlayerHeight = 0.0f;
+
+		ATetherCharacter* Character = Cast<ATetherCharacter>(GetPawnOwner());
+		UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
+		
+		if (IsValid(Character) && Capsule)
+		{
+			PlayerHeight = Capsule->GetScaledCapsuleHalfHeight() + Capsule->GetScaledCapsuleRadius();
+		}
+		JumpEvent.Broadcast(BasisPositionLastTick - PlayerHeight * UpdatedComponent->GetUpVector(), true);
+
+		
+		if (UWorld* World = GetWorld())
+		{
+			if (MaxJumpTime > 0.0f)
+			{
+				World->GetTimerManager().SetTimer(JumpTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
+				{
+					StopJumping();
+				}), MaxJumpTime, false);
+			}
+			else
+			{
+				StopJumping();
+			}
+		}
+		return true;
+	}
 	if (bCanJump)
 	{
 		bAttachedToBasis = false;
@@ -52,7 +91,7 @@ bool UPupMovementComponent::Jump()
 		float PlayerHeight = 0.0f;
 		if (IsValid(Character) && Capsule)
 		{
-			PlayerHeight = Capsule->GetScaledCapsuleHalfHeight();
+			PlayerHeight = Capsule->GetScaledCapsuleHalfHeight() + Capsule->GetScaledCapsuleRadius();
 		}
 		JumpEvent.Broadcast(BasisPositionLastTick - PlayerHeight * UpdatedComponent->GetUpVector(), true);
 		
@@ -77,12 +116,14 @@ bool UPupMovementComponent::Jump()
 	if (bCanDoubleJump)
 	{
 		Velocity.Z = JumpInitialVelocity;
+		UpdatedComponent->SetWorldRotation(DesiredRotation);
+
 		if (bIsWalking)
 		{
+			const float ImpulseStrength = MaxSpeed - Speed;
 			// Apply extra directional velocity
-			AddImpulse(MaxAcceleration * DesiredRotation.RotateVector(FVector::ForwardVector) * InputFactor * DoubleJumpeAccelerationFactor);
+			AddImpulse(FMath::Min(MaxAcceleration * InputFactor * DoubleJumpAccelerationFactor, ImpulseStrength) * UpdatedComponent->GetForwardVector());
 		}
-		UpdatedComponent->SetWorldRotation(DesiredRotation);
 		
 		JumpAppliedVelocity += JumpInitialVelocity;
 		bCanDoubleJump = false;
@@ -229,6 +270,12 @@ void UPupMovementComponent::Land(const FVector& FloorLocation, const float Impac
 {
 	SetMovementMode(EPupMovementMode::M_Walking);
 	bCanJump = true;
+	bWallSliding = false;
+	BasisComponent = FloorComponent;
+	bMantling = false;
+	bCanMantle = true;
+	bCanScramble = true;
+	
 	if (bDoubleJump)
 	{
 		bCanDoubleJump = true;
@@ -338,23 +385,70 @@ bool UPupMovementComponent::EdgeSlide(const float Scale, const float DeltaTime)
 	
 	// TODO: Make this rate a UProperty?
 	const float SlideRate = 100.0f;
-	const float CapsuleRadius = 10.0f;
 
-	const FVector RotatedLedgeDirection = BasisComponent->GetComponentRotation().RotateVector(LedgeDirection);
-	
-	const FVector SlideOffset = RotatedLedgeDirection * SlideRate * CurvedScale * DeltaTime;
-	const FVector NewAnchorWorldLocation = UpdatedComponent->GetComponentLocation() + SlideOffset;
-	const FVector RadiusCheckOffset = Scale > 0.0f ? RotatedLedgeDirection * CapsuleRadius : RotatedLedgeDirection * -CapsuleRadius;
-	
-	FHitResult LineTraceResult;
-	if (BasisComponent && BasisComponent->LineTraceComponent(LineTraceResult,
-		NewAnchorWorldLocation + RadiusCheckOffset,
-		NewAnchorWorldLocation + RadiusCheckOffset + UpdatedComponent->GetForwardVector() * GrabRangeForward,
-		FCollisionQueryParams::DefaultQueryParam))
+	if (UPrimitiveComponent* CapsuleComponent = Cast<UPrimitiveComponent>(UpdatedComponent))
 	{
-		UpdatedComponent->AddWorldOffset(SlideOffset);
-		TurningDirection = CurvedScale;
-		return true;
+		const float CapsuleRadius = CapsuleComponent->GetCollisionShape().GetCapsuleRadius();
+		const float CapsuleHalfHeight = CapsuleComponent->GetCollisionShape().GetCapsuleHalfHeight();
+
+		const FVector RotatedLedgeDirection = BasisComponent->GetComponentRotation().RotateVector(LedgeDirection);
+		
+		const FVector SlideOffset = RotatedLedgeDirection * SlideRate * CurvedScale * DeltaTime;
+		const FVector NewAnchorWorldLocation = UpdatedComponent->GetComponentLocation() + SlideOffset;
+		const FVector RadiusCheckOffset = Scale > 0.0f ? RotatedLedgeDirection * CapsuleRadius : RotatedLedgeDirection * -CapsuleRadius;
+		
+		FHitResult LineTraceResult;
+		if (BasisComponent && GetWorld()->LineTraceSingleByChannel(LineTraceResult,
+			NewAnchorWorldLocation + RadiusCheckOffset,
+			NewAnchorWorldLocation + RadiusCheckOffset + UpdatedComponent->GetForwardVector() * GrabRangeForward,
+			ECC_Pawn))
+		{
+			FHitResult TopLineTraceResult;
+			FVector MantleOffset = FVector::ZeroVector;
+			TArray<USceneComponent*> ChildComponents;
+			UpdatedComponent->GetChildrenComponents(false, ChildComponents);
+			for (USceneComponent* Component : ChildComponents)
+			{
+				if (Component->ComponentHasTag(TEXT("MantleHandle")))
+				{
+					// TODO: Don't search for components this way
+					MantleOffset = Component->GetRelativeLocation();
+					break;
+				}
+			}
+			MantleOffset.X += 5.0f;
+			const float SinYaw = FMath::Sin(FMath::DegreesToRadians(DesiredRotation.Yaw));
+			const float CosYaw = FMath::Cos(FMath::DegreesToRadians(DesiredRotation.Yaw));
+			const FVector MantleOffsetWorldSpace = FVector(MantleOffset.X * CosYaw - MantleOffset.Y * SinYaw, MantleOffset.X * SinYaw + MantleOffset.Y * CosYaw, MantleOffset.Z);
+
+			const FVector MantleLocation = UpdatedComponent->GetComponentLocation() + MantleOffsetWorldSpace;
+			const FVector TraceStart = MantleLocation + SlideOffset + RadiusCheckOffset + FVector::UpVector * GrabRangeTop;
+			const FVector TraceEnd = MantleLocation + SlideOffset + RadiusCheckOffset + FVector::DownVector * GrabRangeBottom;
+
+			FCollisionQueryParams CollisionQueryParams = FCollisionQueryParams::DefaultQueryParam;
+			CollisionQueryParams.AddIgnoredActors(IgnoredActors);
+			CollisionQueryParams.bFindInitialOverlaps = true;
+			CollisionQueryParams.bIgnoreTouches = false;
+			CollisionQueryParams.bTraceComplex = false;
+
+			GetWorld()->LineTraceSingleByChannel(TopLineTraceResult, TraceStart, TraceEnd, ECC_Pawn, CollisionQueryParams);
+			if (TopLineTraceResult.bBlockingHit && !TopLineTraceResult.bStartPenetrating)
+			{
+				if (LineTraceResult.GetComponent() != BasisComponent)
+				{
+					BasisComponent = LineTraceResult.GetComponent();
+					FVector NewBasisWorldLocation = UpdatedComponent->GetComponentLocation();
+					NewBasisWorldLocation.Z = TopLineTraceResult.Location.Z - MantleOffsetWorldSpace.Z;
+					UpdatedComponent->SetWorldLocation(NewBasisWorldLocation);
+				}
+				// UpdatedComponent->AddWorldOffset(SlideOffset);
+				DesiredAnchorLocation += SlideOffset;
+				TurningDirection = CurvedScale;
+				// LedgeDirection = FVector::CrossProduct(WallNormal, TopLineTraceResult.Normal);
+				return true;
+			}
+			RenderHitResult(TopLineTraceResult, FColor::Red);
+		}
 	}
 	return false;
 }
@@ -372,86 +466,142 @@ void UPupMovementComponent::Mantle()
 	const FVector EyePosition = CapsuleComponent->GetComponentLocation() +
 		(CapsuleComponent->GetUnscaledCapsuleHalfHeight() - CapsuleRadius - 8.0f) * FVector::UpVector +
 		CapsuleRadius * CapsuleComponent->GetForwardVector();
-	FHitResult LineTraceResult;
 	
 	FCollisionQueryParams CollisionQueryParams = FCollisionQueryParams::DefaultQueryParam;
 	CollisionQueryParams.AddIgnoredActor(this->GetOwner());
-	
-	if (GetWorld()->LineTraceSingleByChannel(LineTraceResult,
+
+	FHitResult LineTraceResult;
+	if(GetWorld()->LineTraceSingleByChannel(LineTraceResult,
 		EyePosition, EyePosition + CapsuleComponent->GetForwardVector() * GrabRangeForward,
-		ECollisionChannel::ECC_Pawn,
-		CollisionQueryParams,
+		ECollisionChannel::ECC_Pawn, CollisionQueryParams,
 		CapsuleComponent->GetCollisionResponseToChannels()))
 	{
-		// Found object in front of the player... we need to sweep again
-		if (!LineTraceResult.GetComponent() || !LineTraceResult.GetComponent()->CanCharacterStepUp(this->GetPawnOwner()))
+		if (LineTraceResult.GetComponent() && LineTraceResult.GetComponent()->CanCharacterStepUp(this->GetPawnOwner()))
 		{
-			return;
-		}
-		UPrimitiveComponent* Target = LineTraceResult.GetComponent();
-		const float Alpha = 1.0f;
-		const float Yaw = FMath::RadiansToDegrees(FMath::Atan2(-LineTraceResult.ImpactNormal.Y, -LineTraceResult.ImpactNormal.X));
-		
-		const FVector MantleLocation = LineTraceResult.ImpactPoint - LineTraceResult.ImpactNormal * Alpha;
-		const FVector WallNormal = LineTraceResult.Normal;
+			UPrimitiveComponent* Target = LineTraceResult.GetComponent();
+			const FVector EdgeWallNormal = LineTraceResult.Normal;
 
-		if (bDrawMovementDebug && DrawDebugLayers[TEXT("MantleHitResults")])
-		{
-			DrawDebugPoint(GetWorld(), MantleLocation, 5.0f, FColor::Purple, false, 1.0f, -1);
-		}
+			// Where the ledge is in world space, as far as we know...
+			// We look slightly into the wall to avoid missing the next sweep
+			FVector MantleLocation = FVector::ZeroVector;
+			Target->GetClosestPointOnCollision(UpdatedComponent->GetComponentLocation(), MantleLocation);
+			MantleLocation -= EdgeWallNormal;
+			MantleLocation.Z += CapsuleComponent->GetScaledCapsuleHalfHeight();
 
-		
-		if (Target->LineTraceComponent(LineTraceResult,
-			MantleLocation + FVector::UpVector * GrabRangeTop, MantleLocation + FVector::DownVector * GrabRangeBottom,
-			CollisionQueryParams) && !LineTraceResult.bStartPenetrating)
-		{
-			const FVector TopWallNormal = LineTraceResult.Normal;
-			LedgeDirection = FVector::CrossProduct(TopWallNormal, WallNormal).GetUnsafeNormal();
+			CollisionQueryParams = FCollisionQueryParams::DefaultQueryParam;
+			CollisionQueryParams.AddIgnoredActors(IgnoredActors);
+			CollisionQueryParams.bFindInitialOverlaps = true;
+			CollisionQueryParams.bIgnoreTouches = false;
+			CollisionQueryParams.bTraceComplex = false;
 
-			/* Check how close our ledge direction vector is to the 'right vector',
-			 * assuming that the 'forward vector' is the direction the player will rotate towards --
-			 * the opposite of the WallNormal */
-			if (FMath::Abs(FVector::DotProduct(LedgeDirection, WallNormal.RotateAngleAxis(90.0f, FVector::UpVector))) >= LedgeDeviation)
+			FHitResult TopLineTraceResult;
+			GetWorld()->LineTraceSingleByChannel(TopLineTraceResult,
+				MantleLocation + FVector::UpVector * GrabRangeTop,
+				MantleLocation + FVector::DownVector * GrabRangeBottom,
+				ECollisionChannel::ECC_Pawn, CollisionQueryParams);
+
+			if (!TopLineTraceResult.bStartPenetrating && TopLineTraceResult.bBlockingHit)
 			{
-				const FVector LeftSide = UpdatedComponent->GetComponentLocation() - LedgeDirection * CapsuleComponent->GetCollisionShape().GetCapsuleRadius();
-				const FVector RightSide = UpdatedComponent->GetComponentLocation() + LedgeDirection * CapsuleComponent->GetCollisionShape().GetCapsuleRadius();
-				const FVector Offset =  (MantleLocation - UpdatedComponent->GetComponentLocation()).GetSafeNormal2D() * GrabRangeForward;
+				const FVector TopWallNormal = TopLineTraceResult.Normal;
+				LedgeDirection = FVector::CrossProduct(TopWallNormal, EdgeWallNormal).GetUnsafeNormal();
 
-				FHitResult SizeTraceLeft;
-				FHitResult SizeTraceRight;
-				if (!Target->LineTraceComponent(SizeTraceLeft, LeftSide, LeftSide + Offset, CollisionQueryParams) || !Target->LineTraceComponent(SizeTraceRight, RightSide, RightSide + Offset, CollisionQueryParams))
+				// Check how close our ledge direction vector is to the 'right vector',
+				// assuming that the 'forward vector' is the direction the player will rotate towards --
+				// the opposite of the WallNormal 
+				if (FMath::Abs(FVector::DotProduct(LedgeDirection, EdgeWallNormal.RotateAngleAxis(90.0f, FVector::UpVector))) >= LedgeDeviation)
 				{
-					return;
+					// Verify that we can actually 'fit' along the ledge
+					const FVector LeftSide = UpdatedComponent->GetComponentLocation() - LedgeDirection * CapsuleComponent->GetCollisionShape().GetCapsuleRadius() - FVector::DownVector;
+					const FVector RightSide = UpdatedComponent->GetComponentLocation() + LedgeDirection * CapsuleComponent->GetCollisionShape().GetCapsuleRadius() - FVector::DownVector;
+					const FVector Offset =  (MantleLocation - UpdatedComponent->GetComponentLocation()).GetSafeNormal2D() * (GrabRangeForward + CapsuleRadius);
+
+					FHitResult SizeTraceLeft;
+					FHitResult SizeTraceRight;
+					
+					if (Target->LineTraceComponent(SizeTraceLeft, LeftSide, LeftSide + Offset, CollisionQueryParams) &&
+					Target->LineTraceComponent(SizeTraceRight, RightSide, RightSide + Offset, CollisionQueryParams))
+					{
+						FVector AnchorWorldLocation = FVector(MantleLocation.X, MantleLocation.Y, TopLineTraceResult.Location.Z);
+						// AnchorWorldLocation.Z -= CapsuleComponent->GetScaledCapsuleHalfHeight() - CapsuleRadius - 8.0f;
+						// AnchorWorldLocation -= (MantleLocation - UpdatedComponent->GetComponentLocation()).GetSafeNormal2D() * CapsuleRadius;
+
+						FVector MantleOffset = FVector::ZeroVector;
+						TArray<USceneComponent*> ChildComponents;
+						UpdatedComponent->GetChildrenComponents(false, ChildComponents);
+						for (USceneComponent* Component : ChildComponents)
+						{
+							if (Component->ComponentHasTag(TEXT("MantleHandle")))
+							{
+								// TODO: Don't search for components this way
+								MantleOffset = Component->GetRelativeLocation();
+								break;
+							}
+						}
+						
+						const float SinYaw = FMath::Sin(FMath::DegreesToRadians(DesiredRotation.Yaw));
+						const float CosYaw = FMath::Cos(FMath::DegreesToRadians(DesiredRotation.Yaw));
+						const FVector MantleOffsetWorldSpace = FVector(MantleOffset.X * CosYaw - MantleOffset.Y * SinYaw, MantleOffset.X * SinYaw + MantleOffset.Y * CosYaw, MantleOffset.Z);
+
+						AnchorWorldLocation -= MantleOffsetWorldSpace;
+						const FVector Difference = AnchorWorldLocation - Target->GetComponentLocation();
+						
+						if (Target->Mobility == EComponentMobility::Movable)
+						{
+							LedgeDirection = Target->GetComponentRotation().GetInverse().RotateVector(LedgeDirection);
+						}				
+						LocalBasisPosition = FVector(
+							FVector::DotProduct(Difference, Target->GetForwardVector()),
+							FVector::DotProduct(Difference, Target->GetRightVector()),
+							FVector::DotProduct(Difference, Target->GetUpVector()));
+
+						BasisRotationLastTick = Target->GetComponentRotation();
+						
+						bMantling = true;
+						bCanMantle = false;
+						bIsWalking = false;
+						bWallSliding = false;
+						bAttachedToBasis = true;
+						BasisComponent = Target;
+						SetMovementMode(EPupMovementMode::M_Anchored);
+
+						const float Yaw = FMath::RadiansToDegrees(FMath::Atan2(-LineTraceResult.ImpactNormal.Y, -LineTraceResult.ImpactNormal.X));
+						// UpdatedComponent->SetWorldLocation(AnchorWorldLocation);
+						DesiredAnchorLocation = AnchorWorldLocation;
+						UpdatedComponent->SetWorldRotation(FRotator(0.0f, Yaw, 0.0f));
+						DesiredRotation = FRotator(0.0f, Yaw, 0.0f);
+					}
 				}
-				const FVector AnchorWorldLocation = LineTraceResult.Location + (CapsuleComponent->GetComponentLocation() - EyePosition);
-				const FVector Difference = AnchorWorldLocation - Target->GetComponentLocation();
+			}
+		}
+	}
+	// The line trace originated at the eye, so we can look there, plus 1.0f in case the player is
+	// very close to the wall
+	if (LineTraceResult.bBlockingHit && LineTraceResult.Distance <= CapsuleRadius + 1.0f)
+	{
+		HitWall(LineTraceResult);
+	}
+}
 
-				if (bDrawMovementDebug && DrawDebugLayers[TEXT("MantleHitResults")])
-				{
-					DrawDebugPoint(GetWorld(), AnchorWorldLocation, 5.0f, FColor::Purple, false, 1.0f, -1);
-				}
-				
-				if (Target->Mobility == EComponentMobility::Movable)
-				{
-					LedgeDirection = Target->GetComponentRotation().GetInverse().RotateVector(LedgeDirection);
-				}				
-				LocalBasisPosition = FVector(
-					FVector::DotProduct(Difference, Target->GetForwardVector()),
-					FVector::DotProduct(Difference, Target->GetRightVector()),
-					FVector::DotProduct(Difference, Target->GetUpVector()));
 
-				BasisRotationLastTick = Target->GetComponentRotation();
-				
-				bMantling = true;
-				bCanMantle = false;
-				bIsWalking = false;
-				bAttachedToBasis = true;
-				BasisComponent = Target;
-				SetMovementMode(EPupMovementMode::M_Anchored);
+void UPupMovementComponent::HitWall(const FHitResult& HitResult)
+{
+	if (!bGrounded && MovementMode == EPupMovementMode::M_Falling)
+	{
+		if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(HitResult.Component) )
+		{
+			FHitResult LineTrace;
+			if (PrimitiveComponent->LineTraceComponent(LineTrace, UpdatedComponent->GetComponentLocation(),
+				UpdatedComponent->GetComponentLocation() + DirectionVector * 100.0f,
+				FCollisionQueryParams::DefaultQueryParam))
+			{
+				const FVector PlanarNormal = LineTrace.Normal.GetSafeNormal2D();
+				const float WallYaw = FMath::RadiansToDegrees( FMath::Atan2(-PlanarNormal.Y, -PlanarNormal.X) );
+				DesiredRotation.Yaw = WallYaw;
+				// UpdatedComponent->SetWorldRotation(DesiredRotation);
+				WallNormal = PlanarNormal;
 
-				UpdatedComponent->SetWorldLocation(AnchorWorldLocation);
-				UpdatedComponent->SetWorldRotation(FRotator(0.0f, Yaw, 0.0f));
-				DesiredRotation = FRotator(0.0f, Yaw, 0.0f);
+				BasisComponent = PrimitiveComponent;
+				bWallSliding = true;
 			}
 		}
 	}
