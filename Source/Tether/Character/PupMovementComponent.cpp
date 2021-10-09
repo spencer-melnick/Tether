@@ -251,7 +251,8 @@ void UPupMovementComponent::UpdateVerticalMovement(const float DeltaTime)
 {
 	// First check if we're on the floor
 	FHitResult FloorHit;
-	if (FindFloor(FloorSnapDistance, FloorHit, 2))
+	const float EffectiveSnapDistance = FMath::Max(FloorSnapDistance, Velocity.Z * -DeltaTime);
+	if (FindFloor(EffectiveSnapDistance, FloorHit, 2))
 	{
 		const FVector RelativeVelocity = Velocity - FloorHit.GetComponent()->GetComponentVelocity();
 		if (FVector::DotProduct(RelativeVelocity, FloorNormal) <= KINDA_SMALL_NUMBER) // Avoid floating point errors..
@@ -494,8 +495,14 @@ FVector UPupMovementComponent::GetNewVelocity(const float DeltaTime)
 	case EPupMovementMode::M_Falling:
 		{
 			// FVector Acceleration = MaxAcceleration * DirectionVector * DeltaTime * AirControlFactor;
-			const FVector DesiredPlanarVelocity = bIsWalking ? DirectionVector * MaxSpeed : FVector::ZeroVector;
+			FVector DesiredPlanarVelocity = bIsWalking ? DirectionVector * MaxSpeed : FVector::ZeroVector;
 			const float Acceleration = MaxAcceleration * AirControlFactor;
+
+			if (bWallJumpDisabledControl)
+			{
+				// Limit the player's control when they jump away from the wall
+				DesiredPlanarVelocity = FVector(Velocity.X, Velocity.Y, 0.0f);
+			}
 
 			FVector NewVelocity = FMath::VInterpConstantTo(Velocity, DesiredPlanarVelocity + FVector(0.0f, 0.0f, Velocity.Z), DeltaTime, Acceleration);
 			if (bWallSliding)
@@ -520,7 +527,7 @@ FVector UPupMovementComponent::GetNewVelocity(const float DeltaTime)
 					}
 					if (bWallScrambling)
 					{
-						NewVelocity += FVector(0.0f, 0.0f, 2000.0f * DeltaTime);
+						NewVelocity.Z = FMath::Min(TerminalVelocity, NewVelocity.Z + 2000.0f * DeltaTime);
 					}
 				}
 			}

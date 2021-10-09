@@ -40,14 +40,7 @@ bool UPupMovementComponent::Jump()
 	}
 	if (bWallSliding)
 	{
-		bWallSliding = false;
-		JumpAppliedVelocity += JumpInitialVelocity;
-		bCanJump = false;
-		bJumping = true;
-		bCanScramble = true;
-		
-		AddImpulse(MaxSpeed * WallNormal * 1.5f + (JumpInitialVelocity - Velocity.Z) * UpdatedComponent->GetUpVector() );
-		DesiredRotation.Yaw += 180.0f;
+		WallJump();
 		float PlayerHeight = 0.0f;
 
 		ATetherCharacter* Character = Cast<ATetherCharacter>(GetPawnOwner());
@@ -128,6 +121,7 @@ bool UPupMovementComponent::Jump()
 		JumpAppliedVelocity += JumpInitialVelocity;
 		bCanDoubleJump = false;
 		bJumping = true;
+		bWallJumpDisabledControl = false;
 
 		ATetherCharacter* Character = Cast<ATetherCharacter>(GetPawnOwner());
 		UCapsuleComponent* Capsule = Character->GetCapsuleComponent();
@@ -159,6 +153,28 @@ bool UPupMovementComponent::Jump()
 	}
 	return false;
 }
+
+
+void UPupMovementComponent::WallJump()
+{
+	bWallSliding = false;
+	JumpAppliedVelocity += JumpInitialVelocity;
+	bCanJump = false;
+	bJumping = true;
+	bCanScramble = false;
+		
+	AddImpulse(MaxSpeed * WallNormal + (JumpInitialVelocity - Velocity.Z) * UpdatedComponent->GetUpVector() );
+	DesiredRotation.Yaw += 180.0f;
+	UpdatedComponent->AddWorldRotation(FRotator(0.0f, 180.0f, 0.0f));
+	
+	bWallJumpDisabledControl = true;
+	GetWorld()->GetTimerManager().SetTimer(MantleDebounceTimerHandle,
+		FTimerDelegate::CreateWeakLambda(this, [this]
+		{
+			bWallJumpDisabledControl = false;
+		}),	WallJumpDisableTime, false);
+}
+
 
 
 void UPupMovementComponent::StopJumping()
@@ -522,8 +538,6 @@ void UPupMovementComponent::Mantle()
 					Target->LineTraceComponent(SizeTraceRight, RightSide, RightSide + Offset, CollisionQueryParams))
 					{
 						FVector AnchorWorldLocation = FVector(MantleLocation.X, MantleLocation.Y, TopLineTraceResult.Location.Z);
-						// AnchorWorldLocation.Z -= CapsuleComponent->GetScaledCapsuleHalfHeight() - CapsuleRadius - 8.0f;
-						// AnchorWorldLocation -= (MantleLocation - UpdatedComponent->GetComponentLocation()).GetSafeNormal2D() * CapsuleRadius;
 
 						FVector MantleOffset = FVector::ZeroVector;
 						TArray<USceneComponent*> ChildComponents;
@@ -561,6 +575,8 @@ void UPupMovementComponent::Mantle()
 						bIsWalking = false;
 						bWallSliding = false;
 						bAttachedToBasis = true;
+						bWallJumpDisabledControl = false;
+
 						BasisComponent = Target;
 						SetMovementMode(EPupMovementMode::M_Anchored);
 

@@ -163,6 +163,8 @@ private:
 	/** Explicit transition when landing on a floor while in the 'Falling' state */
 	void Land(const FVector& FloorLocation, const float ImpactVelocit, UPrimitiveComponent* FloorComponent);
 
+	void WallJump();
+	
 	/** Explicit transition when a floor becomes invalid while in the 'Walking' state */
 	void Fall();
 
@@ -342,7 +344,7 @@ public:
 	float RotationSpeed = 360.f;
 
 	/** Will the player rotate slower as they move faster? Simulates decreased static friction when running. **/
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Rotation")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Rotation|Slip")
 	bool bSlip = true;
 
 	/**
@@ -352,7 +354,7 @@ public:
 	 * If at 1, the player will turn at the same speed regardless of how fast they
 	 * are moving across the floor.
 	 **/
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Rotation", meta = (ClampMin = 0.0f, ClampMax = 1.0f, EditCondition = "bSlip"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Rotation|Slip", meta = (ClampMin = 0.0f, ClampMax = 1.0f, EditCondition = "bSlip"))
 	float SlipFactor = 0.8f;
 
 	/**
@@ -427,15 +429,20 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Jumping")
 	bool bTurnFirst = true;
 	
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Jumping")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Jumping|Double Jump")
 	bool bDoubleJump = true;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Jumping", meta = (ClampMin = 0.0f, ClampMax = 1.0f, EditCondition = "bDoubleJump"))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Jumping|Double Jump", meta = (ClampMin = 0.0f, ClampMax = 1.0f, EditCondition = "bDoubleJump"))
 	float DoubleJumpAccelerationFactor = 0.5f;
 	
-	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Jumping")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Jumping|Double Jump")
 	bool bJumping = false;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Jumping|Wall Jump")
+	float WallJumpDisableTime = 0.2f;
+
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Jumping|Wall Jump")
+	bool bWallJumpDisabledControl = false;
 
 
 
