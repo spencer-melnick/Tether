@@ -19,14 +19,23 @@ void UTopDownCameraComponent::BeginPlay()
 	Super::BeginPlay();
 
 	InitialFOV = FieldOfView;
+
+	const FVector StartingLocation = GetComponentLocation();
+	const FRotator StartingRotation = GetComponentRotation();
+	
 	SetUsingAbsoluteLocation(true);
 	SetUsingAbsoluteRotation(true);
+
+	SetWorldLocation(StartingLocation);
+	SetWorldRotation(StartingRotation);
 
 	RecordScreenSize(GetOwner()->GetInstigatorController());
 
 	if (ATetherCharacter* TetherCharacter = Cast<ATetherCharacter>(GetOwner()))
 	{
 		Subject = TetherCharacter;
+		// AddWorldRotation(Subject->GetActorRotation());
+		
 		TetherCharacter->OnPossessedDelegate().AddWeakLambda(this, [this](AController* Controller)
 		{
 			RecordScreenSize(Controller);
@@ -35,7 +44,6 @@ void UTopDownCameraComponent::BeginPlay()
 
 	SubjectDistance = CalcDeltaZoom(0.0f);
 	RotationalVelocity = CalcDeltaRotation(0.0f);
-	
 	SetWorldLocation(CalcDeltaLocation(0.0f));
 }
 

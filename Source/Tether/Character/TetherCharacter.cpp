@@ -3,12 +3,11 @@
 #include "TetherCharacter.h"
 
 #include "DrawDebugHelpers.h"
-#include "PupMovementComponent.h"
+#include "MovementComponent/PupMovementComponent.h"
 #include "Algo/Transform.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "Tether/Tether.h"
 #include "Tether/GameMode/TetherPrimaryGameMode.h"
 #include "Tether/GameMode/TetherPrimaryGameState.h"
 #include "Tether/Gameplay/Cameras/TopDownCameraComponent.h"
@@ -138,6 +137,7 @@ void ATetherCharacter::Jump()
 	{
 		OnJump();
 	}
+	
 }
 
 
@@ -320,19 +320,20 @@ void ATetherCharacter::Deflect(
 	}
 
 	// Calculate the character's velocity relative to the instigator
-	const FVector RelativeVelocity = (GetVelocity() - InstigatorVelocity) * -InstigatorFactor;
+	const FVector RelativeVelocity = (MovementComponent->Velocity - InstigatorVelocity) * InstigatorFactor;
 
 	// Limit the player's velocity along the deflection normal
-	const float NormalVelocity = FMath::Min(0.f, FVector::DotProduct(DeflectionNormal, RelativeVelocity));
-	const FVector ClampedVelocity = RelativeVelocity - NormalVelocity * DeflectionNormal;
+	const FVector NormalVelocity = FVector::DotProduct(DeflectionNormal, RelativeVelocity) * DeflectionNormal;
+	const FVector ClampedVelocity = RelativeVelocity -  NormalVelocity;
 
 	// Add velocity equal to the deflection scale plus the elastic contribution
 	// Clamp elastic contribution in one direction
-	const float BounceFactor = DeflectionScale - (NormalVelocity * Elasticity);
-	const FVector BounceVelocity = ClampedVelocity + (DeflectionNormal * BounceFactor);
+	// const float BounceFactor = DeflectionScale - (NormalVelocity * Elasticity);
+	// const FVector BounceVelocity = ClampedVelocity + (DeflectionNormal * BounceFactor);
 
 	// Limit velocity by the max launch speed and then launch
-	const FVector FinalVelocity = BounceVelocity.GetClampedToSize(0.f, MaxLaunchSpeed);
+	// const FVector FinalVelocity = BounceVelocity.GetClampedToSize(0.f, MaxLaunchSpeed);
+	FVector FinalVelocity = ClampedVelocity;
 
 	#if WITH_EDITOR
 	if (GEngine->GameViewport && GEngine->GameViewport->EngineShowFlags.Collision)
@@ -344,6 +345,11 @@ void ATetherCharacter::Deflect(
 	
 	// MovementComponent->AddImpulse(FinalVelocity);
 	MovementComponent->Deflect(FinalVelocity, DeflectTime);
+}
+
+void ATetherCharacter::DeflectSimple(const FVector Velocity, float DeflectTime)
+{
+	MovementComponent->Deflect(Velocity, DeflectTime);
 }
 
 

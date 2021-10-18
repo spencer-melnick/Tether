@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 
-#include "PupMovementComponent.h"
+#include "MovementComponent/PupMovementComponent.h"
 #include "Components/SphereComponent.h"
 #include "GameFramework/Character.h"
 #include "Tether/Gameplay/Beam/BeamComponent.h"
@@ -87,6 +87,9 @@ public:
 		FVector DeflectionNormal, float DeflectionScale,
 		FVector InstigatorVelocity, float InstigatorFactor,
 		float Elasticity, float DeflectTime, bool bLaunchVertically, bool bForceBreak = true);
+
+	UFUNCTION(BlueprintCallable)
+	void DeflectSimple(const FVector Velocity, float DeflectTime);
 
 
 	// Accessors

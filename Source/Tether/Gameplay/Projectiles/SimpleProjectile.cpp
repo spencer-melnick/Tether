@@ -46,7 +46,7 @@ void ASimpleProjectile::BeginPlay()
 	{
 		if (UActorComponent* Component = GetComponentByClass(UShapeComponent::StaticClass()))
 		{
-			CollisionComponent = Cast<UShapeComponent>(Component);	
+			CollisionComponent = Cast<UShapeComponent>(Component);
 		}
 		else
 		{
@@ -58,22 +58,7 @@ void ASimpleProjectile::BeginPlay()
 void ASimpleProjectile::NotifyHit(UPrimitiveComponent* MyComp, AActor* Other, UPrimitiveComponent* OtherComp,
 	bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse, const FHitResult& Hit)
 {
-	if (ATetherCharacter* HitCharacter = Cast<ATetherCharacter>(Other))
-	{
-		if (!bDebounce)
-		{
-			HitCharacter->Deflect(-HitNormal, LaunchVelocity, Velocity, 1.0, Elasticity, DeflectTime, true);
-
-			if (UWorld* World = GetWorld())
-			{
-				bDebounce = true;
-				World->GetTimerManager().SetTimer(DebounceTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
-				{
-					bDebounce = false;
-				}), DebounceTime, false);
-			}
-		}
-	}
+	BouncePlayer(Hit);
 	Super::NotifyHit(MyComp, Other, OtherComp, bSelfMoved, HitLocation, HitNormal, NormalImpulse, Hit);
 }
 
@@ -84,8 +69,12 @@ void ASimpleProjectile::BouncePlayer(const FHitResult& HitResult)
 	{
 		if (!bDebounce)
 		{
-			HitCharacter->Deflect(-HitResult.ImpactNormal, LaunchVelocity, Velocity, 1.0, Elasticity, DeflectTime, true);
+			OnProjectileBounce().Broadcast();
+			// HitCharacter->Deflect(HitResult.ImpactNormal, LaunchVelocity, Velocity, 1.0, Elasticity, DeflectTime, true);
 
+			const FVector RelativeVelocity = -HitResult.ImpactNormal * FVector::DotProduct(-HitResult.ImpactNormal, Velocity) * Elasticity;
+			const FVector BounceVelocity = (-HitResult.ImpactNormal * LaunchVelocity + RelativeVelocity);
+			HitCharacter->DeflectSimple(BounceVelocity, DeflectTime);
 			if (UWorld* World = GetWorld())
 			{
 				bDebounce = true;
@@ -116,6 +105,8 @@ bool ASimpleProjectile::Sweep(const FVector& Distance, FHitResult& OutHit) const
 		
 		FCollisionQueryParams QueryParams;
 		FCollisionResponseParams ResponseParams;
+
+		QueryParams.bIgnoreTouches = false;
 
 		CollisionComponent->InitSweepCollisionParams(QueryParams, ResponseParams);
 

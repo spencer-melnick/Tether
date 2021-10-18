@@ -23,6 +23,9 @@ public:
 	virtual void BeginPlay() override;
 
 	virtual void NotifyHit(UPrimitiveComponent* MyComp, AActor* Other, UPrimitiveComponent* OtherComp, bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse, const FHitResult& Hit) override;
+
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FProjectileBounceEvent);
+	FProjectileBounceEvent& OnProjectileBounce() { return ProjectileBounceEvent; }
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile", meta = (ClampMin = 0.0f))
 	float ProjectileRadius;
@@ -58,4 +61,7 @@ private:
 	FTimerHandle DebounceTimerHandle;
 
 	bool bDebounce = false;
+
+	UPROPERTY(BlueprintAssignable)
+	FProjectileBounceEvent ProjectileBounceEvent;
 };

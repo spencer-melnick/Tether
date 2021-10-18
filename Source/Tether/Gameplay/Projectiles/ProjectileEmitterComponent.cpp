@@ -69,7 +69,7 @@ void UProjectileEmitterComponent::FireProjectile()
 		if (ProjectileType && ProjectileLifetime > 0 && !isnan(ProjectileLifetime))
 		{
 			ASimpleProjectile* Projectile = World->SpawnActor<ASimpleProjectile>(ProjectileType, GetComponentLocation(), GetComponentRotation());
-			Projectile->AttachToComponent(this, FAttachmentTransformRules::KeepWorldTransform);
+			// Projectile->AttachToComponent(this, FAttachmentTransformRules::KeepWorldTransform);
 			Projectile->Velocity = GetForwardVector() * ProjectileVelocity;
 			Projectile->SetLifeSpan(ProjectileLifetime);
 		}
