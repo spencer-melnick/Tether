@@ -3,6 +3,9 @@
 
 #include "LinearMovementComponent.h"
 
+#include "Tether/Tether.h"
+#include "Tether/Character/TetherCharacter.h"
+
 // Sets default values for this component's properties
 ULinearMovementComponent::ULinearMovementComponent()
 {
@@ -23,34 +26,53 @@ void ULinearMovementComponent::BeginPlay()
 	
 }
 
+void ULinearMovementComponent::Move(const float DeltaTime)
+{
+	AActor* Parent = GetOwner();
+	UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Parent->GetComponentByClass(UPrimitiveComponent::StaticClass()));
+	const FVector NewLocation = PrimitiveComponent->GetComponentLocation() + Direction.RotateVector(Velocity) * DeltaTime;
+	TArray<FHitResult> Results;
+
+	const bool bBlockingHitFound = GetWorld()->SweepMultiByProfile(Results, PrimitiveComponent->GetComponentLocation(), NewLocation, PrimitiveComponent->GetComponentQuat(), PrimitiveComponent->GetCollisionProfileName(), PrimitiveComponent->GetCollisionShape());
+	if (bBlockingHitFound)
+	{
+		for (FHitResult HitResult : Results)
+		{
+			if (ATetherCharacter* Character = Cast<ATetherCharacter>(HitResult.GetActor()))
+			{
+				// Character->AddActorWorldOffset( (1 - HitResult.Time) * DeltaTime * Velocity );
+				const float SelfVelocityAlongNormal = FVector::DotProduct(Velocity, -HitResult.Normal);
+				const float TargetVelocityAlongNormal = FVector::DotProduct(Character->GetVelocity(), -HitResult.Normal);
+				if (SelfVelocityAlongNormal > TargetVelocityAlongNormal)
+				{
+					const FVector Impulse = (SelfVelocityAlongNormal - TargetVelocityAlongNormal) * -HitResult.Normal;
+					// UE_LOG(LogTetherGame, Display, TEXT("Impulse added to character %s"), *Impulse.ToString());
+					Character->MovementComponent->AddImpulse(Velocity);
+				}
+			}
+		}
+	}
+	Parent->SetActorLocation(NewLocation, false);
+}
+
 
 // Called every frame
 void ULinearMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
+	Move(DeltaTime);
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	
-	AActor* Parent = GetOwner();
-	const FVector NewLocation = Parent->GetActorLocation() + Direction.RotateVector(LinearVelocity) * DeltaTime;
-	FHitResult Result;
-	if (Parent->SetActorLocation(NewLocation, true, &Result, ETeleportType::None))
-	{
-		if (UActorComponent* Primitive = Parent->GetComponentByClass(UPrimitiveComponent::StaticClass()))
-		{
-			Parent->ReceiveHit(Cast<UPrimitiveComponent>(Primitive), Result.GetActor(), Result.GetComponent(), true, Result.Location, Result.Normal, Result.Distance * Result.Normal, Result);
-		}
-	}
 }
 
 
-void ULinearMovementComponent::SetVelocity(const FVector& Velocity)
+void ULinearMovementComponent::SetVelocity(const FVector& InVelocity)
 {
-	LinearVelocity = Velocity;
+	Velocity = InVelocity;
 }
 
 
-void ULinearMovementComponent::SetVelocity(const float& Velocity)
+void ULinearMovementComponent::SetVelocity(const float& InVelocity)
 {
-	LinearVelocity = FVector(Velocity, 0, 0);
+	Velocity = FVector(InVelocity, 0, 0);
 }
 
 

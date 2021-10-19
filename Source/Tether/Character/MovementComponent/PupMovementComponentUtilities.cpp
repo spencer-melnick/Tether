@@ -68,7 +68,7 @@ bool UPupMovementComponent::IsValidFloorHit(const FHitResult& FloorHit) const
 			FloorHit.ImpactPoint + FVector(0.0f, 0.0f, -250.0f),
 			FCollisionQueryParams::DefaultQueryParam);
 		// RenderHitResult(NormalLineTrace, FColor::Red);
-		if (NormalLineTrace.ImpactNormal.Z >= MaxInclineZComponent)
+		if (NormalLineTrace.ImpactNormal.Z >= MaxInclineZComponent && !FloorHit.bStartPenetrating)
 		{
 			return true;
 		}

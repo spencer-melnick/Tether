@@ -140,7 +140,7 @@ bool UPupMovementComponent::ResolvePenetrationImpl(const FVector& Adjustment, co
 void UPupMovementComponent::StepMovement(const float DeltaTime)
 {
 	MagnetToBasis(1.0f, DeltaTime);
-	HandleExternalOverlaps(DeltaTime);
+	// HandleExternalOverlaps(DeltaTime);
 	UpdatedComponent->SetWorldRotation(GetNewRotation(DeltaTime));
 	Velocity = GetNewVelocity(DeltaTime);
 
@@ -215,9 +215,8 @@ float UPupMovementComponent::SubstepMovement(const float DeltaTime)
 	const FVector AdjustmentVelocity = ConsumeAdjustments() / DeltaTime;
 	if (!AdjustmentVelocity.IsNearlyZero())
 	{
-		AddImpulse(AdjustmentVelocity / 2);
+		// AddImpulse(AdjustmentVelocity / 2);
 	}
-
 	
 	// If we hit something...
 	if (HitResult.bBlockingHit)
@@ -240,7 +239,6 @@ float UPupMovementComponent::SubstepMovement(const float DeltaTime)
 		{
 			DrawDebugDirectionalArrow(GetWorld(), UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentLocation() - HitResult.Normal * ImpactVelocityMagnitude, 1.0f,  FColor::Red, false, 1.0f, -1, 0.5f);
 		}
-
 		
 		return HitResult.Time * DeltaTime;
 	}

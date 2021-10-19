@@ -13,26 +13,24 @@ class TETHER_API ULinearMovementComponent : public UActorComponent
 	GENERATED_BODY()
 
 public:	
-	// Sets default values for this component's properties
 	ULinearMovementComponent();
 
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
 	UFUNCTION(BlueprintCallable)
-	void SetVelocity(const FVector& Velocity);
-	void SetVelocity(const float& Velocity);
+	void SetVelocity(const FVector& InVelocity);
+	void SetVelocity(const float& InVelocity);
+	
+protected:
+	virtual void BeginPlay() override;
 
+private:
+	void Move(const float DeltaTime);
 
+public:	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Movement")
 	FRotator Direction;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Movement")
-	FVector LinearVelocity;
-	
-protected:
-	// Called when the game starts
-	virtual void BeginPlay() override;
-
-public:	
-	// Called every frame
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
-
+	FVector Velocity;
 };
