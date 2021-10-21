@@ -23,7 +23,10 @@ void ULinearMovementComponent::BeginPlay()
 
 	SetTickGroup(ETickingGroup::TG_DuringPhysics);
 	Direction = GetOwner()->GetActorRotation();
-	
+
+	AActor* Parent = GetOwner();
+	UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Parent->GetComponentByClass(UPrimitiveComponent::StaticClass()));
+	PrimitiveComponent->ComponentVelocity = Velocity;	
 }
 
 void ULinearMovementComponent::Move(const float DeltaTime)
@@ -40,15 +43,7 @@ void ULinearMovementComponent::Move(const float DeltaTime)
 		{
 			if (ATetherCharacter* Character = Cast<ATetherCharacter>(HitResult.GetActor()))
 			{
-				// Character->AddActorWorldOffset( (1 - HitResult.Time) * DeltaTime * Velocity );
-				const float SelfVelocityAlongNormal = FVector::DotProduct(Velocity, -HitResult.Normal);
-				const float TargetVelocityAlongNormal = FVector::DotProduct(Character->GetVelocity(), -HitResult.Normal);
-				if (SelfVelocityAlongNormal > TargetVelocityAlongNormal)
-				{
-					const FVector Impulse = (SelfVelocityAlongNormal - TargetVelocityAlongNormal) * -HitResult.Normal;
-					// UE_LOG(LogTetherGame, Display, TEXT("Impulse added to character %s"), *Impulse.ToString());
-					Character->MovementComponent->AddImpulse(Velocity);
-				}
+				Character->MovementComponent->Push(HitResult, PrimitiveComponent->GetComponentRotation().RotateVector(Velocity), PrimitiveComponent);
 			}
 		}
 	}

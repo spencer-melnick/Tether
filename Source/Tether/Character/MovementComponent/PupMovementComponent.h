@@ -110,6 +110,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void AddImpulse(const FVector Impulse);
 
+	// Called when being pushed by an object
+	void Push(const FHitResult& HitResult, const FVector ImpactVelocity, UPrimitiveComponent* Source);
+	
 	void AddRootMotionTransform(const FTransform& RootMotionTransform);
 	
 	UFUNCTION(BlueprintCallable)
@@ -212,6 +215,8 @@ private:
 	// Basis/Floor Movement
 	void MagnetToBasis(const float VelocityFactor, const float DeltaTime);
 
+	void HandlePushes(const float DeltaTime);
+	
 	/** Update our relative basis transform to reflect any movements the player has made themself. **/
 	void StoreBasisTransformPostUpdate();
 
@@ -675,6 +680,7 @@ private:
 	
 	FVector PendingAdjustments = FVector::ZeroVector;
 	FVector PendingImpulses = FVector::ZeroVector;
+	FVector PendingPushes = FVector::ZeroVector;
 	FTransform PendingRootMotionTransforms = FTransform::Identity;
 	
 	// Timer Handles

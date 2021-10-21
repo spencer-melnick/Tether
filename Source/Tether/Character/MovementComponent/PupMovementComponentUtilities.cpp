@@ -41,7 +41,7 @@ bool UPupMovementComponent::FindFloor(const float SweepDistance, FHitResult& Out
 			}
 			if (OutHitResult.bStartPenetrating)
 			{
-				ResolvePenetration(GetPenetrationAdjustment(OutHitResult), OutHitResult, UpdatedComponent->GetComponentQuat());
+				// ResolvePenetration(GetPenetrationAdjustment(OutHitResult), OutHitResult, UpdatedComponent->GetComponentQuat());
 				InvalidFloorComponents.Add(OutHitResult.GetComponent());
 			}
 		}

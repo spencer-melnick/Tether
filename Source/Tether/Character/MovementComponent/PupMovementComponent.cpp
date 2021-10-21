@@ -7,6 +7,7 @@
 #include "../TetherCharacter.h"
 #include "Components/CapsuleComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "Tether/Tether.h"
 
 
 namespace PupMovementCVars
@@ -112,7 +113,7 @@ float UPupMovementComponent::GetGravityZ() const
 bool UPupMovementComponent::ResolvePenetrationImpl(const FVector& Adjustment, const FHitResult& Hit,
 	const FQuat& NewRotation)
 {
-	if (MatchModes(MovementMode, {EPupMovementMode::M_Walking, EPupMovementMode::M_Falling, EPupMovementMode::M_Deflected}))
+	/* if (MatchModes(MovementMode, {EPupMovementMode::M_Walking, EPupMovementMode::M_Falling, EPupMovementMode::M_Deflected}))
 	{
 		if (Hit.GetComponent())
 		{
@@ -122,7 +123,7 @@ bool UPupMovementComponent::ResolvePenetrationImpl(const FVector& Adjustment, co
 			if (AdjustmentWithoutBasis.Size() >= KINDA_SMALL_NUMBER)
 			{
 				// The further in the sweep the move had to occur, the faster we had to move out of the way
-				AddAdjustment(AdjustmentWithoutBasis / (1 - Hit.Time));
+				// AddAdjustment(AdjustmentWithoutBasis / (1 - Hit.Time));
 				if (bDrawMovementDebug)
 				{
 					DrawDebugDirectionalArrow(GetWorld(), UpdatedComponent->GetComponentLocation(),
@@ -132,8 +133,9 @@ bool UPupMovementComponent::ResolvePenetrationImpl(const FVector& Adjustment, co
 			RenderHitResult(Hit, FColor::Green);
 			InvalidFloorComponents.Add(Hit.GetComponent());
 		}
-	}
-	return Super::ResolvePenetrationImpl(Adjustment, Hit, NewRotation);
+	} */
+	// return Super::ResolvePenetrationImpl(Adjustment, Hit, NewRotation);
+	return true;
 }
 
 
@@ -143,7 +145,8 @@ void UPupMovementComponent::StepMovement(const float DeltaTime)
 	// HandleExternalOverlaps(DeltaTime);
 	UpdatedComponent->SetWorldRotation(GetNewRotation(DeltaTime));
 	Velocity = GetNewVelocity(DeltaTime);
-
+	HandlePushes(DeltaTime);
+	
 	if (MatchModes(MovementMode, {EPupMovementMode::M_Walking, EPupMovementMode::M_Falling, EPupMovementMode::M_Deflected, EPupMovementMode::M_Anchored, EPupMovementMode::M_Dragging}))
 	{
 		UpdateVerticalMovement(DeltaTime);
@@ -184,6 +187,12 @@ float UPupMovementComponent::SubstepMovement(const float DeltaTime)
 {
 	const FVector Movement = Velocity * DeltaTime;
 
+	if (Movement.IsNearlyZero())
+	{
+		// Don't move...
+		return DeltaTime;
+	}
+	
 	if (bDrawMovementDebug && DrawDebugLayers[TEXT("Velocity")])
 	{
 		DrawDebugDirectionalArrow(GetWorld(), UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentLocation() + Movement, 1.0f,  FColor::Green, false, 1.0f, -1, 0.5f);
@@ -201,7 +210,6 @@ float UPupMovementComponent::SubstepMovement(const float DeltaTime)
 			DrawDebugDirectionalArrow(GetWorld(), UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentLocation() + Adjustment, 1.0f,  FColor::Yellow, false, 1.0f, -1, 0.5f);
 		}
 		UpdatedComponent->AddWorldOffset(Adjustment, false);
-
 	}
 	else if (!HitResult.bBlockingHit)
 	{
@@ -352,6 +360,20 @@ EPupMovementMode UPupMovementComponent::GetMovementMode() const
 void UPupMovementComponent::AddImpulse(const FVector Impulse)
 {
 	PendingImpulses += Impulse;
+}
+
+
+void UPupMovementComponent::Push(const FHitResult& HitResult, const FVector ImpactVelocity, UPrimitiveComponent* Source)
+{
+	const FVector Normal = -HitResult.ImpactNormal;
+	FVector Adjustment = (FVector::DotProduct(HitResult.TraceEnd - HitResult.Location, Normal) + 0.1f) * Normal;
+	if (HitResult.bStartPenetrating)
+	{
+		Adjustment -= HitResult.PenetrationDepth * Velocity.GetSafeNormal();
+	}
+	// UpdatedComponent->AddWorldOffset(Adjustment);
+	UpdatedComponent->AddWorldOffset(Normal * 0.1f);
+	PendingPushes = ImpactVelocity;
 }
 
 
@@ -670,6 +692,25 @@ void UPupMovementComponent::MagnetToBasis(const float VelocityFactor, const floa
 		BasisPositionLastTick = UpdatedComponent->GetComponentLocation();
 		BasisRotationLastTick = DesiredRotation;
 		LocalBasisPosition = FVector::ZeroVector;
+	}
+}
+
+
+void UPupMovementComponent::HandlePushes(const float DeltaTime)
+{
+	if (MatchModes(MovementMode, {EPupMovementMode::M_Walking, EPupMovementMode::M_Falling}))
+	{
+		if (!PendingPushes.IsNearlyZero())
+		{
+			const FVector PushDirection = PendingPushes.GetSafeNormal();
+			const float VelocityInPushDirection = FVector::DotProduct(PushDirection, Velocity);
+			if (VelocityInPushDirection < PendingPushes.Size())
+			{
+				Velocity -= VelocityInPushDirection * PushDirection;
+				Velocity += PendingPushes;
+			}
+			PendingPushes = FVector::ZeroVector;
+		}
 	}
 }
 

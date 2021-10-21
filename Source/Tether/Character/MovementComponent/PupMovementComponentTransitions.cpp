@@ -7,8 +7,10 @@
 
 void UPupMovementComponent::SetDefaultMovementMode()
 {
+	ConsumeImpulse();
 	FHitResult FloorResult;
-	if ( (FindFloor(10.f, FloorResult, 1) && Velocity.Z <= 0.0f) || bGrounded)
+	const float EffectiveSnapDistance = FMath::Max(FloorSnapDistance, Velocity.Z);
+	if ( (FindFloor(EffectiveSnapDistance, FloorResult, 1) && Velocity.Z <= 0.0f) || bGrounded)
 	{
 		SetMovementMode(EPupMovementMode::M_Walking);
 		SnapToFloor(FloorResult);
