@@ -8,6 +8,7 @@
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Tether/Tether.h"
 #include "Tether/GameMode/TetherPrimaryGameMode.h"
 #include "Tether/GameMode/TetherPrimaryGameState.h"
 #include "Tether/Gameplay/Cameras/TopDownCameraComponent.h"
@@ -83,6 +84,7 @@ void ATetherCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 void ATetherCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
 	MovementComponent->OnForceDragReleaseEvent().AddWeakLambda(this, [this]
 	{
 		// The Movement component has initiated the break, so we *must not* instruct it to do anything else
@@ -131,13 +133,37 @@ void ATetherCharacter::PossessedBy(AController* NewController)
 }
 
 
+
+void ATetherCharacter::Suspend()
+{
+	MovementComponent->SetComponentTickEnabled(false);
+	SkeletalMeshComponent->bPauseAnims = true;
+}
+
+void ATetherCharacter::Unsuspend()
+{
+	MovementComponent->SetComponentTickEnabled(true);
+	SkeletalMeshComponent->bPauseAnims = false;
+}
+
+void ATetherCharacter::CacheInitialState()
+{
+	InitialState = FPupMovementComponentState(MovementComponent);
+}
+
+void ATetherCharacter::Reload()
+{
+	MovementComponent->ResetState(&InitialState);
+}
+
+
+
 void ATetherCharacter::Jump()
 {
 	if (MovementComponent->Jump())
 	{
 		OnJump();
 	}
-	
 }
 
 

@@ -2,9 +2,12 @@
 
 #include "TetherPrimaryGameState.h"
 
+#include "EngineUtils.h"
 #include "TetherPrimaryGameMode.h"
 #include "Net/UnrealNetwork.h"
 #include "Tether/Tether.h"
+#include "Tether/Character/TetherCharacter.h"
+#include "Tether/Core/Suspendable.h"
 
 void ATetherPrimaryGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
@@ -12,6 +15,7 @@ void ATetherPrimaryGameState::GetLifetimeReplicatedProps(TArray<FLifetimePropert
 
 	DOREPLIFETIME(ATetherPrimaryGameState, GamePhase);
 }
+
 
 void ATetherPrimaryGameState::SetGamePhase(ETetherGamePhase NewPhase)
 {
@@ -24,8 +28,34 @@ void ATetherPrimaryGameState::SetGamePhase(ETetherGamePhase NewPhase)
 
 		UE_LOG(LogTetherGame, Display, TEXT("Setting game phase to %s"),
 			*StaticEnum<ETetherGamePhase>()->GetValueAsString(GamePhase));
+
+		switch(NewPhase)
+		{
+			case ETetherGamePhase::Warmup:
+				{
+					SuspendActors();
+					
+					CacheActorsInitialState();
+					break;
+				}
+			case ETetherGamePhase::Playing:
+				{
+					UnsuspendActors();
+					break;
+				}
+			case ETetherGamePhase::Ending:
+				{
+					ReloadActors();
+					break;
+				}
+			default:
+				{
+					break;
+				}
+			}
 	}
 }
+
 
 void ATetherPrimaryGameState::SetGlobalHealth(float NewGlobalHealth)
 {
@@ -38,21 +68,30 @@ void ATetherPrimaryGameState::SetGlobalHealth(float NewGlobalHealth)
 	}
 	if (GlobalHealth <= 0.0f)
 	{
-		SetGamePhase(ETetherGamePhase::Ending);	
+		const UWorld* World = GetWorld();
+		if (World)
+		{
+			World->GetTimerManager().SetTimerForNextTick(
+				FTimerDelegate::CreateUObject(this, &ATetherPrimaryGameState::SetGamePhase, ETetherGamePhase::Ending));
+		}
 	}
 }
 
 
 float ATetherPrimaryGameState::SubtractGlobalHealth(const float DamageAmount)
 {
-	if (DamageAmount >= GlobalHealth)
+	if (GamePhase == ETetherGamePhase::Playing)
 	{
-		const float LastHealth = GlobalHealth;
-		SetGlobalHealth(0.0f);
-		return LastHealth;
+		if (DamageAmount >= GlobalHealth)
+		{
+			const float LastHealth = GlobalHealth;
+			SetGlobalHealth(0.0f);
+			return LastHealth;
+		}
+		SetGlobalHealth(GlobalHealth - DamageAmount);
+		return DamageAmount;
 	}
-	SetGlobalHealth(GlobalHealth - DamageAmount);
-	return DamageAmount;
+	return 0.0f;
 }
 
 
@@ -82,4 +121,65 @@ float ATetherPrimaryGameState::GetBaseObstacleSpeed() const
 void ATetherPrimaryGameState::OnRep_GlobalHealth()
 {
 	OnGlobalHealthChanged.Broadcast(GlobalHealth);
+}
+
+
+void ATetherPrimaryGameState::SuspendActors()
+{
+	if (UWorld* World = GetWorld())
+	{
+		for (FActorIterator ActorIterator(World); ActorIterator; ++ActorIterator)
+		{
+			if (ISuspendable* Actor = Cast<ISuspendable>(*ActorIterator))
+			{
+				if (ActorIterator->IsA(ATetherCharacter::StaticClass()))
+				{
+					continue;
+				}
+				Actor->Suspend();
+			}
+		}
+	}
+}
+
+void ATetherPrimaryGameState::UnsuspendActors()
+{
+	if (UWorld* World = GetWorld())
+	{
+		for (FActorIterator ActorIterator(World); ActorIterator; ++ActorIterator)
+		{
+			if (ISuspendable* Actor = Cast<ISuspendable>(*ActorIterator))
+			{
+				Actor->Unsuspend();
+			}
+		}
+	}
+}
+
+void ATetherPrimaryGameState::CacheActorsInitialState()
+{
+	if (UWorld* World = GetWorld())
+	{
+		for (FActorIterator ActorIterator(World); ActorIterator; ++ActorIterator)
+		{
+			if (ISuspendable* Actor = Cast<ISuspendable>(*ActorIterator))
+			{
+				Actor->CacheInitialState();
+			}
+		}
+	}
+}
+
+void ATetherPrimaryGameState::ReloadActors()
+{
+	if (UWorld* World = GetWorld())
+	{
+		for (FActorIterator ActorIterator(World); ActorIterator; ++ActorIterator)
+		{
+			if (ISuspendable* Actor = Cast<ISuspendable>(*ActorIterator))
+			{
+				Actor->Reload();
+			}
+		}
+	}
 }

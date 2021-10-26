@@ -7,6 +7,7 @@
 #include "MovementComponent/PupMovementComponent.h"
 #include "Components/SphereComponent.h"
 #include "GameFramework/Character.h"
+#include "Tether/Core/Suspendable.h"
 #include "Tether/Gameplay/Beam/BeamComponent.h"
 
 #include "TetherCharacter.generated.h"
@@ -18,7 +19,7 @@ class UTopDownCameraComponent;
 
 
 UCLASS(Blueprintable, HideCategories("Components"))
-class ATetherCharacter : public APawn, public IBeamTarget
+class ATetherCharacter : public APawn, public ISuspendable, public IBeamTarget
 {
 	GENERATED_BODY()
 
@@ -49,6 +50,11 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 	virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 	virtual void PossessedBy(AController* NewController) override;
+
+	virtual void Suspend() override;
+	virtual void Unsuspend() override;
+	virtual void CacheInitialState() override;
+	virtual void Reload() override;
 
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnPossessedDelegate, AController*)
 	FOnPossessedDelegate& OnPossessedDelegate() { return PossessedDelegate; }
@@ -227,4 +233,6 @@ private:
 
 
 	FOnPossessedDelegate PossessedDelegate;
+
+	FPupMovementComponentState InitialState;
 };

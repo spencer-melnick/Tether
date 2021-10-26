@@ -6,10 +6,12 @@
 #include "Tether/Character/TetherCharacter.h"
 #include "NiagaraFunctionLibrary.h"
 #include "TetherPrimaryGameState.h"
+#include "Kismet/GameplayStatics.h"
 #include "Tether/Tether.h"
 #include "Tether/Controller/TetherPlayerController.h"
 #include "Tether/Core/TetherUtils.h"
 #include "Tether/Gameplay/Beam/BeamController.h"
+#include "Tether/Core/Suspendable.h"
 
 ATetherPrimaryGameMode::ATetherPrimaryGameMode()
 {
@@ -33,7 +35,7 @@ void ATetherPrimaryGameMode::StartPlay()
 {
 	UWorld* World = GetWorld();
 	if (ensure(World))
-	{		
+	{
 		if (BeamControllerClass)
 		{
 			FActorSpawnParameters SpawnParameters;
@@ -52,6 +54,7 @@ void ATetherPrimaryGameMode::StartPlay()
 	Super::StartPlay();
 }
 
+
 void ATetherPrimaryGameMode::BeginPlay()
 {
 	Super::BeginPlay();
@@ -66,7 +69,7 @@ void ATetherPrimaryGameMode::BeginPlay()
 			TetherGameState->SetGamePhase(ETetherGamePhase::Warmup);
 		
 			FTimerHandle WarmupTimerHandle;
-			World->GetTimerManager().SetTimer(WarmupTimerHandle, FTimerDelegate::CreateWeakLambda(TetherGameState, [TetherGameState]()
+			World->GetTimerManager().SetTimer(WarmupTimerHandle, FTimerDelegate::CreateWeakLambda(TetherGameState, [this, TetherGameState]()
 			{
 				TetherGameState->SetGamePhase(ETetherGamePhase::Playing);
 			}), WarmupTime, false);

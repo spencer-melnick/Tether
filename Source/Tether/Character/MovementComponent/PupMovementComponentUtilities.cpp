@@ -5,6 +5,7 @@
 #include "../TetherCharacter.h"
 #include "Components/CapsuleComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "Tether/Tether.h"
 
 
 // Utilities
@@ -260,6 +261,32 @@ void UPupMovementComponent::HandleExternalOverlaps(const float DeltaTime)
 	}
 }
 
+void UPupMovementComponent::ResetState(FPupMovementComponentState* State)
+{
+	BasisRelativeVelocity = FVector::ZeroVector;
+	BasisPositionLastTick = FVector::ZeroVector;
+	BasisRotationLastTick = FRotator::ZeroRotator;
+
+	ConsumeAdjustments();
+	ConsumeImpulse();
+	
+	if (State)
+	{
+		SetMovementMode(State->GetMovementMode());
+		UpdatedComponent->SetWorldTransform(State->GetTransform());
+		Velocity = State->GetVelocity();
+	}
+	GetWorld()->GetTimerManager().ClearTimer(RecoveryTimerHandle);
+
+	const float TimerRemaining = GetWorld()->GetTimerManager().GetTimerRemaining(RecoveryTimerHandle);
+	const bool bIsPaused = GetWorld()->GetTimerManager().IsTimerPaused(RecoveryTimerHandle);
+	UE_LOG(LogTetherGame, Display, TEXT("Time left until recovery: %f. Timer paused? %s"), &TimerRemaining, bIsPaused ? TEXT("true") : TEXT("false"));
+	bAttachedToBasis = false;
+	BasisComponent = nullptr;
+	
+	DesiredRotation = UpdatedComponent->GetComponentRotation();
+}
+
 
 bool UPupMovementComponent::MatchModes(const EPupMovementMode& Subject, std::initializer_list<EPupMovementMode> CheckModes)
 {
@@ -288,3 +315,15 @@ FVector UPupMovementComponent::GetLocationRelativeToComponent(const FVector& Wor
 		FVector::DotProduct(Distance, Component->GetRightVector()),
 		FVector::DotProduct(Distance, Component->GetUpVector()));
 }
+
+
+
+
+FPupMovementComponentState::FPupMovementComponentState()
+	:MovementMode(EPupMovementMode::M_None), Transform(FTransform::Identity), Velocity(FVector::ZeroVector)
+{}
+
+
+FPupMovementComponentState::FPupMovementComponentState(const UPupMovementComponent* Src)
+	:MovementMode(Src->GetMovementMode()), Transform(Src->UpdatedComponent->GetComponentTransform()), Velocity(Src->Velocity)
+{}

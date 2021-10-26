@@ -337,7 +337,7 @@ void UPupMovementComponent::Recover()
 
 	if (AActor* Actor = UpdatedComponent->GetOwner())
 	{
-		const float FallDamage = 20.0f;
+		const float FallDamage = 50.0f;
 		const FDamageEvent DamageEvent;
 		Actor->TakeDamage(FallDamage, DamageEvent, Actor->GetInstigatorController(), Actor);
 	}
@@ -347,7 +347,6 @@ void UPupMovementComponent::Recover()
 	const FVector RecoveryLocation = LastValidLocation + (RecoveryLevitationHeight * UpdatedComponent->GetUpVector());
 	const float GravityDelta = GetGravityZ() * RecoveryTime;
 	FVector RecoveryVelocity = (RecoveryLocation - UpdatedComponent->GetComponentLocation()) / RecoveryTime;
-	RecoveryVelocity -= (GravityDelta / 2) * UpdatedComponent->GetUpVector();
 	Velocity = RecoveryVelocity;
 	if (UWorld* World = GetWorld())
 	{

@@ -33,7 +33,6 @@ public:
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
-
 	// Tether functions
 
 	/**
@@ -80,6 +79,12 @@ public:
 
 private:
 
+	void SuspendActors();
+	void UnsuspendActors();
+
+	void CacheActorsInitialState();
+	void ReloadActors();
+	
 	// Replication functions
 
 	UFUNCTION()

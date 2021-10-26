@@ -20,6 +20,8 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void SetVelocity(const FVector& InVelocity);
 	void SetVelocity(const float& InVelocity);
+
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	
 protected:
 	virtual void BeginPlay() override;

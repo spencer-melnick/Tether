@@ -3,6 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
+#include "Tether/Core/Suspendable.h"
+
 #include "ObstacleSpawner.generated.h"
 
 
@@ -10,7 +13,7 @@ class UArrowComponent;
 class AMovingObstacle;
 
 UCLASS()
-class AObstacleSpawner : public AActor
+class AObstacleSpawner : public AActor, public ISuspendable
 {
 	GENERATED_BODY()
 
@@ -23,8 +26,14 @@ public:
 	virtual void BeginPlay() override;
 
 
-	// Editor properties
+	virtual void Suspend() override;
+	virtual void Unsuspend() override;
 
+	virtual void CacheInitialState() override;
+	virtual void Reload() override;
+	
+	
+	// Editor properties
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spawning")
 	FFloatRange SpawnDelay;
 
@@ -35,10 +44,12 @@ private:
 
 	void SpawnRandomObstacle();
 
-
 	FTimerHandle ObstacleTimerHandle;
 
 	UPROPERTY()
 	UArrowComponent* ArrowComponent;
+
+	UPROPERTY()
+	TArray<AActor*> Obstacles;
 	
 };

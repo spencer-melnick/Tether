@@ -33,6 +33,10 @@ void ULinearMovementComponent::Move(const float DeltaTime)
 {
 	AActor* Parent = GetOwner();
 	UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Parent->GetComponentByClass(UPrimitiveComponent::StaticClass()));
+	if (!PrimitiveComponent)
+	{
+		return;
+	}
 	const FVector NewLocation = PrimitiveComponent->GetComponentLocation() + Direction.RotateVector(Velocity) * DeltaTime;
 	TArray<FHitResult> Results;
 
@@ -68,6 +72,20 @@ void ULinearMovementComponent::SetVelocity(const FVector& InVelocity)
 void ULinearMovementComponent::SetVelocity(const float& InVelocity)
 {
 	Velocity = FVector(InVelocity, 0, 0);
+}
+
+void ULinearMovementComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_STRING_CHECKED(ULinearMovementComponent, Velocity))
+	{
+		AActor* Parent = GetOwner();
+		UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Parent->GetComponentByClass(UPrimitiveComponent::StaticClass()));
+		if (PrimitiveComponent)
+		{
+			PrimitiveComponent->ComponentVelocity = Velocity;
+		}
+	}
+	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 
 

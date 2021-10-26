@@ -50,6 +50,10 @@ UPupMovementComponent::UPupMovementComponent()
 	DrawDebugLayers.Add(TEXT("MantleHitResults"), false);
 }
 
+UPupMovementComponent::UPupMovementComponent(const FObjectInitializer& ObjectInitializer)
+{
+}
+
 
 void UPupMovementComponent::BeginPlay()
 {
@@ -597,7 +601,7 @@ FVector UPupMovementComponent::GetNewVelocity(const float DeltaTime)
 		}
 	case EPupMovementMode::M_Recover:
 		{
-			return Velocity + (GetGravityZ() * DeltaTime * UpdatedComponent->GetUpVector());
+			return Velocity;
 		}
 	case EPupMovementMode::M_Dragging:
 		{

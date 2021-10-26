@@ -12,6 +12,7 @@
  * 
  */
 
+struct FPupMovementComponentState;
 UENUM(BlueprintType)
 enum class EPupMovementMode : uint8
 {
@@ -32,7 +33,7 @@ class TETHER_API UPupMovementComponent : public UPawnMovementComponent
 
 public:
 	UPupMovementComponent();
-
+	UPupMovementComponent(const FObjectInitializer& ObjectInitializer);
 	
 	// Overrides
 	virtual  void BeginPlay() override;
@@ -138,6 +139,8 @@ public:
 	/** Moves the character to the floor, but does not update velocity */
 	void SnapToFloor(const FHitResult& FloorHit);
 
+	void ResetState(FPupMovementComponentState* State);
+	
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FMovementModeChanged, EPupMovementMode, OldMovementMode, EPupMovementMode, NewMovementMode);
 	FMovementModeChanged& OnMovementModeChanged(EPupMovementMode, EPupMovementMode) { return MovementModeChanged; }
 
@@ -626,7 +629,7 @@ public:
 	
 private:
 
-	UPROPERTY(EditInstanceOnly)
+	UPROPERTY(EditDefaultsOnly, Category = "Speed")
 	EPupMovementMode MovementMode = EPupMovementMode::M_Falling;	
 
 	bool bSupressingInput = false;
@@ -706,4 +709,22 @@ private:
 	FMantleEvent MantleEvent;
 
 	FForceDragReleaseEvent ForceDragReleaseEvent;
+};
+
+USTRUCT()
+struct FPupMovementComponentState
+{
+	GENERATED_BODY()
+
+	FPupMovementComponentState();
+	FPupMovementComponentState(const UPupMovementComponent* Src);
+
+	EPupMovementMode GetMovementMode() const { return MovementMode; }
+	FTransform GetTransform() const { return Transform; }
+	FVector GetVelocity() const { return Velocity; }
+
+private:
+	EPupMovementMode MovementMode;
+	FTransform Transform;
+	FVector Velocity;
 };
