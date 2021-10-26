@@ -27,7 +27,7 @@ protected:
 	virtual void BeginPlay() override;
 
 private:
-	void Move(const float DeltaTime);
+	void Move(const float DeltaTime) const;
 
 public:	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Movement")

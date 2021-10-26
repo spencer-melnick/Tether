@@ -102,7 +102,6 @@ float ATetherPrimaryGameState::GetTimeInCurrentPhase() const
 	{
 		return World->GetTimeSeconds() - PhaseStartTime;
 	}
-
 	return 0.f;
 }
 
@@ -132,6 +131,7 @@ void ATetherPrimaryGameState::SuspendActors()
 		{
 			if (ISuspendable* Actor = Cast<ISuspendable>(*ActorIterator))
 			{
+				// Don't pause the player character
 				if (ActorIterator->IsA(ATetherCharacter::StaticClass()))
 				{
 					continue;

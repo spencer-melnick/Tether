@@ -3,6 +3,8 @@
 
 #include "FollowerMovementComponent.h"
 
+#include "Tether/Character/TetherCharacter.h"
+
 void UFollowerMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType,
                                                FActorComponentTickFunction* ThisTickFunction)
 {
@@ -21,10 +23,18 @@ void UFollowerMovementComponent::TickComponent(float DeltaTime, ELevelTick TickT
 		UpdateComponentVelocity();
 		const FVector Movement = Velocity * DeltaTime;
 
-		if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(UpdatedComponent))
+		if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(GetOwner()->GetComponentByClass(UPrimitiveComponent::StaticClass())))
 		{
 			TArray<FHitResult> HitResults;
 			GetWorld()->SweepMultiByProfile(HitResults, Location, Location + Movement, NewRotation.Quaternion(), PrimitiveComponent->GetCollisionProfileName(), PrimitiveComponent->GetCollisionShape());
+			for (FHitResult HitResult : HitResults)
+			{
+				PrimitiveComponent->DispatchBlockingHit(*GetOwner(), HitResult);
+				/* if (ATetherCharacter* Character = Cast<ATetherCharacter>(HitResult.GetActor()))
+				{
+					Character->DeflectSimple(HitResult.Normal * -500.0f, 1.0f);
+				} */
+			}
 		}
 		UpdatedComponent->AddWorldOffset(Movement);
 	}

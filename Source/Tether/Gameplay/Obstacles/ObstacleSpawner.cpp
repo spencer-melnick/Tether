@@ -25,7 +25,7 @@ void AObstacleSpawner::BeginPlay()
 			// Always be the shortest spawn time for the first obstacle
 			World->GetTimerManager().SetTimer(ObstacleTimerHandle,
 			this, &AObstacleSpawner::SpawnRandomObstacle,
-			SpawnDelay.GetLowerBoundValue());
+			0.01f);
 		}
 	}
 }
@@ -75,7 +75,8 @@ void AObstacleSpawner::SpawnRandomObstacle()
 		const TSubclassOf<AActor> ObstacleType = ObstacleTypes[ObstacleTypeIndex];
 
 		AActor* Obstacle = World->SpawnActor<AActor>(ObstacleType, GetActorLocation(), GetActorRotation());
-		Obstacle->SetLifeSpan(10.0f);
+		Obstacle->SetLifeSpan(50.0f);
+		Obstacle->Tags.Add(TEXT("Obstacle"));
 		Obstacles.Add(Obstacle);
 		
 		World->GetTimerManager().SetTimer(ObstacleTimerHandle,

@@ -3,7 +3,6 @@
 
 #include "LinearMovementComponent.h"
 
-#include "Tether/Tether.h"
 #include "Tether/Character/TetherCharacter.h"
 
 // Sets default values for this component's properties
@@ -29,29 +28,36 @@ void ULinearMovementComponent::BeginPlay()
 	PrimitiveComponent->ComponentVelocity = Velocity;	
 }
 
-void ULinearMovementComponent::Move(const float DeltaTime)
+void ULinearMovementComponent::Move(const float DeltaTime) const
 {
 	AActor* Parent = GetOwner();
+	if (!Parent)
+	{
+		return;
+	}
 	UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Parent->GetComponentByClass(UPrimitiveComponent::StaticClass()));
 	if (!PrimitiveComponent)
 	{
 		return;
 	}
-	const FVector NewLocation = PrimitiveComponent->GetComponentLocation() + Direction.RotateVector(Velocity) * DeltaTime;
-	TArray<FHitResult> Results;
-
-	const bool bBlockingHitFound = GetWorld()->SweepMultiByProfile(Results, PrimitiveComponent->GetComponentLocation(), NewLocation, PrimitiveComponent->GetComponentQuat(), PrimitiveComponent->GetCollisionProfileName(), PrimitiveComponent->GetCollisionShape());
-	if (bBlockingHitFound)
+	if (UWorld* World = GetWorld())
 	{
-		for (FHitResult HitResult : Results)
+		const FVector NewLocation = PrimitiveComponent->GetComponentLocation() + Direction.RotateVector(Velocity) * DeltaTime;
+		TArray<FHitResult> Results;
+
+		const bool bBlockingHitFound = World->SweepMultiByProfile(Results, PrimitiveComponent->GetComponentLocation(), NewLocation, PrimitiveComponent->GetComponentQuat(), PrimitiveComponent->GetCollisionProfileName(), PrimitiveComponent->GetCollisionShape());
+		if (bBlockingHitFound)
 		{
-			if (ATetherCharacter* Character = Cast<ATetherCharacter>(HitResult.GetActor()))
+			for (FHitResult HitResult : Results)
 			{
-				Character->MovementComponent->Push(HitResult, PrimitiveComponent->GetComponentRotation().RotateVector(Velocity), PrimitiveComponent);
+				if (ATetherCharacter* Character = Cast<ATetherCharacter>(HitResult.GetActor()))
+				{
+					Character->MovementComponent->Push(HitResult, PrimitiveComponent->GetComponentRotation().RotateVector(Velocity), PrimitiveComponent);
+				}
 			}
 		}
+		Parent->SetActorLocation(NewLocation, false);
 	}
-	Parent->SetActorLocation(NewLocation, false);
 }
 
 
