@@ -140,6 +140,10 @@ public:
 	void SnapToFloor(const FHitResult& FloorHit);
 
 	void ResetState(FPupMovementComponentState* State);
+
+	void PauseTimers();
+
+	void UnPauseTimers();
 	
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FMovementModeChanged, EPupMovementMode, OldMovementMode, EPupMovementMode, NewMovementMode);
 	FMovementModeChanged& OnMovementModeChanged(EPupMovementMode, EPupMovementMode) { return MovementModeChanged; }
@@ -608,9 +612,6 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Dragging")
 	FVector DraggingFaceNormal;
-
-
-
 
 
 	

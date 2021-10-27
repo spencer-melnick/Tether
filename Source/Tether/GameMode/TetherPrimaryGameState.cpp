@@ -19,7 +19,7 @@ void ATetherPrimaryGameState::GetLifetimeReplicatedProps(TArray<FLifetimePropert
 
 void ATetherPrimaryGameState::SetGamePhase(ETetherGamePhase NewPhase)
 {
-	const UWorld* World = GetWorld();
+	UWorld* World = GetWorld();
 	if (ensureAlways(World))
 	{
 		PhaseStartTime = World->GetTimeSeconds();
@@ -33,7 +33,18 @@ void ATetherPrimaryGameState::SetGamePhase(ETetherGamePhase NewPhase)
 		{
 			case ETetherGamePhase::Warmup:
 				{
-					SuspendActors();
+					for (FActorIterator ActorIterator(World); ActorIterator; ++ActorIterator)
+					{
+						if (ISuspendable* Actor = Cast<ISuspendable>(*ActorIterator))
+						{
+							// Don't pause the player character
+							if (ActorIterator->IsA(ATetherCharacter::StaticClass()))
+							{
+								continue;
+							}
+							Actor->Suspend();
+						}
+					}
 					
 					CacheActorsInitialState();
 					break;
@@ -45,7 +56,14 @@ void ATetherPrimaryGameState::SetGamePhase(ETetherGamePhase NewPhase)
 				}
 			case ETetherGamePhase::Ending:
 				{
-					ReloadActors();
+					SuspendActors();
+					FTimerHandle ResetTimerHandle;
+					GetWorld()->GetTimerManager().SetTimer(ResetTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
+					{
+						SetGlobalHealth(100.0f);
+						ReloadActors();
+						SetGamePhase(ETetherGamePhase::Playing);						
+					}), 10.0f, false);
 					break;
 				}
 			default:
@@ -131,11 +149,6 @@ void ATetherPrimaryGameState::SuspendActors()
 		{
 			if (ISuspendable* Actor = Cast<ISuspendable>(*ActorIterator))
 			{
-				// Don't pause the player character
-				if (ActorIterator->IsA(ATetherCharacter::StaticClass()))
-				{
-					continue;
-				}
 				Actor->Suspend();
 			}
 		}

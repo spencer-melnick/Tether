@@ -569,6 +569,10 @@ FVector UPupMovementComponent::GetNewVelocity(const float DeltaTime)
 		}
 	case EPupMovementMode::M_Anchored:
 		{
+			if (!IsValid(BasisComponent))
+			{
+				BreakAnchor(false);
+			}
 			FVector NewVelocity = FVector::ZeroVector;
 			const FVector DistanceFromDesiredLocation = DesiredAnchorLocation - UpdatedComponent->GetComponentLocation();
 			const FVector DirectionToDesiredLocation = DistanceFromDesiredLocation.GetSafeNormal();

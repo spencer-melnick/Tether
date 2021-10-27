@@ -31,6 +31,8 @@ public:
 
 	void RecordScreenSize(AController* Controller);
 
+	void ResetLocation();
+
 private:
 
 	FVector CalcDeltaLocation(const float DeltaTime);

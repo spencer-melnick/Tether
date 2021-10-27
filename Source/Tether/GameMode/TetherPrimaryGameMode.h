@@ -39,7 +39,10 @@ public:
 	// Editor properties
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Timing", meta=(ClampMin="0.0"))
-	float WarmupTime = 10.f;
+	float WarmupTime = 10.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Timing", meta=(ClampMin="0.0"))
+	float EndingTime = 10.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Timing")
 	float ObstacleSpeedMultiplier = 100.f;

@@ -263,6 +263,11 @@ void UPupMovementComponent::HandleExternalOverlaps(const float DeltaTime)
 
 void UPupMovementComponent::ResetState(FPupMovementComponentState* State)
 {
+	if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(UpdatedComponent))
+	{
+		PrimitiveComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	}
+	
 	BasisRelativeVelocity = FVector::ZeroVector;
 	BasisPositionLastTick = FVector::ZeroVector;
 	BasisRotationLastTick = FRotator::ZeroRotator;
@@ -285,6 +290,32 @@ void UPupMovementComponent::ResetState(FPupMovementComponentState* State)
 	BasisComponent = nullptr;
 	
 	DesiredRotation = UpdatedComponent->GetComponentRotation();
+}
+
+
+void UPupMovementComponent::PauseTimers()
+{
+	if (UWorld* World = GetWorld())
+	{
+		FTimerManager& TimerManager = World->GetTimerManager();
+		if (TimerManager.TimerExists(RecoveryTimerHandle) && TimerManager.IsTimerActive(RecoveryTimerHandle))
+		{
+			TimerManager.PauseTimer(RecoveryTimerHandle);
+		}
+	}
+}
+
+
+void UPupMovementComponent::UnPauseTimers()
+{
+	if (UWorld* World = GetWorld())
+	{
+		FTimerManager& TimerManager = World->GetTimerManager();
+		if (TimerManager.TimerExists(RecoveryTimerHandle))
+		{
+			TimerManager.UnPauseTimer(RecoveryTimerHandle);
+		}
+	}
 }
 
 

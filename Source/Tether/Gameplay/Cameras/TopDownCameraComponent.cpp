@@ -18,33 +18,26 @@ void UTopDownCameraComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
+	const FRotator InitialRotation = GetComponentRotation();
 	InitialFOV = FieldOfView;
-
-	const FVector StartingLocation = GetComponentLocation();
-	const FRotator StartingRotation = GetComponentRotation();
 	
 	SetUsingAbsoluteLocation(true);
 	SetUsingAbsoluteRotation(true);
 
-	SetWorldLocation(StartingLocation);
-	SetWorldRotation(StartingRotation);
 
 	RecordScreenSize(GetOwner()->GetInstigatorController());
 
 	if (ATetherCharacter* TetherCharacter = Cast<ATetherCharacter>(GetOwner()))
 	{
 		Subject = TetherCharacter;
-		// AddWorldRotation(Subject->GetActorRotation());
 		
 		TetherCharacter->OnPossessedDelegate().AddWeakLambda(this, [this](AController* Controller)
 		{
 			RecordScreenSize(Controller);
 		});
 	}
-
-	SubjectDistance = CalcDeltaZoom(0.0f);
-	RotationalVelocity = CalcDeltaRotation(0.0f);
-	SetWorldLocation(CalcDeltaLocation(0.0f));
+	SetWorldRotation(InitialRotation);
+	ResetLocation();
 }
 
 
@@ -174,4 +167,20 @@ void UTopDownCameraComponent::RecordScreenSize(AController* Controller)
 		}
 		ScreenSize = FVector2D(ScreenSizeX, ScreenSizeY);
 	}
+}
+
+
+void UTopDownCameraComponent::ResetLocation()
+{
+	if (!Subject)
+	{
+		return;
+	}
+	SubjectLocation = Subject->GetActorLocation() + Subject->EyeHeight * FVector::UpVector;
+	DesiredFocalPoint = SubjectLocation + (Subject->GetVelocity() * TrackAnticipationTime).GetClampedToMaxSize(MaxAnticipation);
+	FocalPoint = DesiredFocalPoint;
+
+	DesiredSubjectDistance = SubjectDistance;
+	
+	SetWorldLocation(DesiredFocalPoint + DesiredSubjectDistance * -GetForwardVector());
 }

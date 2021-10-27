@@ -3,11 +3,13 @@
 #include "TetherCharacter.h"
 
 #include "DrawDebugHelpers.h"
+#include "EngineUtils.h"
 #include "MovementComponent/PupMovementComponent.h"
 #include "Algo/Transform.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/PlayerState.h"
 #include "Tether/Tether.h"
 #include "Tether/GameMode/TetherPrimaryGameMode.h"
 #include "Tether/GameMode/TetherPrimaryGameState.h"
@@ -110,6 +112,22 @@ void ATetherCharacter::Tick(float DeltaSeconds)
 			MovementComponent->AddRootMotionTransform(WorldSpaceRootMotionTransform);
 		}
 	}
+	for (FActorIterator ActorIterator(GetWorld()); ActorIterator; ++ActorIterator)
+	{
+		// TODO: not search all of these obviously!
+		if (ATetherCharacter* Character = Cast<ATetherCharacter>(*ActorIterator))
+		{
+			if (Character == this)
+			{
+				continue;
+			}
+			const FVector Dist = Character->GetActorLocation() - GetActorLocation();
+			if (Dist.Size() <= 100.0f)
+			{
+				DeflectSimple(Dist.GetSafeNormal() * -500.0f, 2.0f);
+			}
+		}
+	}
 }
 
 
@@ -137,12 +155,14 @@ void ATetherCharacter::PossessedBy(AController* NewController)
 void ATetherCharacter::Suspend()
 {
 	MovementComponent->SetComponentTickEnabled(false);
+	MovementComponent->PauseTimers();
 	SkeletalMeshComponent->bPauseAnims = true;
 }
 
 void ATetherCharacter::Unsuspend()
 {
 	MovementComponent->SetComponentTickEnabled(true);
+	MovementComponent->UnPauseTimers();
 	SkeletalMeshComponent->bPauseAnims = false;
 }
 
@@ -154,6 +174,7 @@ void ATetherCharacter::CacheInitialState()
 void ATetherCharacter::Reload()
 {
 	MovementComponent->ResetState(&InitialState);
+	CameraComponent->ResetLocation();
 }
 
 

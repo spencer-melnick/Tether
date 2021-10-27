@@ -37,6 +37,17 @@ void AObstacleSpawner::Suspend()
 	{
 		World->GetTimerManager().PauseTimer(ObstacleTimerHandle);
 	}
+	for (AActor* Obstacle : Obstacles)
+	{
+		if (!Obstacle)
+		{
+			continue;
+		}
+		for (UActorComponent* ActorComponent : Obstacle->GetComponents())
+		{
+			ActorComponent->SetComponentTickEnabled(false);
+		}
+	}
 }
 
 void AObstacleSpawner::Unsuspend()
@@ -44,6 +55,17 @@ void AObstacleSpawner::Unsuspend()
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().UnPauseTimer(ObstacleTimerHandle);
+	}
+	for (AActor* Obstacle : Obstacles)
+	{
+		if (!Obstacle)
+		{
+			continue;
+		}
+		for (UActorComponent* ActorComponent : Obstacle->GetComponents())
+		{
+			ActorComponent->SetComponentTickEnabled(true);
+		}
 	}
 }
 
