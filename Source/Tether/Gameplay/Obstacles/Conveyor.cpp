@@ -3,25 +3,46 @@
 
 #include "Conveyor.h"
 
-// Sets default values
-AConveyor::AConveyor()
-{
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = true;
 
+UConveyorComponent::UConveyorComponent()
+{
+#if WITH_EDITOR
+	ArrowComponent = CreateEditorOnlyDefaultSubobject<UArrowComponent>(TEXT("Direction"));
+	ArrowComponent->SetupAttachment(this);
+	ArrowComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	ArrowComponent->SetRelativeRotation(BeltVelocity.ToOrientationQuat());
+	ArrowComponent->ArrowLength = BeltVelocity.Size();
+#endif
+}
+
+void UConveyorComponent::OnUpdateTransform(EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport)
+{
+	Super::OnUpdateTransform(UpdateTransformFlags, Teleport);
+}
+
+void UConveyorComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+#if WITH_EDITOR
+	const FName PropertyName = PropertyChangedEvent.MemberProperty ? PropertyChangedEvent.MemberProperty->GetFName() : NAME_None;
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UConveyorComponent, BeltVelocity))
+	{
+		ArrowComponent->SetRelativeRotation(BeltVelocity.ToOrientationQuat());
+		ArrowComponent->ArrowLength = BeltVelocity.Size();
+	}
+#endif
+	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 
 // Called when the game starts or when spawned
-void AConveyor::BeginPlay()
+void UConveyorComponent::BeginPlay()
 {
 	Super::BeginPlay();
 	
 }
 
-// Called every frame
-void AConveyor::Tick(float DeltaTime)
+FVector UConveyorComponent::GetAppliedVelocity() const
 {
-	Super::Tick(DeltaTime);
-
+	return GetComponentRotation().RotateVector(BeltVelocity);
 }
 

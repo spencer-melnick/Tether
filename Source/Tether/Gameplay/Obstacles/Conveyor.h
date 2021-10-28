@@ -3,23 +3,32 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Actor.h"
+
+#include "Components/ArrowComponent.h"
+#include "Components/BoxComponent.h"
 #include "Conveyor.generated.h"
 
-UCLASS()
-class TETHER_API AConveyor : public AActor
+UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
+class TETHER_API UConveyorComponent : public UBoxComponent
 {
 	GENERATED_BODY()
 	
-public:	
-	// Sets default values for this actor's properties
-	AConveyor();
+public:
+	UConveyorComponent();
 
+	virtual void OnUpdateTransform(EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport) override;
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void BeginPlay() override;
 
-	virtual void Tick(float DeltaTime) override;
+	FVector GetAppliedVelocity() const;
 
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	FVector BeltVelocity = FVector::ZeroVector;
+private:
+	UPROPERTY(EditAnywhere)
+	FVector BeltVelocity;
+
+#if WITH_EDITOR
+	UPROPERTY()
+	UArrowComponent* ArrowComponent;
+#endif
 };

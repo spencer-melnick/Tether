@@ -8,6 +8,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Tether/Tether.h"
+#include "Tether/Gameplay/Obstacles/Conveyor.h"
 
 
 namespace PupMovementCVars
@@ -688,6 +689,11 @@ void UPupMovementComponent::MagnetToBasis(const float VelocityFactor, const floa
 				}
 			}
 			BasisRelativeVelocity /= DeltaTime;
+		}
+		if (UConveyorComponent* Conveyor = Cast<UConveyorComponent>(BasisComponent))
+		{
+			UpdatedComponent->AddWorldOffset(Conveyor->GetAppliedVelocity() * DeltaTime);
+			BasisRelativeVelocity += Conveyor->GetAppliedVelocity();
 		}
 		DesiredRotation.Yaw = DesiredRotation.Yaw + DeltaYaw;
 		FRotator NewRotation = UpdatedComponent->GetComponentRotation();
