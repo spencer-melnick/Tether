@@ -9,8 +9,7 @@
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "GameFramework/PlayerState.h"
-#include "Tether/Tether.h"
+#include "Kismet/GameplayStatics.h"
 #include "Tether/GameMode/TetherPrimaryGameMode.h"
 #include "Tether/GameMode/TetherPrimaryGameState.h"
 #include "Tether/Gameplay/Cameras/TopDownCameraComponent.h"
@@ -112,15 +111,10 @@ void ATetherCharacter::Tick(float DeltaSeconds)
 			MovementComponent->AddRootMotionTransform(WorldSpaceRootMotionTransform);
 		}
 	}
-	for (FActorIterator ActorIterator(GetWorld()); ActorIterator; ++ActorIterator)
+	if (ATetherPrimaryGameState* State = Cast<ATetherPrimaryGameState>(GetWorld()->GetGameState()))
 	{
-		// TODO: not search all of these obviously!
-		if (ATetherCharacter* Character = Cast<ATetherCharacter>(*ActorIterator))
+		if (ATetherCharacter* Character = Cast<ATetherCharacter>(State->GetClosestCharacterPawn(GetActorLocation(), this)))
 		{
-			if (Character == this)
-			{
-				continue;
-			}
 			const FVector Dist = Character->GetActorLocation() - GetActorLocation();
 			if (Dist.Size() <= 100.0f)
 			{
@@ -380,7 +374,7 @@ void ATetherCharacter::Deflect(
 
 	// Limit velocity by the max launch speed and then launch
 	// const FVector FinalVelocity = BounceVelocity.GetClampedToSize(0.f, MaxLaunchSpeed);
-	FVector FinalVelocity = ClampedVelocity;
+	const FVector FinalVelocity = ClampedVelocity;
 
 	#if WITH_EDITOR
 	if (GEngine->GameViewport && GEngine->GameViewport->EngineShowFlags.Collision)
@@ -408,6 +402,18 @@ void ATetherCharacter::SetSnapFactor(const float Factor)
 	{
 		SnapFactor = Factor;
 	}
+}
+
+void ATetherCharacter::StartRecovery()
+{
+	const FDamageEvent DamageEvent;
+	TakeDamage(20.0f, DamageEvent, GetController(), this);
+	BeamComponent->SetMode(EBeamComponentMode::None);
+}
+
+void ATetherCharacter::EndRecovery()
+{
+	BeamComponent->SetMode(EBeamComponentMode::Required | EBeamComponentMode::Connectable);
 }
 
 

@@ -332,15 +332,14 @@ void UPupMovementComponent::Fall()
 
 void UPupMovementComponent::Recover()
 {
+	if (ATetherCharacter* TetherCharacter = Cast<ATetherCharacter>(GetOwner()))
+	{
+		TetherCharacter->StartRecovery();
+	}
+	
 	SetMovementMode(EPupMovementMode::M_Recover);
 	ClearImpulse();
 
-	if (AActor* Actor = UpdatedComponent->GetOwner())
-	{
-		const float FallDamage = 20.0f;
-		const FDamageEvent DamageEvent;
-		Actor->TakeDamage(FallDamage, DamageEvent, Actor->GetInstigatorController(), Actor);
-	}
 	if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(UpdatedComponent))
 	{
 		PrimitiveComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -365,6 +364,10 @@ void UPupMovementComponent::Recover()
 
 void UPupMovementComponent::EndRecovery()
 {
+	if (ATetherCharacter* TetherCharacter = Cast<ATetherCharacter>(GetOwner()))
+	{
+		TetherCharacter->EndRecovery();
+	}
 	if (MovementMode == EPupMovementMode::M_Recover)
 	{
 		if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(UpdatedComponent))

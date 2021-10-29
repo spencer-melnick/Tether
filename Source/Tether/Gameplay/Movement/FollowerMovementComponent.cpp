@@ -8,7 +8,7 @@
 void UFollowerMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType,
                                                FActorComponentTickFunction* ThisTickFunction)
 {
-	if (Target.IsValid())
+	if (Target.IsValid() && IsValid(UpdatedComponent))
 	{
 		const FVector TargetLocation = Target->GetActorLocation();
 		const FVector Location = UpdatedComponent->GetComponentLocation();

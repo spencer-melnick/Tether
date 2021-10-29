@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameStateBase.h"
+#include "Tether/Character/TetherCharacter.h"
+
 #include "TetherPrimaryGameState.generated.h"
 
 
@@ -66,7 +68,13 @@ public:
 
 	UFUNCTION(BlueprintPure)
 	float GetBaseObstacleSpeed() const;
-	
+
+	TArray<TWeakObjectPtr<APawn>> GetCharacterPawns() const;
+
+	UFUNCTION(BlueprintPure)
+	APawn* GetClosestCharacterPawn(const FVector& Location);
+	APawn* GetClosestCharacterPawn(const FVector& Location, APawn* IgnorePawn);
+
 
 	// Delegates
 
@@ -91,6 +99,9 @@ private:
 	void OnRep_GlobalHealth();
 
 
+	UPROPERTY(VisibleInstanceOnly)
+	TArray<TWeakObjectPtr<APawn>> CharacterPawns;
+	
 	// Replicated properties
 
 	/** Current game phase */

@@ -38,8 +38,10 @@ void ATetherPrimaryGameState::SetGamePhase(ETetherGamePhase NewPhase)
 						if (ISuspendable* Actor = Cast<ISuspendable>(*ActorIterator))
 						{
 							// Don't pause the player character
-							if (ActorIterator->IsA(ATetherCharacter::StaticClass()))
+							if (APawn* Character = Cast<APawn>(Actor))
 							{
+								// TODO: update this array appropriately
+								CharacterPawns.Add(Character);
 								continue;
 							}
 							Actor->Suspend();
@@ -134,6 +136,55 @@ float ATetherPrimaryGameState::GetBaseObstacleSpeed() const
 
 	return 0.f;
 }
+
+
+TArray<TWeakObjectPtr<APawn>> ATetherPrimaryGameState::GetCharacterPawns() const
+{
+	return CharacterPawns;
+}
+
+
+APawn* ATetherPrimaryGameState::GetClosestCharacterPawn(const FVector& Location)
+{
+	float MinDistance = -1.0f;
+	APawn* Result = nullptr;
+	for (TWeakObjectPtr<APawn> Character : CharacterPawns)
+	{
+		if (!Character.IsValid())
+		{
+			continue;
+		}
+		const float Distance = FVector::DistSquared(Location, Character->GetActorLocation()); 
+		if (Distance < MinDistance || MinDistance < 0.0f)
+		{
+			MinDistance = Distance;
+			Result = Character.Get();
+		}
+	}
+	return Result;
+}
+
+
+APawn* ATetherPrimaryGameState::GetClosestCharacterPawn(const FVector& Location, APawn* IgnorePawn)
+{
+	float MinDistance = -1.0f;
+	APawn* Result = nullptr;
+	for (TWeakObjectPtr<APawn> Character : CharacterPawns)
+	{
+		if (!Character.IsValid() || Character == IgnorePawn)
+		{
+			continue;
+		}
+		const float Distance = FVector::DistSquared(Location, Character->GetActorLocation()); 
+		if (Distance < MinDistance || MinDistance < 0.0f)
+		{
+			MinDistance = Distance;
+			Result = Character.Get();
+		}
+	}
+	return Result;
+}
+
 
 void ATetherPrimaryGameState::OnRep_GlobalHealth()
 {

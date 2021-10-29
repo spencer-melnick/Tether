@@ -65,7 +65,7 @@ void ULinearMovementComponent::Move(const float DeltaTime) const
 void ULinearMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Move(DeltaTime);
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	// Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 }
 
 

@@ -127,6 +127,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void SetSnapFactor(const float Factor);
 
+	void StartRecovery();
+	void EndRecovery();
+
 	void DragObject(AActor* Target, const FVector Normal);
 
 	void DragObjectRelease();
