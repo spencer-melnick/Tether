@@ -523,6 +523,8 @@ void UPupMovementComponent::Mantle()
 	{
 		if (LineTraceResult.GetComponent() && LineTraceResult.GetComponent()->CanCharacterStepUp(this->GetPawnOwner()))
 		{
+			RenderHitResult(LineTraceResult, FColor::Blue);
+			
 			UPrimitiveComponent* Target = LineTraceResult.GetComponent();
 			const FVector EdgeWallNormal = LineTraceResult.Normal;
 
@@ -544,6 +546,7 @@ void UPupMovementComponent::Mantle()
 				MantleLocation + FVector::UpVector * GrabRangeTop,
 				MantleLocation + FVector::DownVector * GrabRangeBottom,
 				ECollisionChannel::ECC_Pawn, CollisionQueryParams);
+			RenderHitResult(TopLineTraceResult, FColor::Red);
 
 			if (!TopLineTraceResult.bStartPenetrating && TopLineTraceResult.bBlockingHit)
 			{

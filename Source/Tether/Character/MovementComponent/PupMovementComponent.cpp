@@ -193,10 +193,6 @@ float UPupMovementComponent::SubstepMovement(const float DeltaTime)
 		return DeltaTime;
 	}
 	
-	if (bDrawMovementDebug && DrawDebugLayers[TEXT("Velocity")])
-	{
-		DrawDebugDirectionalArrow(GetWorld(), UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentLocation() + Movement, 1.0f,  FColor::Green, false, 1.0f, -1, 0.5f);
-	}
 
 	// Sweep before attempting to move?
 	FHitResult HitResult;
@@ -205,10 +201,6 @@ float UPupMovementComponent::SubstepMovement(const float DeltaTime)
 	{
 		// Calculate the necessary adjustment to get out of whatever object we're in
 		const FVector Adjustment = GetPenetrationAdjustment(HitResult);
-		if (bDrawMovementDebug && DrawDebugLayers[TEXT("Adjustments")])
-		{
-			DrawDebugDirectionalArrow(GetWorld(), UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentLocation() + Adjustment, 1.0f,  FColor::Yellow, false, 1.0f, -1, 0.5f);
-		}
 		UpdatedComponent->AddWorldOffset(Adjustment, false);
 	}
 	else if (!HitResult.bBlockingHit)
@@ -242,11 +234,6 @@ float UPupMovementComponent::SubstepMovement(const float DeltaTime)
 		const float ImpactVelocityMagnitude = FMath::Min(FVector::DotProduct(HitResult.Normal, RelativeVelocity), 0.f);
 		
 		Velocity -= HitResult.Normal * ImpactVelocityMagnitude;
-		
-		if (bDrawMovementDebug && DrawDebugLayers[TEXT("Adjustments")])
-		{
-			DrawDebugDirectionalArrow(GetWorld(), UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentLocation() - HitResult.Normal * ImpactVelocityMagnitude, 1.0f,  FColor::Red, false, 1.0f, -1, 0.5f);
-		}
 		
 		return HitResult.Time * DeltaTime;
 	}
@@ -372,6 +359,10 @@ void UPupMovementComponent::Push(const FHitResult& HitResult, const FVector Impa
 		Adjustment -= HitResult.PenetrationDepth * Velocity.GetSafeNormal();
 	}
 	// UpdatedComponent->AddWorldOffset(Adjustment);
+	if (MovementMode == EPupMovementMode::M_Anchored)
+	{
+		BreakAnchor();
+	}
 	UpdatedComponent->AddWorldOffset(Normal * 0.1f);
 	PendingPushes = ImpactVelocity;
 }

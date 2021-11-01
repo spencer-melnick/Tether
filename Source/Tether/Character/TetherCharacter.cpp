@@ -132,6 +132,7 @@ float ATetherCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Damag
 	{
 		if (ATetherPrimaryGameState* GameState = Cast<ATetherPrimaryGameState>(World->GetGameState()))
 		{
+			Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 			return GameState->SubtractGlobalHealth(DamageAmount);
 		}
 	}

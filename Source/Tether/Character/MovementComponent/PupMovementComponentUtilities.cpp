@@ -141,29 +141,26 @@ bool UPupMovementComponent::SweepCapsule(const FVector InitialOffset, const FVec
 
 void UPupMovementComponent::RenderHitResult(const FHitResult& HitResult, const FColor Color, const bool bPersistent) const
 {
-	if (bDrawMovementDebug && DrawDebugLayers[TEXT("HitResults")])
+	if (HitResult.GetComponent())
 	{
-		if (HitResult.GetComponent())
-		{
-			DrawDebugDirectionalArrow(GetWorld(), HitResult.ImpactPoint + HitResult.ImpactNormal * 10.0f, HitResult.ImpactPoint, 5.0f, FColor::Black, false, bPersistent ? 0.015f : 2.0f, -1, 0.5f);
+		DrawDebugDirectionalArrow(GetWorld(), HitResult.ImpactPoint + HitResult.ImpactNormal * 10.0f, HitResult.ImpactPoint, 5.0f, FColor::Black, false, bPersistent ? 0.015f : 2.0f, -1, 0.5f);
 
-			DrawDebugLine(GetWorld(),
-				HitResult.TraceStart,
-				HitResult.TraceEnd, Color, false,
-				bPersistent ? 0.015f : 2.0f, -1, 0.5f);
-			DrawDebugPoint(GetWorld(), HitResult.ImpactPoint, 15.0f, Color, false, bPersistent ? 0.015f : 2.0f, -1);
-			DrawDebugString(GetWorld(), HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f,
-				HitResult.GetComponent()->GetName(), nullptr, Color, 0.015f, false, 1.0f);
-		}
-		else
-		{
-			DrawDebugLine(GetWorld(),
-				HitResult.TraceStart,
-				HitResult.TraceEnd, Color, false,
-				bPersistent ? 0.015f : 2.0f, -1, 0.5f);
-			DrawDebugString(GetWorld(), HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f,
-			TEXT("X"), nullptr, Color, bPersistent ? 0.015f : 2.0f, false, 1.0f);
-		}
+		DrawDebugLine(GetWorld(),
+			HitResult.TraceStart,
+			HitResult.TraceEnd, Color, false,
+			bPersistent ? 0.015f : 2.0f, -1, 0.5f);
+		DrawDebugPoint(GetWorld(), HitResult.ImpactPoint, 15.0f, Color, false, bPersistent ? 0.015f : 2.0f, -1);
+		DrawDebugString(GetWorld(), HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f,
+			HitResult.GetComponent()->GetName(), nullptr, Color, 0.015f, false, 1.0f);
+	}
+	else
+	{
+		DrawDebugLine(GetWorld(),
+			HitResult.TraceStart,
+			HitResult.TraceEnd, Color, false,
+			bPersistent ? 0.015f : 2.0f, -1, 0.5f);
+		DrawDebugString(GetWorld(), HitResult.ImpactPoint + HitResult.ImpactNormal * 100.0f,
+		TEXT("X"), nullptr, Color, bPersistent ? 0.015f : 2.0f, false, 1.0f);
 	}
 }
 

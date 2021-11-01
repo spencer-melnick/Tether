@@ -96,7 +96,16 @@ void AObstacleSpawner::SpawnRandomObstacle()
 		const int32 ObstacleTypeIndex = FMath::RandRange(0, ObstacleTypes.Num() - 1);
 		const TSubclassOf<AActor> ObstacleType = ObstacleTypes[ObstacleTypeIndex];
 
+		if (!ensure(ObstacleType))
+		{
+			return;
+		}
+
 		AActor* Obstacle = World->SpawnActor<AActor>(ObstacleType, GetActorLocation(), GetActorRotation());
+		if (!IsValid(Obstacle))
+		{
+			return;
+		}
 		Obstacle->SetLifeSpan(50.0f);
 		Obstacle->Tags.Add(TEXT("Obstacle"));
 		Obstacles.Add(Obstacle);

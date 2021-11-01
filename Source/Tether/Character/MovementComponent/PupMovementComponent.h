@@ -612,20 +612,6 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Transient, Category = "Dragging")
 	FVector DraggingFaceNormal;
-
-
-	
-	/**
-	* Should we draw additional debug information?
-	* Renders almost every trace and penetration.
-	* This should only be enabled if the movement is behaving in
-	* an unusual manner or being stuck on level geometry.
-	**/
-	UPROPERTY(Transient, EditAnywhere, Category = "Debug")
-	bool bDrawMovementDebug = false;
-
-	UPROPERTY(Transient, EditAnywhere, Category = "Debug", meta = (EditCondition = "bDrawMovementDebug"))
-	TMap<FString, bool> DrawDebugLayers;
 	
 	
 private:
