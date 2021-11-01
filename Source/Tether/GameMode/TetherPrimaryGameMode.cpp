@@ -28,6 +28,11 @@ ATetherPrimaryGameMode::ATetherPrimaryGameMode()
 
 void ATetherPrimaryGameMode::Tick(float DeltaSeconds)
 {
+	if (BeamController->AreBeamsConnected())
+	{
+		ATetherPrimaryGameState* State = Cast<ATetherPrimaryGameState>(GameState);
+		State->AddGlobalHealth(HealPerSecond * DeltaSeconds);
+	}
 	Super::Tick(DeltaSeconds);
 }
 
@@ -41,7 +46,7 @@ void ATetherPrimaryGameMode::StartPlay()
 			FActorSpawnParameters SpawnParameters;
 			SpawnParameters.Owner = this;
 			SpawnParameters.ObjectFlags |= RF_Transient;
-			
+
 			BeamController = World->SpawnActor<ABeamController>(BeamControllerClass,
 				FVector::ZeroVector, FRotator::ZeroRotator,
 				SpawnParameters);

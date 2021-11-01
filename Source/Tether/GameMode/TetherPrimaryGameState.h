@@ -50,6 +50,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 	float SubtractGlobalHealth(const float DamageAmount);
 
+	UFUNCTION(BlueprintCallable)
+	float AddGlobalHealth(const float HealAmount);
+
 	// Accessors
 
 	UFUNCTION(BlueprintPure)
@@ -115,5 +118,8 @@ private:
 	/** Overall health pool of all players in the current game*/
 	UPROPERTY(VisibleAnywhere, ReplicatedUsing = OnRep_GlobalHealth)
 	float GlobalHealth = 100.f;
+
+	UPROPERTY(EditDefaultsOnly)
+	float MaxGlobalHealth = 100.f;
 	
 };

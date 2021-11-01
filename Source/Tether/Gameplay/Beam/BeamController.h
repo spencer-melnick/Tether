@@ -138,6 +138,9 @@ public:
 	/** How long in seconds after deactivation beam FX actors are despawned */
 	UPROPERTY(EditDefaultsOnly)
 	float BeamFXActorTimeout;
+
+	UPROPERTY(EditAnywhere)
+	float BeamDamage = 10.0f;
 	
 
 private:
@@ -157,7 +160,10 @@ private:
 	void TraverseBeams(float DeltaTime);
 
 	/** Build an array of connected beam nodes from all active tracked targets */
-	TArray<FBeamNode> BuildInitialNodes();
+	TArray<FBeamNode> BuildInitialNodes(const float DeltaTime) const;
+
+	bool NotifyLineTrace(const float DeltaTime, const FVector& StartLocation, const FVector& EndLocation, const ECollisionChannel
+	                     CollisionChannel) const;
 
 	/** Returns the path from the starting node to the nearest connected node as index pairs */
 	void FindLinkedNodes(const TArray<FBeamNode>& BeamNodes, int32 StartingIndex, TArray<TPair<int32, int32>>& OutPath, TSet<int32>& OutEndIndices);

@@ -151,6 +151,7 @@ void ATetherCharacter::Suspend()
 	MovementComponent->SetComponentTickEnabled(false);
 	MovementComponent->PauseTimers();
 	SkeletalMeshComponent->bPauseAnims = true;
+	bSuspended = true;
 }
 
 void ATetherCharacter::Unsuspend()
@@ -158,6 +159,7 @@ void ATetherCharacter::Unsuspend()
 	MovementComponent->SetComponentTickEnabled(true);
 	MovementComponent->UnPauseTimers();
 	SkeletalMeshComponent->bPauseAnims = false;
+	bSuspended = false;
 }
 
 void ATetherCharacter::CacheInitialState()
@@ -169,6 +171,7 @@ void ATetherCharacter::Reload()
 {
 	MovementComponent->ResetState(&InitialState);
 	CameraComponent->ResetLocation();
+	BeamComponent->SetMode(EBeamComponentMode::Required | EBeamComponentMode::Connectable);
 }
 
 
@@ -205,13 +208,19 @@ void ATetherCharacter::MoveY(const float Scale)
 
 void ATetherCharacter::RotateX(const float Scale)
 {
-	CameraComponent->AddCameraRotation(FRotator(0.0f, Scale, 0.0f));
+	if (!IsSuspended())
+	{
+		CameraComponent->AddCameraRotation(FRotator(0.0f, Scale, 0.0f));
+	}
 }
 
 
 void ATetherCharacter::RotateY(const float Scale)
 {
-	CameraComponent->AddCameraRotation(FRotator(Scale, 0.0f, 0.0f));
+	if (!IsSuspended())
+	{
+		CameraComponent->AddCameraRotation(FRotator(Scale, 0.0f, 0.0f));
+	}
 }
 
 

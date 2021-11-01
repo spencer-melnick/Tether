@@ -56,6 +56,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Health", meta=(ClampMin="0.0"))
 	float DamagePerSecond;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Health", meta=(ClampMin="0.0"))
+	float HealPerSecond;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Beam")
 	TSubclassOf<ABeamController> BeamControllerClass;
 

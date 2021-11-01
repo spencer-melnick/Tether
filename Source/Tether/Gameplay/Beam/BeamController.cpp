@@ -3,6 +3,9 @@
 #include "BeamController.h"
 #include "BeamComponent.h"
 #include "DrawDebugHelpers.h"
+#include "Chaos/AABB.h"
+#include "Chaos/AABB.h"
+#include "Tether/Tether.h"
 #include "Tether/FX/BeamFXActor.h"
 #include "Util/IndexPriorityQueue.h"
 
@@ -46,7 +49,7 @@ void ABeamController::BeginPlay()
 	Super::BeginPlay();
 }
 
-void ABeamController::Tick(float DeltaSeconds)
+void ABeamController::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	
@@ -86,14 +89,17 @@ void ABeamController::HandleTargetDestroyed(UBeamComponent* Target)
 	RemoveBeamTarget(Target);
 }
 
+
+// This function is unimplemented, so it doesn't matter wether or not it's static...
+// ReSharper disable once CppMemberFunctionMayBeStatic
 void ABeamController::HandleTargetModeChanged(UBeamComponent* Target, EBeamComponentMode OldMode, EBeamComponentMode NewMode)
 {
 	// Do something
 }
 
-void ABeamController::TraverseBeams(float DeltaTime)
+void ABeamController::TraverseBeams(const float DeltaTime)
 {
-	TArray<FBeamNode> BeamNodes = BuildInitialNodes();
+	TArray<FBeamNode> BeamNodes = BuildInitialNodes(DeltaTime);
 
 	if (BeamNodes.Num() < 2)
 	{
@@ -116,11 +122,11 @@ void ABeamController::TraverseBeams(float DeltaTime)
 	}
 
 	TArray<TPair<int32, int32>> PathIndices;
-	TSet<int32> EndIndices;
 	bool bAllNodesLinked = true;
 	
 	for (int32 RequiredNodeIndex : RequiredNodeIndices)
 	{
+		TSet<int32> EndIndices;
 		if (EndIndices.Contains(RequiredNodeIndex))
 		{
 			continue;
@@ -156,12 +162,13 @@ void ABeamController::TraverseBeams(float DeltaTime)
 			}
 		}
 	}
+	bBeamsConnected = bAllNodesLinked;
 
 	UpdateBeamFX(BeamEdges);
 }
 
 
-TArray<ABeamController::FBeamNode> ABeamController::BuildInitialNodes()
+TArray<ABeamController::FBeamNode> ABeamController::BuildInitialNodes(const float DeltaTime) const
 {
 	static const auto FilterLambda = [](const UBeamComponent* Target)
 	{
@@ -220,7 +227,7 @@ TArray<ABeamController::FBeamNode> ABeamController::BuildInitialNodes()
 				const float RealDistance = FVector::Distance(StartLocation, EndLocation);
 				const float PendingDistance = CalculateWeightedDistance(StartLocation, EndLocation);
 
-				if ((MaxNodeDistance < 0.f || RealDistance < MaxNodeDistance) && !World->LineTraceTestByChannel(StartLocation, EndLocation, BeamTraceChannel))
+				if ((MaxNodeDistance < 0.f || RealDistance < MaxNodeDistance) && !NotifyLineTrace(DeltaTime, StartLocation, EndLocation, BeamTraceChannel))
 				{
 					NodeDistance = PendingDistance;
 				}
@@ -232,6 +239,23 @@ TArray<ABeamController::FBeamNode> ABeamController::BuildInitialNodes()
 	}
 
 	return BeamNodes;
+}
+
+
+bool ABeamController::NotifyLineTrace(const float DeltaTime, const FVector& StartLocation, const FVector& EndLocation,	const ECollisionChannel CollisionChannel) const
+{
+	TArray<FHitResult> LineTraceResults;
+	const bool Result = GetWorld()->LineTraceMultiByChannel(LineTraceResults, StartLocation, EndLocation, CollisionChannel);
+	for (FHitResult HitResult : LineTraceResults)
+	{
+		if (!HitResult.bBlockingHit && HitResult.GetActor())
+		{
+			const FDamageEvent DamageEvent;
+			HitResult.GetActor()->TakeDamage(BeamDamage * DeltaTime, DamageEvent, GetWorld()->GetFirstPlayerController(), GetWorld()->GetFirstPlayerController()->GetPawn());
+		}
+	}
+
+	return Result;
 }
 
 
@@ -370,7 +394,7 @@ ABeamFXActor* ABeamController::AcquireBeamFXActor()
 	UWorld* World = GetWorld();
 	if (ensure(World))
 	{
-		ABeamFXActor* NewFXActor = nullptr;
+		ABeamFXActor* NewFXActor;
 
 		if (InactiveFXActors.Num() > 0)
 		{

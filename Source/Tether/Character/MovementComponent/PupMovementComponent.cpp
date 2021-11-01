@@ -44,12 +44,7 @@ namespace PupMovementCVars
 
 
 UPupMovementComponent::UPupMovementComponent()
-{
-	DrawDebugLayers.Add(TEXT("Velocity"), false);
-	DrawDebugLayers.Add(TEXT("Adjustments"), false);
-	DrawDebugLayers.Add(TEXT("HitResults"), false);
-	DrawDebugLayers.Add(TEXT("MantleHitResults"), false);
-}
+{}
 
 UPupMovementComponent::UPupMovementComponent(const FObjectInitializer& ObjectInitializer)
 {

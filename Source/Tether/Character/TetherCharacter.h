@@ -133,6 +133,8 @@ public:
 	void DragObject(AActor* Target, const FVector Normal);
 
 	void DragObjectRelease();
+
+	bool IsSuspended() const { return bSuspended; }
 	
 	// Events
 
@@ -174,6 +176,8 @@ private:
 	// Animation tracking
 	
 	bool bAlive = true;
+
+	bool bSuspended = false;
 
 	// Interaction Handling
 

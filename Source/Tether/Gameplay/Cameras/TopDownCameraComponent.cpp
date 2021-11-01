@@ -86,7 +86,8 @@ void UTopDownCameraComponent::AddCameraRotation(const FRotator Rotator)
 FVector UTopDownCameraComponent::CalcDeltaLocation(const float DeltaTime)
 {
 	SubjectLocation = Subject->GetActorLocation() + Subject->EyeHeight * FVector::UpVector;
-	DesiredFocalPoint =  SubjectLocation + (Subject->GetVelocity() * TrackAnticipationTime).GetClampedToMaxSize(MaxAnticipation);
+	const FVector Velocity = Subject->IsSuspended() ? FVector::ZeroVector : Subject->GetVelocity();
+	DesiredFocalPoint =  SubjectLocation + (Velocity * TrackAnticipationTime).GetClampedToMaxSize(MaxAnticipation);
 	FocalPoint = FMath::VInterpTo(FocalPoint, DesiredFocalPoint, DeltaTime, TrackingSpeed);
 
 	return FocalPoint + GetWorldOffset();
@@ -107,6 +108,11 @@ FRotator UTopDownCameraComponent::CalcDeltaRotation(const float DeltaTime)
 
 	RotationalVelocity.Yaw *= XSensitivity * (bInvertCameraX ? -1 : 1);
 	RotationalVelocity.Pitch *= YSensitivity * (bInvertCameraY ? 1 : -1);
+
+	if (Subject->IsSuspended())
+	{
+		RotationalVelocity = FRotator::ZeroRotator;
+	}
 	
 	NewRotation += RotationalVelocity * DeltaTime;
 

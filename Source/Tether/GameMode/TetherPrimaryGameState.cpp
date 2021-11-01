@@ -115,6 +115,23 @@ float ATetherPrimaryGameState::SubtractGlobalHealth(const float DamageAmount)
 }
 
 
+float ATetherPrimaryGameState::AddGlobalHealth(const float HealAmount)
+{
+	if (GamePhase == ETetherGamePhase::Playing)
+	{
+		if (HealAmount + GlobalHealth > MaxGlobalHealth)
+		{
+			const float LastHealth = GlobalHealth;
+			SetGlobalHealth(MaxGlobalHealth);
+			return MaxGlobalHealth - LastHealth;
+		}
+		SetGlobalHealth(GlobalHealth + HealAmount);
+		return HealAmount;
+	}
+	return 0.0f;
+}
+
+
 float ATetherPrimaryGameState::GetTimeInCurrentPhase() const
 {
 	const UWorld* World = GetWorld();

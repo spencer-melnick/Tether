@@ -23,6 +23,8 @@ void UFollowerMovementComponent::TickComponent(float DeltaTime, ELevelTick TickT
 		UpdateComponentVelocity();
 		const FVector Movement = Velocity * DeltaTime;
 
+		UpdatedComponent->AddWorldOffset(Movement);
+		
 		if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(GetOwner()->GetComponentByClass(UPrimitiveComponent::StaticClass())))
 		{
 			TArray<FHitResult> HitResults;
@@ -32,6 +34,5 @@ void UFollowerMovementComponent::TickComponent(float DeltaTime, ELevelTick TickT
 				PrimitiveComponent->DispatchBlockingHit(*GetOwner(), HitResult);
 			}
 		}
-		UpdatedComponent->AddWorldOffset(Movement);
 	}
 }
