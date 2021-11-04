@@ -616,7 +616,7 @@ public:
 	
 private:
 
-	UPROPERTY(EditDefaultsOnly, Category = "Speed")
+	UPROPERTY(VisibleAnywhere, Category = "Speed")
 	EPupMovementMode MovementMode = EPupMovementMode::M_Falling;	
 
 	bool bSupressingInput = false;

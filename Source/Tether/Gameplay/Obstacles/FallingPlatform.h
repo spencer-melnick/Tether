@@ -4,10 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Tether/Core/Suspendable.h"
+
 #include "FallingPlatform.generated.h"
 
 UCLASS()
-class TETHER_API AFallingPlatform : public AActor
+class TETHER_API AFallingPlatform : public AActor, public ISuspendable
 {
 	GENERATED_BODY()
 	
@@ -19,10 +21,54 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	virtual void NotifyHit(UPrimitiveComponent* MyComp, AActor* Other, UPrimitiveComponent* OtherComp, bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse, const FHitResult& Hit) override;
 
+	virtual void Suspend() override;
+	virtual void Unsuspend() override;
+	virtual void CacheInitialState() override;
+	virtual void Reload() override;
+
+	UFUNCTION(BlueprintImplementableEvent)
+	void StartShaking();
+
+	UFUNCTION(BlueprintCallable)
+	bool GetIsShaking() const { return bIsShaking; }
+		
 private:
-	UPROPERTY()
-	TArray<UStaticMeshComponent*> UpdatedComponents;
+	void Destabilize();
+	
+	void BeginFalling();
+
+	void Despawn();
+
+public:
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Falling")
+	FVector Velocity;
+
+	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly, Category = "Falling|Timing")
+	float FallTime = 5.0f;
+
+	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly, Category = "Falling")
+	bool bRespawn = true;
+	
+	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly, Category = "Falling|Timing")
+	float RespawnTime = 5.0f;
+
+	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly, Category = "Falling|Timing")
+	float ShakeTime = 5.0f;
 	
 private:
-	void BeginFalling();
+	UPROPERTY()
+	TArray<UPrimitiveComponent*> UpdatedComponents;
+
+	UPROPERTY()
+	bool bIsFalling = false;
+
+	UPROPERTY()
+	bool bIsShaking = false;
+
+	bool bIsSuspended = false;
+	
+	FTimerHandle FallTimerHandle;
+
+	FVector InitialLocation;
+	FRotator InitialRotation;
 };

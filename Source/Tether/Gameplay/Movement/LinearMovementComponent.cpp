@@ -24,8 +24,16 @@ void ULinearMovementComponent::BeginPlay()
 	Direction = GetOwner()->GetActorRotation();
 
 	AActor* Parent = GetOwner();
-	UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Parent->GetComponentByClass(UPrimitiveComponent::StaticClass()));
-	PrimitiveComponent->ComponentVelocity = Velocity;	
+	for (UActorComponent* Component : Parent->GetComponents())
+	{
+		if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Component))
+		{
+			if (PrimitiveComponent->GetCollisionProfileName() != TEXT("NoCollision"))
+			{
+				UpdatedComponents.Add(PrimitiveComponent);
+			}
+		}
+	}
 }
 
 void ULinearMovementComponent::Move(const float DeltaTime) const
@@ -35,28 +43,30 @@ void ULinearMovementComponent::Move(const float DeltaTime) const
 	{
 		return;
 	}
-	UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Parent->GetComponentByClass(UPrimitiveComponent::StaticClass()));
-	if (!PrimitiveComponent)
-	{
-		return;
-	}
 	if (UWorld* World = GetWorld())
 	{
-		const FVector NewLocation = PrimitiveComponent->GetComponentLocation() + Direction.RotateVector(Velocity) * DeltaTime;
-		TArray<FHitResult> Results;
-
-		const bool bBlockingHitFound = World->SweepMultiByProfile(Results, PrimitiveComponent->GetComponentLocation(), NewLocation, PrimitiveComponent->GetComponentQuat(), PrimitiveComponent->GetCollisionProfileName(), PrimitiveComponent->GetCollisionShape());
-		if (bBlockingHitFound)
+		for (UPrimitiveComponent* PrimitiveComponent : UpdatedComponents)
 		{
-			for (FHitResult HitResult : Results)
+			if (!IsValid(PrimitiveComponent))
 			{
-				if (ATetherCharacter* Character = Cast<ATetherCharacter>(HitResult.GetActor()))
+				continue;
+			}
+			const FVector NewLocation = PrimitiveComponent->GetComponentLocation() + Direction.RotateVector(Velocity) * DeltaTime;
+			TArray<FHitResult> Results;
+
+			const bool bBlockingHitFound = World->SweepMultiByProfile(Results, PrimitiveComponent->GetComponentLocation(), NewLocation, PrimitiveComponent->GetComponentQuat(), PrimitiveComponent->GetCollisionProfileName(), PrimitiveComponent->GetCollisionShape());
+			if (bBlockingHitFound)
+			{
+				for (FHitResult HitResult : Results)
 				{
-					Character->MovementComponent->Push(HitResult, PrimitiveComponent->GetComponentRotation().RotateVector(Velocity), PrimitiveComponent);
+					if (ATetherCharacter* Character = Cast<ATetherCharacter>(HitResult.GetActor()))
+					{
+						Character->MovementComponent->Push(HitResult, PrimitiveComponent->GetComponentRotation().RotateVector(Velocity), PrimitiveComponent);
+					}
 				}
 			}
+			PrimitiveComponent->SetWorldLocation(NewLocation, false);
 		}
-		Parent->SetActorLocation(NewLocation, false);
 	}
 }
 
@@ -85,10 +95,12 @@ void ULinearMovementComponent::PostEditChangeProperty(FPropertyChangedEvent& Pro
 	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_STRING_CHECKED(ULinearMovementComponent, Velocity))
 	{
 		AActor* Parent = GetOwner();
-		UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(Parent->GetComponentByClass(UPrimitiveComponent::StaticClass()));
-		if (PrimitiveComponent)
+		for (UPrimitiveComponent* PrimitiveComponent : UpdatedComponents)
 		{
-			PrimitiveComponent->ComponentVelocity = Velocity;
+			if (PrimitiveComponent)
+			{
+				PrimitiveComponent->ComponentVelocity = Velocity;
+			}
 		}
 	}
 	Super::PostEditChangeProperty(PropertyChangedEvent);

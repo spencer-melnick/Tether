@@ -344,7 +344,8 @@ void UPupMovementComponent::Recover()
 	{
 		PrimitiveComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
-	
+
+	bGrounded = false;
 	bAttachedToBasis = false;
 	BasisComponent = nullptr;
 	
@@ -611,6 +612,13 @@ void UPupMovementComponent::Mantle()
 
 						BasisComponent = Target;
 						SetMovementMode(EPupMovementMode::M_Anchored);
+
+						FHitResult DispatchHitResult = TopLineTraceResult;
+						DispatchHitResult.Component = Cast<UPrimitiveComponent>(UpdatedComponent);
+						DispatchHitResult.Actor = GetPawnOwner();
+						DispatchHitResult.Normal *= -1.0f;
+						TopLineTraceResult.GetComponent()->DispatchBlockingHit(*TopLineTraceResult.GetActor(), DispatchHitResult);
+
 
 						const float Yaw = FMath::RadiansToDegrees(FMath::Atan2(-LineTraceResult.ImpactNormal.Y, -LineTraceResult.ImpactNormal.X));
 						// UpdatedComponent->SetWorldLocation(AnchorWorldLocation);

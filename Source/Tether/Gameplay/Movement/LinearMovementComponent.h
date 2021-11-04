@@ -35,4 +35,8 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Movement")
 	FVector Velocity;
+
+private:
+	UPROPERTY()
+	TArray<UPrimitiveComponent*> UpdatedComponents;
 };

@@ -353,13 +353,13 @@ void UPupMovementComponent::AddImpulse(const FVector Impulse)
 void UPupMovementComponent::Push(const FHitResult& HitResult, const FVector ImpactVelocity, UPrimitiveComponent* Source)
 {
 	const FVector Normal = -HitResult.ImpactNormal;
-	FVector Adjustment = (FVector::DotProduct(HitResult.TraceEnd - HitResult.Location, Normal) + 0.1f) * Normal;
+	FVector Adjustment = FVector::ZeroVector;
 	if (HitResult.bStartPenetrating)
 	{
-		Adjustment -= HitResult.PenetrationDepth * Velocity.GetSafeNormal();
+		Adjustment = HitResult.PenetrationDepth * Velocity.GetSafeNormal();
+		UpdatedComponent->AddWorldOffset(Adjustment);
 	}
-	// UpdatedComponent->AddWorldOffset(Adjustment);
-	if (MovementMode == EPupMovementMode::M_Anchored)
+	if (MovementMode == EPupMovementMode::M_Anchored && Source != BasisComponent)
 	{
 		BreakAnchor();
 	}
@@ -636,7 +636,13 @@ FVector UPupMovementComponent::ApplySlidingFriction(const FVector& VelocityIn, c
 
 void UPupMovementComponent::MagnetToBasis(const float VelocityFactor, const float DeltaTime)
 {
-	if (bAttachedToBasis && BasisComponent && BasisComponent->Mobility == EComponentMobility::Movable)
+	if (bAttachedToBasis && !IsValid(BasisComponent))
+	{
+		BasisComponent = nullptr;
+		bAttachedToBasis = false;
+		return;
+	}
+	if (bAttachedToBasis && BasisComponent->Mobility == EComponentMobility::Movable)
 	{
 		// Where is this local space vector in world space now? How has it moved in world space?
 		const FVector PositionAfterUpdate =
