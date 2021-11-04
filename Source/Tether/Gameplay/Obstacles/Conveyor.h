@@ -26,9 +26,4 @@ public:
 private:
 	UPROPERTY(EditAnywhere)
 	FVector BeltVelocity;
-
-#if WITH_EDITOR
-	UPROPERTY()
-	UArrowComponent* ArrowComponent;
-#endif
 };

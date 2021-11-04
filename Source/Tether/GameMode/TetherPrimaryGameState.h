@@ -53,6 +53,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 	float AddGlobalHealth(const float HealAmount);
 
+	UFUNCTION(BlueprintCallable)
+	void SoftRestart();
+
 	// Accessors
 
 	UFUNCTION(BlueprintPure)
@@ -86,12 +89,17 @@ public:
 
 	UPROPERTY(BlueprintAssignable)
 	FOnGlobalHealthChanged OnGlobalHealthChanged;
-	
+
+	UFUNCTION(BlueprintCallable)
+	void SuspendActors();
+
+	UFUNCTION(BlueprintCallable)
+	void UnsuspendActors();
+
+	UFUNCTION(BlueprintCallable)
+	bool GetIsSuspended() const { return bIsSuspended; }
 
 private:
-
-	void SuspendActors();
-	void UnsuspendActors();
 
 	void CacheActorsInitialState();
 	void ReloadActors();
@@ -121,5 +129,7 @@ private:
 
 	UPROPERTY(EditDefaultsOnly)
 	float MaxGlobalHealth = 100.f;
-	
+
+	UPROPERTY()
+	bool bIsSuspended = false;
 };

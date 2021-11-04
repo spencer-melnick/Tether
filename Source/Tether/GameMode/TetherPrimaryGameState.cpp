@@ -59,13 +59,13 @@ void ATetherPrimaryGameState::SetGamePhase(ETetherGamePhase NewPhase)
 			case ETetherGamePhase::Ending:
 				{
 					SuspendActors();
-					FTimerHandle ResetTimerHandle;
+					/* FTimerHandle ResetTimerHandle;
 					GetWorld()->GetTimerManager().SetTimer(ResetTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
 					{
 						SetGlobalHealth(100.0f);
 						ReloadActors();
 						SetGamePhase(ETetherGamePhase::Playing);						
-					}), 10.0f, false);
+					}), 10.0f, false); */
 					break;
 				}
 			default:
@@ -74,6 +74,14 @@ void ATetherPrimaryGameState::SetGamePhase(ETetherGamePhase NewPhase)
 				}
 			}
 	}
+}
+
+
+void ATetherPrimaryGameState::SoftRestart()
+{
+	ReloadActors();
+	SetGlobalHealth(MaxGlobalHealth);
+	SetGamePhase(ETetherGamePhase::Playing);
 }
 
 
@@ -211,6 +219,7 @@ void ATetherPrimaryGameState::OnRep_GlobalHealth()
 
 void ATetherPrimaryGameState::SuspendActors()
 {
+	bIsSuspended = true;
 	if (UWorld* World = GetWorld())
 	{
 		for (FActorIterator ActorIterator(World); ActorIterator; ++ActorIterator)
@@ -225,6 +234,7 @@ void ATetherPrimaryGameState::SuspendActors()
 
 void ATetherPrimaryGameState::UnsuspendActors()
 {
+	bIsSuspended = false;
 	if (UWorld* World = GetWorld())
 	{
 		for (FActorIterator ActorIterator(World); ActorIterator; ++ActorIterator)

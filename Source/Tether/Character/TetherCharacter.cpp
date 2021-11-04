@@ -79,6 +79,8 @@ void ATetherCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 
 	PlayerInputComponent->BindAxis(TEXT("RotateX"), this, &ATetherCharacter::RotateX);
 	PlayerInputComponent->BindAxis(TEXT("RotateY"), this, &ATetherCharacter::RotateY);
+
+	PlayerInputComponent->BindAction(TEXT("Pause"), EInputEvent::IE_Released, this, &ATetherCharacter::RequestPause);
 }
 
 
@@ -447,6 +449,12 @@ void ATetherCharacter::OnTetherExpired()
 	{
 		// MovementComponent->SetMovementMode(MOVE_None);
 	}
+}
+
+// ReSharper disable once CppMemberFunctionMayBeConst
+void ATetherCharacter::RequestPause()
+{
+	RequestPauseDelegate.Broadcast();
 }
 
 

@@ -13,16 +13,14 @@
 UProjectileEmitterComponent::UProjectileEmitterComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
-	
-#if WITH_EDITOR
-	UArrowComponent* Direction = CreateEditorOnlyDefaultSubobject<UArrowComponent>(TEXT("Direction"));
+
+	/* UArrowComponent* Direction = CreateEditorOnlyDefaultSubobject<UArrowComponent>(TEXT("Direction"));
 	Direction->SetupAttachment(this);
 	Direction->SetCollisionEnabled(ECollisionEnabled::NoCollision); 
 
 	USphereComponent* Sphere = CreateEditorOnlyDefaultSubobject<USphereComponent>(TEXT("Sphere"));
 	Sphere->SetupAttachment(this);
-	Sphere->SetCollisionEnabled(ECollisionEnabled::NoCollision); 
-#endif
+	Sphere->SetCollisionEnabled(ECollisionEnabled::NoCollision); */
 }
 
 

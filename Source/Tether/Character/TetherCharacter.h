@@ -56,8 +56,11 @@ public:
 	virtual void CacheInitialState() override;
 	virtual void Reload() override;
 
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnPossessedDelegate, AController*)
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnPossessedDelegate, AController*);
 	FOnPossessedDelegate& OnPossessedDelegate() { return PossessedDelegate; }
+
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRequestPauseDelegate);
+	FOnRequestPauseDelegate& OnRequestPauseDelegate() { return RequestPauseDelegate; }
 	
 	// Beam target interface
 
@@ -130,6 +133,8 @@ public:
 	void StartRecovery();
 	void EndRecovery();
 
+	void RequestPause();
+
 	void DragObject(AActor* Target, const FVector Normal);
 
 	void DragObjectRelease();
@@ -172,7 +177,7 @@ private:
 	UFUNCTION()
 	void OnTetherExpired();
 	
-
+	
 	// Animation tracking
 	
 	bool bAlive = true;
@@ -240,6 +245,9 @@ private:
 
 
 	FOnPossessedDelegate PossessedDelegate;
+
+	UPROPERTY(BlueprintAssignable)
+	FOnRequestPauseDelegate RequestPauseDelegate;
 
 	FPupMovementComponentState InitialState;
 };
