@@ -40,6 +40,7 @@ void UProjectileEmitterComponent::TickComponent(float DeltaTime, ELevelTick Tick
 }
 
 
+#if WITH_EDITOR
 void UProjectileEmitterComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -58,6 +59,7 @@ void UProjectileEmitterComponent::PostEditChangeProperty(FPropertyChangedEvent& 
 		}
 	}
 }
+#endif
 
 
 void UProjectileEmitterComponent::FireProjectile()

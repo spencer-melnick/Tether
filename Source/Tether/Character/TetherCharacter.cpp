@@ -10,6 +10,7 @@
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Tether/Controller/TetherPlayerController.h"
 #include "Tether/GameMode/TetherPrimaryGameMode.h"
 #include "Tether/GameMode/TetherPrimaryGameState.h"
 #include "Tether/Gameplay/Cameras/TopDownCameraComponent.h"
@@ -172,6 +173,7 @@ void ATetherCharacter::CacheInitialState()
 
 void ATetherCharacter::Reload()
 {
+	EndRecovery();
 	MovementComponent->ResetState(&InitialState);
 	CameraComponent->ResetLocation();
 	BeamComponent->SetMode(EBeamComponentMode::Required | EBeamComponentMode::Connectable);
@@ -419,13 +421,20 @@ void ATetherCharacter::SetSnapFactor(const float Factor)
 void ATetherCharacter::StartRecovery()
 {
 	const FDamageEvent DamageEvent;
+
+	Cast<ATetherPlayerController>(GetController())->StartRecover();
 	TakeDamage(20.0f, DamageEvent, GetController(), this);
 	BeamComponent->SetMode(EBeamComponentMode::None);
 }
 
 void ATetherCharacter::EndRecovery()
 {
+	CameraComponent->ResetLocation();
+	
+	Cast<ATetherPlayerController>(GetController())->EndRecover();
 	BeamComponent->SetMode(EBeamComponentMode::Required | EBeamComponentMode::Connectable);
+
+	Respawn();
 }
 
 

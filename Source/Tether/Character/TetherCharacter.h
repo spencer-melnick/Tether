@@ -100,6 +100,8 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void DeflectSimple(const FVector Velocity, float DeflectTime);
 
+	UFUNCTION(BlueprintImplementableEvent)
+	void Respawn();
 
 	// Accessors
 

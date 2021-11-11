@@ -13,10 +13,12 @@ void UConveyorComponent::OnUpdateTransform(EUpdateTransformFlags UpdateTransform
 	Super::OnUpdateTransform(UpdateTransformFlags, Teleport);
 }
 
+#if WITH_EDITOR
 void UConveyorComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
+#endif
 
 // Called when the game starts or when spawned
 void UConveyorComponent::BeginPlay()

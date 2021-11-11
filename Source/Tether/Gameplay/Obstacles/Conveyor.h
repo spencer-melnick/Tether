@@ -17,7 +17,11 @@ public:
 	UConveyorComponent();
 
 	virtual void OnUpdateTransform(EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport) override;
+
+#if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
+	
 	virtual void BeginPlay() override;
 
 	FVector GetAppliedVelocity() const;

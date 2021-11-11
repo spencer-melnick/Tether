@@ -1,6 +1,5 @@
 #include "PupMovementComponent.h"
 
-#include "AITypes.h"
 #include "DrawDebugHelpers.h"
 #include "../TetherCharacter.h"
 #include "Components/CapsuleComponent.h"

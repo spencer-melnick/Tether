@@ -1,0 +1,26 @@
+// Copyright (c) 2021 Spencer Melnick, Stephen Melnick
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "Laserbeam.generated.h"
+
+UCLASS()
+class TETHER_API ALaserbeam : public AActor
+{
+	GENERATED_BODY()
+	
+public:	
+	// Sets default values for this actor's properties
+	ALaserbeam();
+
+protected:
+	// Called when the game starts or when spawned
+	virtual void BeginPlay() override;
+
+public:	
+	// Called every frame
+	virtual void Tick(float DeltaTime) override;
+
+};

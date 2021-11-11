@@ -23,6 +23,15 @@ public:
 
 	virtual void BeginPlay() override;
 
+	UFUNCTION(BlueprintImplementableEvent)
+	void StartRecover();
+
+	UFUNCTION(BlueprintImplementableEvent)
+	void EndRecover();
+
+	UFUNCTION(BlueprintCallable)
+	UUserWidget* GetFadeWidget() const { return FadeWidget; }
+
 	// Accessors
 	const TArray<TSubclassOf<UUserWidget>>& GetPlayerWidgetClasses() const { return PlayerWidgetClasses; }
 
@@ -37,10 +46,16 @@ private:
 
 	// HUD tracking
 	bool bSpawnedHUDWidgets = false;
+
+	UPROPERTY()
+	UUserWidget* FadeWidget;
 	
 	// Editor properties
 
 	/** Widgets to be spawned on this player controller regardless of game mode */
 	UPROPERTY(EditDefaultsOnly, Category="HUD")
 	TArray<TSubclassOf<UUserWidget>> PlayerWidgetClasses;
+
+	UPROPERTY(EditDefaultsOnly, Category="HUD")
+	TSubclassOf<UUserWidget> FadeWidgetClass;
 };

@@ -79,6 +79,7 @@ void UPupMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 }
 
 
+#if WITH_EDITOR
 void UPupMovementComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -95,6 +96,7 @@ void UPupMovementComponent::PostEditChangeProperty(FPropertyChangedEvent& Proper
 		HoldJumpAcceleration = MaxJumpTime <= 0.0f ? 0.0f : (ApexVelocity - JumpInitialVelocity) / MaxJumpTime;
 	}
 }
+#endif
 
 
 float UPupMovementComponent::GetMaxSpeed() const
@@ -592,7 +594,7 @@ FVector UPupMovementComponent::GetNewVelocity(const float DeltaTime)
 		}
 	case EPupMovementMode::M_Recover:
 		{
-			return Velocity;
+			return Velocity + (GetGravityZ() * DeltaTime) * FVector::UpVector;
 		}
 	case EPupMovementMode::M_Dragging:
 		{

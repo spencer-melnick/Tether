@@ -21,7 +21,9 @@ public:
 	void SetVelocity(const FVector& InVelocity);
 	void SetVelocity(const float& InVelocity);
 
+#if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 	
 protected:
 	virtual void BeginPlay() override;

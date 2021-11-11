@@ -90,6 +90,8 @@ void ULinearMovementComponent::SetVelocity(const float& InVelocity)
 	Velocity = FVector(InVelocity, 0, 0);
 }
 
+
+#if WITH_EDITOR
 void ULinearMovementComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_STRING_CHECKED(ULinearMovementComponent, Velocity))
@@ -105,5 +107,4 @@ void ULinearMovementComponent::PostEditChangeProperty(FPropertyChangedEvent& Pro
 	}
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
-
-
+#endif

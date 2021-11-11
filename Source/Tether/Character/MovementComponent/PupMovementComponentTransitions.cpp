@@ -1,6 +1,5 @@
 #include "PupMovementComponent.h"
 
-#include "AITypes.h"
 #include "DrawDebugHelpers.h"
 #include "../TetherCharacter.h"
 #include "Components/CapsuleComponent.h"
@@ -349,10 +348,10 @@ void UPupMovementComponent::Recover()
 	bAttachedToBasis = false;
 	BasisComponent = nullptr;
 	
-	const FVector RecoveryLocation = LastValidLocation + (RecoveryLevitationHeight * UpdatedComponent->GetUpVector());
-	const float GravityDelta = GetGravityZ() * RecoveryTime;
-	FVector RecoveryVelocity = (RecoveryLocation - UpdatedComponent->GetComponentLocation()) / RecoveryTime;
-	Velocity = RecoveryVelocity;
+	// const FVector RecoveryLocation = LastValidLocation + (RecoveryLevitationHeight * UpdatedComponent->GetUpVector());
+	// const float GravityDelta = GetGravityZ() * RecoveryTime;
+	// FVector RecoveryVelocity = (RecoveryLocation - UpdatedComponent->GetComponentLocation()) / RecoveryTime;
+	// Velocity = RecoveryVelocity;
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().SetTimer(RecoveryTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
@@ -365,10 +364,6 @@ void UPupMovementComponent::Recover()
 
 void UPupMovementComponent::EndRecovery()
 {
-	if (ATetherCharacter* TetherCharacter = Cast<ATetherCharacter>(GetOwner()))
-	{
-		TetherCharacter->EndRecovery();
-	}
 	if (MovementMode == EPupMovementMode::M_Recover)
 	{
 		if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(UpdatedComponent))
@@ -381,6 +376,10 @@ void UPupMovementComponent::EndRecovery()
 		BasisPositionLastTick = UpdatedComponent->GetComponentLocation();
 		ClearImpulse();
 		SetDefaultMovementMode();
+	}
+	if (ATetherCharacter* TetherCharacter = Cast<ATetherCharacter>(GetOwner()))
+	{
+		TetherCharacter->EndRecovery();
 	}
 }
 
