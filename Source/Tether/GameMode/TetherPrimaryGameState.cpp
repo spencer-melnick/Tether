@@ -139,6 +139,16 @@ float ATetherPrimaryGameState::AddGlobalHealth(const float HealAmount)
 	return 0.0f;
 }
 
+void ATetherPrimaryGameState::AddScore(const int Points)
+{
+	Score += Points;
+}
+
+int ATetherPrimaryGameState::GetScore()
+{
+	return Score;
+}
+
 
 float ATetherPrimaryGameState::GetTimeInCurrentPhase() const
 {

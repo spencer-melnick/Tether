@@ -54,6 +54,12 @@ public:
 	float AddGlobalHealth(const float HealAmount);
 
 	UFUNCTION(BlueprintCallable)
+	void AddScore(const int Points);
+
+	UFUNCTION(BlueprintCallable)
+	int GetScore();
+	
+	UFUNCTION(BlueprintCallable)
 	void SoftRestart();
 
 	// Accessors
@@ -129,6 +135,9 @@ private:
 
 	UPROPERTY(EditDefaultsOnly)
 	float MaxGlobalHealth = 100.f;
+
+    UPROPERTY(EditAnywhere)
+    int Score = 0;
 
 	UPROPERTY()
 	bool bIsSuspended = false;
