@@ -129,6 +129,9 @@ public:
 	UFUNCTION(BlueprintImplementableEvent)
 	void OnJump();
 
+	UFUNCTION(BlueprintImplementableEvent)
+	void OnProximityDeflect();
+
 	UFUNCTION(BlueprintCallable)
 	void SetSnapFactor(const float Factor);
 
@@ -166,6 +169,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Deflection")
 	float MaxLaunchSpeed = 500.f;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, Category = "Deflection")
+	float DistanceToClosestPlayer;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, Category = "Deflection")
+	FVector DirectionToClosestPlayer;
+	
 	// Interaction settings
 
 	/** Trace channel to use when checking for interactive objects */

@@ -119,10 +119,17 @@ void ATetherCharacter::Tick(float DeltaSeconds)
 		if (ATetherCharacter* Character = Cast<ATetherCharacter>(State->GetClosestCharacterPawn(GetActorLocation(), this)))
 		{
 			const FVector Dist = Character->GetActorLocation() - GetActorLocation();
-			if (Dist.Size() <= 100.0f)
+			DistanceToClosestPlayer = Dist.Size();
+			DirectionToClosestPlayer = Dist.GetSafeNormal();
+			if (DistanceToClosestPlayer <= 100.0f)
 			{
-				DeflectSimple(Dist.GetSafeNormal() * -500.0f, 2.0f);
+				OnProximityDeflect();
+				DeflectSimple(DirectionToClosestPlayer * -500.0f, 2.0f);
 			}
+		}
+		else
+		{
+			DistanceToClosestPlayer = 10000.0f;
 		}
 	}
 }
