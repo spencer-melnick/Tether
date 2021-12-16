@@ -79,6 +79,8 @@ public:
 	
 	void Interact();
 
+	void Dash();
+
 	/**
 	* Bounce the character off a obstacle.
 	*

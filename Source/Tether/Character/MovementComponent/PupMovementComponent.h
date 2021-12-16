@@ -72,6 +72,8 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void SetDefaultMovementMode();
 
+	UFUNCTION(BlueprintCallable)
+	void SetWorldLocation(const FVector Location);
 
 	/** Grab onto a specific location, preventing the player from falling or moving */
 	UFUNCTION(BlueprintCallable)
@@ -98,6 +100,8 @@ public:
 	/** Try to grab onto a ledge **/
 	void Mantle();
 
+	void Dash();
+	
 	/** Finish climbing up from a ledge **/
 	UFUNCTION(BlueprintCallable)
 	void EndMantleClimb();
@@ -161,6 +165,9 @@ public:
 
 	DECLARE_MULTICAST_DELEGATE(FForceDragReleaseEvent);
 	FForceDragReleaseEvent& OnForceDragReleaseEvent() { return ForceDragReleaseEvent; }
+
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDashEvent, const FVector, DashDirection);
+	FDashEvent& OnDashEvent() { return DashEvent; }
 	
 private:
 
@@ -186,6 +193,8 @@ private:
 	 */
 	void Recover();
 
+	void EndDash();
+	
 	/**
 	 * Timer function to be called when the player has finished their recovery.
 	 * By default, this teleports the player to their last safe location, in case the player
@@ -303,8 +312,20 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Speed|Friction", meta = (ClampMin = 0.0f))
 	float BreakingFriction = 2000.f;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Speed|Dash")
+	float DashSpeed = 400.0f;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Speed|Dash")
+	float DashTime = 0.5f;
 	
+	UPROPERTY(BlueprintReadWrite, VisibleInstanceOnly, Category = "Speed|Dash")
+	FVector DashDirection;
+
+	UPROPERTY(BlueprintReadOnly, VisibleInstanceOnly, Category = "Speed|Dash")
+	bool bCanDash = true;
+
+	UPROPERTY(BlueprintReadOnly, VisibleInstanceOnly, Category = "Speed|Dash")
+	bool bDashing = false;
 
 
 	
@@ -669,6 +690,7 @@ private:
 
 	UPROPERTY(Transient, VisibleInstanceOnly, Category = "Jumping")
 	bool bCanDoubleJump = false;
+
 	
 	FVector PendingAdjustments = FVector::ZeroVector;
 	FVector PendingImpulses = FVector::ZeroVector;
@@ -682,6 +704,7 @@ private:
 	FTimerHandle RecoveryTimerHandle;
 	FTimerHandle MantleTimerHandle;
 	FTimerHandle MantleDebounceTimerHandle;
+	FTimerHandle DashTimerHandle;
 
 	FTimerHandle EdgeScrambleTimerHandle;
 
@@ -698,6 +721,9 @@ private:
 	FMantleEvent MantleEvent;
 
 	FForceDragReleaseEvent ForceDragReleaseEvent;
+
+	UPROPERTY(BlueprintAssignable)
+	FDashEvent DashEvent;
 };
 
 USTRUCT()

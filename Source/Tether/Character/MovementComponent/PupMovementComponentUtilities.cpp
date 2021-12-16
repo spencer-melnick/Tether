@@ -87,8 +87,11 @@ void UPupMovementComponent::SnapToFloor(const FHitResult& FloorHit)
 	FHitResult DispatchHitResult = FHitResult(FloorHit);
 	DispatchHitResult.Component = Cast<UPrimitiveComponent>(UpdatedComponent);
 	DispatchHitResult.Actor = GetPawnOwner();
-				
-	FloorHit.GetComponent()->DispatchBlockingHit(*FloorHit.GetActor(), DispatchHitResult);
+
+	if (DispatchHitResult.IsValidBlockingHit())
+	{
+		FloorHit.GetComponent()->DispatchBlockingHit(*FloorHit.GetActor(), DispatchHitResult);
+	}
 	
 	SafeMoveUpdatedComponent(
 		FloorHit.Location - UpdatedComponent->GetComponentLocation() + FloorHit.Normal * PupMovementCVars::FloorPadding,

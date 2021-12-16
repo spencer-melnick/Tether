@@ -28,6 +28,17 @@ void UPupMovementComponent::SetDefaultMovementMode()
 }
 
 
+void UPupMovementComponent::SetWorldLocation(const FVector Location)
+{
+	UpdatedComponent->SetWorldLocation(Location);
+	SetDefaultMovementMode();
+	if (MovementMode == EPupMovementMode::M_Walking)
+	{
+		StoreBasisTransformPostUpdate();
+	}
+}
+
+
 bool UPupMovementComponent::Jump()
 {
 	if (bSupressingInput || MatchModes(MovementMode, {EPupMovementMode::M_Dragging, EPupMovementMode::M_Recover, EPupMovementMode::M_None}))
@@ -112,7 +123,7 @@ bool UPupMovementComponent::Jump()
 		Velocity.Z = JumpInitialVelocity;
 		UpdatedComponent->SetWorldRotation(DesiredRotation);
 
-		if (bIsWalking)
+		if (bIsWalking && !bDashing)
 		{
 			const float ImpulseStrength = MaxSpeed - Speed;
 			// Apply extra directional velocity
@@ -122,6 +133,9 @@ bool UPupMovementComponent::Jump()
 		JumpAppliedVelocity += JumpInitialVelocity;
 		bCanDoubleJump = false;
 		bJumping = true;
+
+		// Stop dashing no matter what
+		bDashing = false;
 		bWallJumpDisabledControl = false;
 
 		ATetherCharacter* Character = Cast<ATetherCharacter>(GetPawnOwner());
@@ -302,6 +316,7 @@ void UPupMovementComponent::Land(const FVector& FloorLocation, const float Impac
 	bMantling = false;
 	bCanMantle = true;
 	bCanScramble = true;
+	bCanDash = true;
 	
 	if (bDoubleJump)
 	{
@@ -359,6 +374,27 @@ void UPupMovementComponent::Recover()
 			EndRecovery();
 		}), RecoveryTime, false);
 	}
+}
+
+void UPupMovementComponent::Dash()
+{
+	if (!bCanDash)
+	{
+		return;
+	}
+	bCanDash = false;
+	DashDirection = UpdatedComponent->GetForwardVector();
+	bDashing = true;
+	DashEvent.Broadcast(DashDirection);
+	GetWorld()->GetTimerManager().SetTimer(DashTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]
+		{
+			EndDash();
+		}), DashTime, false);
+}
+
+void UPupMovementComponent::EndDash()
+{
+	bDashing = false;
 }
 
 

@@ -78,10 +78,12 @@ void ATetherCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 	PlayerInputComponent->BindAction(TEXT("Grab"), EInputEvent::IE_Pressed, this, &ATetherCharacter::Interact);
 	PlayerInputComponent->BindAction(TEXT("Grab"), EInputEvent::IE_Released, this, &ATetherCharacter::Release);
 
+	PlayerInputComponent->BindAction(TEXT("Dash"), EInputEvent::IE_Released, this, &ATetherCharacter::Dash);
+	
 	PlayerInputComponent->BindAxis(TEXT("RotateX"), this, &ATetherCharacter::RotateX);
 	PlayerInputComponent->BindAxis(TEXT("RotateY"), this, &ATetherCharacter::RotateY);
 
-	PlayerInputComponent->BindAction(TEXT("Pause"), EInputEvent::IE_Released, this, &ATetherCharacter::RequestPause);
+	PlayerInputComponent->BindAction(TEXT("Pause"), EInputEvent::IE_Pressed, this, &ATetherCharacter::RequestPause);
 }
 
 
@@ -301,6 +303,12 @@ void ATetherCharacter::Interact()
 			}
 		}
 	}
+}
+
+
+void ATetherCharacter::Dash()
+{
+	MovementComponent->Dash();
 }
 
 

@@ -507,6 +507,15 @@ FVector UPupMovementComponent::GetNewVelocity(const float DeltaTime)
 			NewVelocity = ClampToPlaneMaxSize(NewVelocity, FloorNormal, MaxSpeed);
 			NewVelocity += ConsumeImpulse();
 
+			if (bDashing)
+			{
+				float const DashValue = FVector::DotProduct(DashDirection, NewVelocity);
+				if (DashValue < DashSpeed)
+				{
+					NewVelocity += DashDirection * (DashSpeed - DashValue);
+				}
+			}
+
 			Speed = NewVelocity.Size();
 			return NewVelocity;
 		}
@@ -547,6 +556,14 @@ FVector UPupMovementComponent::GetNewVelocity(const float DeltaTime)
 					{
 						NewVelocity.Z = FMath::Min(TerminalVelocity, NewVelocity.Z + 2000.0f * DeltaTime);
 					}
+				}
+			}
+			else if (bDashing)
+			{
+				float const DashValue = FVector::DotProduct(DashDirection, NewVelocity);
+				if (DashValue < DashSpeed * AirControlFactor)
+				{
+					NewVelocity += DashDirection * (DashSpeed * AirControlFactor - DashValue);
 				}
 			}
 			
